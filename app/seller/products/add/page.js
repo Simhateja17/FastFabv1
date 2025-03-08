@@ -3,6 +3,8 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/app/context/AuthContext";
+import Image from "next/image";
+import { toast } from "react-hot-toast";
 
 const SIZES = ["XS", "S", "M", "L", "XL"];
 
@@ -10,8 +12,11 @@ export default function AddProduct() {
   const router = useRouter();
   const { seller } = useAuth();
   const [loading, setLoading] = useState(false);
+  const [uploading, setUploading] = useState(false);
   const [error, setError] = useState("");
   const [selectedFiles, setSelectedFiles] = useState([]);
+  const [uploadedImages, setUploadedImages] = useState([]);
+  const [previewImages, setPreviewImages] = useState([]);
   const [formData, setFormData] = useState({
     name: "",
     description: "",
@@ -57,44 +62,96 @@ export default function AddProduct() {
 
   const handleFileChange = (e) => {
     const files = Array.from(e.target.files);
-    setSelectedFiles(files);
+
+    // Validate file size and type
+    const validFiles = files.filter((file) => {
+      // Check file size (10MB limit)
+      if (file.size > 10 * 1024 * 1024) {
+        toast.error(`File ${file.name} is too large (max 10MB)`);
+        return false;
+      }
+
+      // Check file type
+      if (!file.type.startsWith("image/")) {
+        toast.error(`File ${file.name} is not an image`);
+        return false;
+      }
+
+      return true;
+    });
+
+    setSelectedFiles(validFiles);
+
+    // Clean up previous preview URLs to avoid memory leaks
+    previewImages.forEach((url) => URL.revokeObjectURL(url));
+
+    // Create preview URLs for valid files
+    const previews = validFiles.map((file) => URL.createObjectURL(file));
+    setPreviewImages(previews);
   };
 
-  const uploadImages = async (files) => {
-    const uploadPromises = files.map(async (file) => {
+  const uploadImages = async () => {
+    if (selectedFiles.length === 0) return [];
+
+    setUploading(true);
+    try {
+      const token = localStorage.getItem("token");
       const formData = new FormData();
-      formData.append("file", file);
+
+      selectedFiles.forEach((file) => {
+        formData.append("images", file);
+      });
 
       const response = await fetch(
-        `${process.env.NEXT_PUBLIC_API_URL}/api/upload`,
+        `${process.env.NEXT_PUBLIC_API_URL}/api/products/upload-images`,
         {
           method: "POST",
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
           body: formData,
         }
       );
 
       if (!response.ok) {
-        throw new Error("Failed to upload image");
+        const errorData = await response.json();
+        throw new Error(errorData.message || "Failed to upload images");
       }
 
       const data = await response.json();
-      return data.url;
-    });
-
-    return Promise.all(uploadPromises);
+      setUploadedImages(data.imageUrls);
+      return data.imageUrls;
+    } catch (error) {
+      console.error("Error uploading images:", error);
+      toast.error("Failed to upload images: " + error.message);
+      setError("Failed to upload images: " + error.message);
+      return [];
+    } finally {
+      setUploading(false);
+    }
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+
+    if (selectedFiles.length === 0) {
+      toast.error("Please upload at least one image");
+      return;
+    }
+
     setLoading(true);
     setError("");
 
     try {
+      // First upload images
+      const imageUrls = await uploadImages();
+
+      if (imageUrls.length === 0) {
+        throw new Error("Failed to upload images");
+      }
+
       const token = localStorage.getItem("token");
       const sellerId = localStorage.getItem("sellerId");
-
-      // First upload all images
-      const imageUrls = await uploadImages(selectedFiles);
 
       const response = await fetch(
         `${process.env.NEXT_PUBLIC_API_URL}/api/products`,
@@ -120,12 +177,27 @@ export default function AddProduct() {
         throw new Error(data.message || "Failed to add product");
       }
 
+      toast.success("Product added successfully!");
       router.push("/seller/dashboard");
     } catch (error) {
       setError(error.message);
+      toast.error(error.message);
     } finally {
       setLoading(false);
     }
+  };
+
+  const removePreviewImage = (index) => {
+    // Remove the preview image
+    const newPreviews = [...previewImages];
+    URL.revokeObjectURL(newPreviews[index]); // Clean up
+    newPreviews.splice(index, 1);
+    setPreviewImages(newPreviews);
+
+    // Remove the file from selectedFiles
+    const newSelectedFiles = [...selectedFiles];
+    newSelectedFiles.splice(index, 1);
+    setSelectedFiles(newSelectedFiles);
   };
 
   return (
@@ -265,11 +337,40 @@ export default function AddProduct() {
                 </p>
               </div>
             </div>
-            {selectedFiles.length > 0 && (
-              <div className="mt-2">
-                <p className="text-sm text-gray-500">
-                  {selectedFiles.length} files selected
-                </p>
+
+            {/* Image Previews */}
+            {previewImages.length > 0 && (
+              <div className="mt-4 grid grid-cols-3 gap-4">
+                {previewImages.map((preview, index) => (
+                  <div key={index} className="relative">
+                    <div className="relative h-24 w-full overflow-hidden rounded-md">
+                      <Image
+                        src={preview}
+                        alt={`Preview ${index + 1}`}
+                        fill
+                        style={{ objectFit: "cover" }}
+                      />
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => removePreviewImage(index)}
+                      className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1"
+                    >
+                      <svg
+                        xmlns="http://www.w3.org/2000/svg"
+                        className="h-4 w-4"
+                        viewBox="0 0 20 20"
+                        fill="currentColor"
+                      >
+                        <path
+                          fillRule="evenodd"
+                          d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z"
+                          clipRule="evenodd"
+                        />
+                      </svg>
+                    </button>
+                  </div>
+                ))}
               </div>
             )}
           </div>
@@ -286,10 +387,14 @@ export default function AddProduct() {
             </button>
             <button
               type="submit"
-              disabled={loading}
+              disabled={loading || uploading}
               className="px-4 py-2 bg-indigo-600 text-white rounded hover:bg-indigo-700 disabled:opacity-50"
             >
-              {loading ? "Adding..." : "Add Product"}
+              {loading || uploading
+                ? uploading
+                  ? "Uploading..."
+                  : "Adding..."
+                : "Add Product"}
             </button>
           </div>
         </form>
