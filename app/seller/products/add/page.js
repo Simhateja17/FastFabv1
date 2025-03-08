@@ -4,65 +4,36 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/app/context/AuthContext";
 
-const CATEGORIES = ["MEN", "WOMEN"];
-
-const SUBCATEGORIESMEN = [
-  "T-shirts",
-  "Shirts",
-  "Trousers",
-  "Shorts",
-  "Jackets",
-  "Sweatshirts",
-  "Sweaters",
-  "Jeans",
-  "Inner wear",
-];
-
-const SUBCATEGORIESWOMEN = [
-  "Dresses",
-  "Tops",
-  "Jeans",
-  "Trousers",
-  "Skirts",
-  "T-shirts",
-  "Shirts",
-  "Inner wear",
-  "Jackets",
-  "Sweatshirts",
-  "Sweaters",
-];
-
-const SIZES = ["S", "M", "L", "XL", "XXL"];
+const SIZES = ["XS", "S", "M", "L", "XL"];
 
 export default function AddProduct() {
   const router = useRouter();
-  const { seller } = useAuth(); // This is optional based on your setup
+  const { seller } = useAuth();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
-  const [imageUrls, setImageUrls] = useState([""]);
+  const [selectedFiles, setSelectedFiles] = useState([]);
   const [formData, setFormData] = useState({
     name: "",
     description: "",
-    price: "",
-    stock: "",
+    mrpPrice: "",
+    sellingPrice: "",
     category: "",
     subcategory: "",
-    sizes: [],
-    images: [],
+    sizeQuantities: {
+      XS: 0,
+      S: 0,
+      M: 0,
+      L: 0,
+      XL: 0,
+    },
   });
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
-    if (name === "price") {
+    if (name === "mrpPrice" || name === "sellingPrice") {
       // Allow only numbers and one decimal point
       const regex = /^\d*\.?\d{0,2}$/;
       if (regex.test(value) || value === "") {
-        setFormData((prev) => ({ ...prev, [name]: value }));
-      }
-    } else if (name === "stock") {
-      // Allow only positive integers
-      const regex = /^\d*$/;
-      if (regex.test(value)) {
         setFormData((prev) => ({ ...prev, [name]: value }));
       }
     } else {
@@ -70,21 +41,47 @@ export default function AddProduct() {
     }
   };
 
-  const handleImageUrlChange = (index, value) => {
-    const newUrls = [...imageUrls];
-    newUrls[index] = value;
-    setImageUrls(newUrls);
-    setFormData((prev) => ({ ...prev, images: newUrls.filter(Boolean) }));
+  const handleSizeQuantityChange = (size, value) => {
+    // Allow only positive integers
+    const regex = /^\d*$/;
+    if (regex.test(value)) {
+      setFormData((prev) => ({
+        ...prev,
+        sizeQuantities: {
+          ...prev.sizeQuantities,
+          [size]: parseInt(value) || 0,
+        },
+      }));
+    }
   };
 
-  const addImageUrl = () => {
-    setImageUrls([...imageUrls, ""]);
+  const handleFileChange = (e) => {
+    const files = Array.from(e.target.files);
+    setSelectedFiles(files);
   };
 
-  const removeImageUrl = (index) => {
-    const newUrls = imageUrls.filter((_, i) => i !== index);
-    setImageUrls(newUrls.length ? newUrls : [""]); // Keep at least one input
-    setFormData((prev) => ({ ...prev, images: newUrls.filter(Boolean) }));
+  const uploadImages = async (files) => {
+    const uploadPromises = files.map(async (file) => {
+      const formData = new FormData();
+      formData.append("file", file);
+
+      const response = await fetch(
+        `${process.env.NEXT_PUBLIC_API_URL}/api/upload`,
+        {
+          method: "POST",
+          body: formData,
+        }
+      );
+
+      if (!response.ok) {
+        throw new Error("Failed to upload image");
+      }
+
+      const data = await response.json();
+      return data.url;
+    });
+
+    return Promise.all(uploadPromises);
   };
 
   const handleSubmit = async (e) => {
@@ -94,10 +91,13 @@ export default function AddProduct() {
 
     try {
       const token = localStorage.getItem("token");
-      const sellerId = localStorage.getItem("sellerId"); // Ensure we get the sellerId as well
+      const sellerId = localStorage.getItem("sellerId");
+
+      // First upload all images
+      const imageUrls = await uploadImages(selectedFiles);
 
       const response = await fetch(
-        `${process.env.NEXT_PUBLIC_API_URL}/api/products`, // Corrected the API URL as per your request
+        `${process.env.NEXT_PUBLIC_API_URL}/api/products`,
         {
           method: "POST",
           headers: {
@@ -106,12 +106,10 @@ export default function AddProduct() {
           },
           body: JSON.stringify({
             ...formData,
-            sellerId: sellerId, // Ensure the sellerId is included in the request
-            price: parseFloat(formData.price),
-            stock: parseInt(formData.stock),
-            // Ensure subcategory and sizes are correctly added
-            subcategory: formData.subcategory,
-            sizes: Array.isArray(formData.sizes) ? formData.sizes : [formData.sizes],
+            sellerId,
+            mrpPrice: parseFloat(formData.mrpPrice),
+            sellingPrice: parseFloat(formData.sellingPrice),
+            images: imageUrls,
           }),
         }
       );
@@ -131,185 +129,149 @@ export default function AddProduct() {
   };
 
   return (
-    <div className="max-w-2xl mx-auto">
+    <div className="max-w-2xl mx-auto p-6">
       <div className="bg-white rounded-lg shadow-sm p-6">
-        <h1 className="text-2xl font-semibold text-[#8B6E5A] mb-6">Add New Product</h1>
+        <h1 className="text-2xl font-semibold mb-6">Add New Product</h1>
 
         <form onSubmit={handleSubmit} className="space-y-6">
           {/* Product Name */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Product Name</label>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Product Name
+            </label>
             <input
               type="text"
               name="name"
               value={formData.name}
               onChange={handleInputChange}
-              className="w-full p-3 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#8B6E5A]"
+              className="w-full p-3 border border-gray-300 rounded-md"
               required
             />
           </div>
 
           {/* Description */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Description</label>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Product Description
+            </label>
             <textarea
               name="description"
               value={formData.description}
               onChange={handleInputChange}
               rows={4}
-              className="w-full p-3 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#8B6E5A]"
+              className="w-full p-3 border border-gray-300 rounded-md"
               required
             />
           </div>
 
-          {/* Price and Stock */}
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Price (₹)</label>
-              <input
-                type="text"
-                name="price"
-                value={formData.price}
-                onChange={handleInputChange}
-                placeholder="0.00"
-                className="w-full p-3 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#8B6E5A]"
-                required
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Stock</label>
-              <input
-                type="text"
-                name="stock"
-                value={formData.stock}
-                onChange={handleInputChange}
-                placeholder="0"
-                className="w-full p-3 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#8B6E5A]"
-                required
-              />
-            </div>
-          </div>
-
-          {/* Category and Subcategory */}
+          {/* Quantity by Size */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Category</label>
-            <select
-              name="category"
-              value={formData.category}
-              onChange={handleInputChange}
-              className="w-full p-3 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#8B6E5A]"
-              required
-            >
-              <option value="">Select a category</option>
-              {CATEGORIES.map((category) => (
-                <option key={category} value={category}>
-                  {category}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          {/* Subcategory */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Subcategory</label>
-            <select
-              name="subcategory"
-              value={formData.subcategory}
-              onChange={handleInputChange}
-              className="w-full p-3 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#8B6E5A]"
-              required
-            >
-              <option value="">Select a subcategory</option>
-              {formData.category === "MEN"
-                ? SUBCATEGORIESMEN.map((subcategory) => (
-                    <option key={subcategory} value={subcategory}>
-                      {subcategory}
-                    </option>
-                  ))
-                : SUBCATEGORIESWOMEN.map((subcategory) => (
-                    <option key={subcategory} value={subcategory}>
-                      {subcategory}
-                    </option>
-                  ))}
-            </select>
-          </div>
-
-          {/* Sizes */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Sizes</label>
-            <select
-              name="sizes"
-              value={formData.sizes}
-              onChange={handleInputChange}
-              multiple
-              className="w-full p-3 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#8B6E5A]"
-              required
-            >
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Quantity
+            </label>
+            <div className="grid grid-cols-5 gap-4">
               {SIZES.map((size) => (
-                <option key={size} value={size}>
-                  {size}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          {/* Product Images */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Product Images</label>
-            <div className="space-y-3">
-              {imageUrls.map((url, index) => (
-                <div key={index} className="flex gap-2">
+                <div key={size} className="text-center">
+                  <div className="mb-2 inline-block p-2 border border-gray-300 rounded-lg">
+                    {size}
+                  </div>
                   <input
-                    type="url"
-                    value={url}
-                    onChange={(e) => handleImageUrlChange(index, e.target.value)}
-                    placeholder="Enter image URL"
-                    className="flex-1 p-3 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#8B6E5A]"
+                    type="text"
+                    value={formData.sizeQuantities[size]}
+                    onChange={(e) =>
+                      handleSizeQuantityChange(size, e.target.value)
+                    }
+                    className="w-full p-2 border border-gray-300 rounded-md text-center"
+                    placeholder="0"
                   />
-                  <button
-                    type="button"
-                    onClick={() => removeImageUrl(index)}
-                    className="p-3 text-red-600 hover:text-red-800"
-                  >
-                    <svg
-                      xmlns="http://www.w3.org/2000/svg"
-                      fill="none"
-                      viewBox="0 0 24 24"
-                      strokeWidth={1.5}
-                      stroke="currentColor"
-                      className="w-6 h-6"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        d="M6 18L18 6M6 6l12 12"
-                      />
-                    </svg>
-                  </button>
                 </div>
               ))}
-              <button
-                type="button"
-                onClick={addImageUrl}
-                className="text-[#8B6E5A] hover:text-[#7d6351] text-sm flex items-center"
-              >
+            </div>
+          </div>
+
+          {/* Price */}
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                MRP Price
+              </label>
+              <input
+                type="text"
+                name="mrpPrice"
+                value={formData.mrpPrice}
+                onChange={handleInputChange}
+                className="w-full p-3 border border-gray-300 rounded-md"
+                required
+                placeholder="0.00"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Selling Price
+              </label>
+              <input
+                type="text"
+                name="sellingPrice"
+                value={formData.sellingPrice}
+                onChange={handleInputChange}
+                className="w-full p-3 border border-gray-300 rounded-md"
+                required
+                placeholder="0.00"
+              />
+            </div>
+          </div>
+
+          {/* Image Upload */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Add Photos
+            </label>
+            <div className="mt-1 flex justify-center px-6 pt-5 pb-6 border-2 border-gray-300 border-dashed rounded-md">
+              <div className="space-y-1 text-center">
                 <svg
-                  xmlns="http://www.w3.org/2000/svg"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  strokeWidth={1.5}
+                  className="mx-auto h-12 w-12 text-gray-400"
                   stroke="currentColor"
-                  className="w-5 h-5 mr-1"
+                  fill="none"
+                  viewBox="0 0 48 48"
+                  aria-hidden="true"
                 >
                   <path
+                    d="M28 8H12a4 4 0 00-4 4v20m32-12v8m0 0v8a4 4 0 01-4 4H12a4 4 0 01-4-4v-4m32-4l-3.172-3.172a4 4 0 00-5.656 0L28 28M8 32l9.172-9.172a4 4 0 015.656 0L28 28m0 0l4 4m4-24h8m-4-4v8m-12 4h.02"
+                    strokeWidth={2}
                     strokeLinecap="round"
                     strokeLinejoin="round"
-                    d="M12 4.5v15m7.5-7.5h-15"
                   />
                 </svg>
-                Add another image
-              </button>
+                <div className="flex text-sm text-gray-600">
+                  <label
+                    htmlFor="file-upload"
+                    className="relative cursor-pointer bg-white rounded-md font-medium text-indigo-600 hover:text-indigo-500 focus-within:outline-none focus-within:ring-2 focus-within:ring-offset-2 focus-within:ring-indigo-500"
+                  >
+                    <span>Upload files</span>
+                    <input
+                      id="file-upload"
+                      name="file-upload"
+                      type="file"
+                      multiple
+                      className="sr-only"
+                      onChange={handleFileChange}
+                      accept="image/*"
+                    />
+                  </label>
+                  <p className="pl-1">or drag and drop</p>
+                </div>
+                <p className="text-xs text-gray-500">
+                  PNG, JPG, GIF up to 10MB
+                </p>
+              </div>
             </div>
+            {selectedFiles.length > 0 && (
+              <div className="mt-2">
+                <p className="text-sm text-gray-500">
+                  {selectedFiles.length} files selected
+                </p>
+              </div>
+            )}
           </div>
 
           {error && <p className="text-red-600 text-sm">{error}</p>}
@@ -318,14 +280,14 @@ export default function AddProduct() {
             <button
               type="button"
               onClick={() => router.back()}
-              className="px-4 py-2 text-[#8B6E5A] border border-[#8B6E5A] rounded hover:bg-gray-50"
+              className="px-4 py-2 text-gray-700 border border-gray-300 rounded hover:bg-gray-50"
             >
               Cancel
             </button>
             <button
               type="submit"
               disabled={loading}
-              className="px-4 py-2 bg-[#8B6E5A] text-white rounded hover:bg-[#7d6351] disabled:opacity-50"
+              className="px-4 py-2 bg-indigo-600 text-white rounded hover:bg-indigo-700 disabled:opacity-50"
             >
               {loading ? "Adding..." : "Add Product"}
             </button>
