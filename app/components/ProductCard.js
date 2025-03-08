@@ -1,9 +1,11 @@
+"use client";
+
 import Image from "next/image";
 import Link from "next/link";
+import { useState } from "react";
 
 export default function ProductCard({ product }) {
-  console.log("Product data in card:", product);
-  console.log("Product images:", product.images);
+  const [imageError, setImageError] = useState(false);
 
   // Calculate discount percentage
   const discountPercentage = Math.round(
@@ -22,14 +24,12 @@ export default function ProductCard({ product }) {
   const images = Array.isArray(product.images) ? product.images : [];
   const firstImage = images.length > 0 ? images[0] : null;
 
-  console.log("First image URL:", firstImage);
-
   return (
     <Link href={`/products/${product.id}`}>
       <div className="group relative bg-white rounded-lg shadow-sm overflow-hidden hover:shadow-md transition-shadow">
         {/* Product Image */}
-        <div className="aspect-square relative overflow-hidden">
-          {firstImage ? (
+        <div className="aspect-square relative overflow-hidden bg-gray-100">
+          {firstImage && !imageError ? (
             <Image
               src={firstImage}
               alt={product.name}
@@ -37,6 +37,7 @@ export default function ProductCard({ product }) {
               sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 25vw"
               priority
               className="object-cover group-hover:scale-105 transition-transform duration-200"
+              onError={() => setImageError(true)}
             />
           ) : (
             <div className="w-full h-full bg-gray-200 flex items-center justify-center">
