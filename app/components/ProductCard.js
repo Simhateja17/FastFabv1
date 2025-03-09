@@ -57,6 +57,13 @@ export default function ProductCard({ product }) {
             </div>
           )}
 
+          {/* Category Badge */}
+          {product.category && (
+            <div className="absolute top-2 left-2 bg-primary text-white px-2 py-1 rounded-md text-xs font-medium">
+              {product.category}
+            </div>
+          )}
+
           {/* Discount Badge */}
           {discountPercentage > 0 && (
             <div className="absolute top-2 right-2 bg-red-500 text-white px-2 py-1 rounded-md text-sm font-medium">
@@ -79,6 +86,37 @@ export default function ProductCard({ product }) {
           <h3 className="text-sm font-medium text-gray-900 truncate">
             {product.name}
           </h3>
+
+          {/* Category and Subcategory */}
+          <div className="mt-1 flex items-center text-xs text-gray-500">
+            {product.category && (
+              <>
+                <span className="inline-flex items-center">
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    className="h-3 w-3 mr-1"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z"
+                    />
+                  </svg>
+                  {product.category}
+                </span>
+                {product.subcategory && (
+                  <>
+                    <span className="mx-1">•</span>
+                    <span>{product.subcategory}</span>
+                  </>
+                )}
+              </>
+            )}
+          </div>
 
           {/* Seller Info */}
           {product.seller && (

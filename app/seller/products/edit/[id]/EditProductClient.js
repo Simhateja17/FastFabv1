@@ -1,8 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { useAuth } from "@/app/context/AuthContext";
 import Image from "next/image";
 import { toast } from "react-hot-toast";
 
@@ -22,15 +21,14 @@ const CATEGORIES = [
   },
 ];
 
-export default function AddProduct() {
+export default function EditProductClient({ productId }) {
   const router = useRouter();
-  const { seller } = useAuth();
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState("");
   const [selectedFiles, setSelectedFiles] = useState([]);
-  const [uploadedImages, setUploadedImages] = useState([]);
   const [previewImages, setPreviewImages] = useState([]);
+  const [availableSubcategories, setAvailableSubcategories] = useState([]);
   const [formData, setFormData] = useState({
     name: "",
     description: "",
@@ -45,9 +43,83 @@ export default function AddProduct() {
       L: 0,
       XL: 0,
     },
+    images: [],
   });
-  const [selectedCategory, setSelectedCategory] = useState("");
-  const [availableSubcategories, setAvailableSubcategories] = useState([]);
+
+  useEffect(() => {
+    if (productId) {
+      fetchProduct();
+    }
+  }, [productId]);
+
+  const fetchProduct = async () => {
+    try {
+      const token = localStorage.getItem("token");
+      if (!token) {
+        toast.error("Authentication required. Please login again.");
+        router.push("/login");
+        return;
+      }
+
+      console.log("Fetching product with ID:", productId);
+      console.log(
+        "API URL:",
+        `${process.env.NEXT_PUBLIC_API_URL}/api/products/${productId}`
+      );
+
+      const response = await fetch(
+        `${process.env.NEXT_PUBLIC_API_URL}/api/products/${productId}`,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      );
+
+      console.log("Fetch response status:", response.status);
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error("Error response:", errorText);
+        throw new Error(
+          `Failed to fetch product: ${response.status} ${errorText}`
+        );
+      }
+
+      const product = await response.json();
+      console.log("Fetched product data:", product);
+
+      // Update subcategories based on category
+      const categoryData = CATEGORIES.find((c) => c.name === product.category);
+      setAvailableSubcategories(categoryData ? categoryData.subcategories : []);
+
+      setFormData({
+        name: product.name || "",
+        description: product.description || "",
+        mrpPrice: product.mrpPrice ? product.mrpPrice.toString() : "",
+        sellingPrice: product.sellingPrice
+          ? product.sellingPrice.toString()
+          : "",
+        category: product.category || "",
+        subcategory: product.subcategory || "",
+        sizeQuantities: product.sizeQuantities || {
+          XS: 0,
+          S: 0,
+          M: 0,
+          L: 0,
+          XL: 0,
+        },
+        images: product.images || [],
+      });
+      setPreviewImages(product.images || []);
+    } catch (error) {
+      console.error("Error fetching product:", error);
+      toast.error("Error fetching product: " + error.message);
+      router.push("/seller/products");
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
@@ -60,6 +132,16 @@ export default function AddProduct() {
     } else {
       setFormData((prev) => ({ ...prev, [name]: value }));
     }
+  };
+
+  const handleCategoryChange = (e) => {
+    const category = e.target.value;
+    setFormData((prev) => ({ ...prev, category }));
+
+    // Update subcategories based on selected category
+    const categoryData = CATEGORIES.find((c) => c.name === category);
+    setAvailableSubcategories(categoryData ? categoryData.subcategories : []);
+    setFormData((prev) => ({ ...prev, subcategory: "" })); // Reset subcategory
   };
 
   const handleSizeQuantityChange = (size, value) => {
@@ -81,13 +163,11 @@ export default function AddProduct() {
 
     // Validate file size and type
     const validFiles = files.filter((file) => {
-      // Check file size (10MB limit)
       if (file.size > 10 * 1024 * 1024) {
         toast.error(`File ${file.name} is too large (max 10MB)`);
         return false;
       }
 
-      // Check file type
       if (!file.type.startsWith("image/")) {
         toast.error(`File ${file.name} is not an image`);
         return false;
@@ -98,24 +178,24 @@ export default function AddProduct() {
 
     setSelectedFiles(validFiles);
 
-    // Clean up previous preview URLs to avoid memory leaks
-    previewImages.forEach((url) => URL.revokeObjectURL(url));
-
     // Create preview URLs for valid files
-    const previews = validFiles.map((file) => URL.createObjectURL(file));
-    setPreviewImages(previews);
+    const newPreviews = validFiles.map((file) => URL.createObjectURL(file));
+    setPreviewImages((prev) => [...prev, ...newPreviews]);
   };
 
   const uploadImages = async () => {
-    if (selectedFiles.length === 0) return [];
+    if (selectedFiles.length === 0) return formData.images;
 
     setUploading(true);
     try {
       const token = localStorage.getItem("token");
-      const formData = new FormData();
+      if (!token) {
+        throw new Error("Authentication required");
+      }
 
+      const formDataObj = new FormData();
       selectedFiles.forEach((file) => {
-        formData.append("images", file);
+        formDataObj.append("images", file);
       });
 
       const response = await fetch(
@@ -125,23 +205,20 @@ export default function AddProduct() {
           headers: {
             Authorization: `Bearer ${token}`,
           },
-          body: formData,
+          body: formDataObj,
         }
       );
 
+      const data = await response.json();
+
       if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.message || "Failed to upload images");
+        throw new Error(data.message || "Failed to upload images");
       }
 
-      const data = await response.json();
-      setUploadedImages(data.imageUrls);
-      return data.imageUrls;
+      return [...formData.images, ...data.imageUrls];
     } catch (error) {
-      console.error("Error uploading images:", error);
-      toast.error("Failed to upload images: " + error.message);
-      setError("Failed to upload images: " + error.message);
-      return [];
+      console.error("Image upload error:", error);
+      throw error;
     } finally {
       setUploading(false);
     }
@@ -149,37 +226,49 @@ export default function AddProduct() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-
-    if (selectedFiles.length === 0) {
-      toast.error("Please upload at least one image");
-      return;
-    }
-
     setLoading(true);
     setError("");
 
     try {
-      // First upload images
-      const imageUrls = await uploadImages();
-
-      if (imageUrls.length === 0) {
-        throw new Error("Failed to upload images");
+      // Validate token
+      const token = localStorage.getItem("token");
+      if (!token) {
+        throw new Error("Authentication required. Please login again.");
       }
 
-      const token = localStorage.getItem("token");
-      const sellerId = localStorage.getItem("sellerId");
+      // Upload new images if any
+      let imageUrls = formData.images;
+      if (selectedFiles.length > 0) {
+        try {
+          imageUrls = await uploadImages();
+        } catch (uploadError) {
+          throw new Error(`Failed to upload images: ${uploadError.message}`);
+        }
+      }
+
+      // Update product
+      console.log("Updating product:", productId);
+      console.log(
+        "API URL:",
+        `${process.env.NEXT_PUBLIC_API_URL}/api/products/${productId}`
+      );
+      console.log("With data:", {
+        ...formData,
+        mrpPrice: parseFloat(formData.mrpPrice),
+        sellingPrice: parseFloat(formData.sellingPrice),
+        images: imageUrls,
+      });
 
       const response = await fetch(
-        `${process.env.NEXT_PUBLIC_API_URL}/api/products`,
+        `${process.env.NEXT_PUBLIC_API_URL}/api/products/${productId}`,
         {
-          method: "POST",
+          method: "PUT",
           headers: {
             "Content-Type": "application/json",
             Authorization: `Bearer ${token}`,
           },
           body: JSON.stringify({
             ...formData,
-            sellerId,
             mrpPrice: parseFloat(formData.mrpPrice),
             sellingPrice: parseFloat(formData.sellingPrice),
             images: imageUrls,
@@ -187,15 +276,30 @@ export default function AddProduct() {
         }
       );
 
-      const data = await response.json();
+      console.log("Update response status:", response.status);
 
-      if (!response.ok) {
-        throw new Error(data.message || "Failed to add product");
+      // Try to get response body regardless of status
+      let responseBody;
+      try {
+        responseBody = await response.json();
+        console.log("Response body:", responseBody);
+      } catch (e) {
+        console.log("Could not parse response as JSON:", e);
+        const text = await response.text();
+        console.log("Response text:", text);
       }
 
-      toast.success("Product added successfully!");
-      router.push("/seller/dashboard");
+      if (!response.ok) {
+        throw new Error(
+          responseBody?.message ||
+            `Failed to update product: ${response.status}`
+        );
+      }
+
+      toast.success("Product updated successfully!");
+      router.push("/seller/products");
     } catch (error) {
+      console.error("Update error:", error);
       setError(error.message);
       toast.error(error.message);
     } finally {
@@ -203,34 +307,25 @@ export default function AddProduct() {
     }
   };
 
-  const removePreviewImage = (index) => {
-    // Remove the preview image
-    const newPreviews = [...previewImages];
-    URL.revokeObjectURL(newPreviews[index]); // Clean up
-    newPreviews.splice(index, 1);
-    setPreviewImages(newPreviews);
-
-    // Remove the file from selectedFiles
-    const newSelectedFiles = [...selectedFiles];
-    newSelectedFiles.splice(index, 1);
-    setSelectedFiles(newSelectedFiles);
+  const removeImage = (index) => {
+    const newImages = [...formData.images];
+    newImages.splice(index, 1);
+    setFormData((prev) => ({ ...prev, images: newImages }));
+    setPreviewImages((prev) => prev.filter((_, i) => i !== index));
   };
 
-  const handleCategoryChange = (e) => {
-    const category = e.target.value;
-    setSelectedCategory(category);
-    setFormData((prev) => ({ ...prev, category }));
-
-    // Update subcategories based on selected category
-    const categoryData = CATEGORIES.find((c) => c.name === category);
-    setAvailableSubcategories(categoryData ? categoryData.subcategories : []);
-    setFormData((prev) => ({ ...prev, subcategory: "" })); // Reset subcategory
-  };
+  if (loading) {
+    return (
+      <div className="flex justify-center items-center min-h-screen">
+        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary"></div>
+      </div>
+    );
+  }
 
   return (
     <div className="max-w-2xl mx-auto p-6">
       <div className="bg-white rounded-lg shadow-sm p-6">
-        <h1 className="text-2xl font-semibold mb-6">Add New Product</h1>
+        <h1 className="text-2xl font-semibold mb-6">Edit Product</h1>
 
         <form onSubmit={handleSubmit} className="space-y-6">
           {/* Product Name */}
@@ -291,6 +386,21 @@ export default function AddProduct() {
             </div>
           </div>
 
+          {/* Description */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Product Description
+            </label>
+            <textarea
+              name="description"
+              value={formData.description}
+              onChange={handleInputChange}
+              rows={4}
+              className="w-full p-3 border border-gray-300 rounded-md"
+              required
+            />
+          </div>
+
           {/* Quantity by Size */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -348,10 +458,51 @@ export default function AddProduct() {
             </div>
           </div>
 
-          {/* Image Upload */}
+          {/* Current Images */}
+          {previewImages.length > 0 && (
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Current Images
+              </label>
+              <div className="grid grid-cols-3 gap-4">
+                {previewImages.map((image, index) => (
+                  <div key={index} className="relative">
+                    <div className="relative h-24 w-full overflow-hidden rounded-md">
+                      <Image
+                        src={image}
+                        alt={`Product ${index + 1}`}
+                        fill
+                        className="object-cover"
+                      />
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => removeImage(index)}
+                      className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1"
+                    >
+                      <svg
+                        xmlns="http://www.w3.org/2000/svg"
+                        className="h-4 w-4"
+                        viewBox="0 0 20 20"
+                        fill="currentColor"
+                      >
+                        <path
+                          fillRule="evenodd"
+                          d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z"
+                          clipRule="evenodd"
+                        />
+                      </svg>
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Add New Images */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
-              Add Photos
+              Add More Photos
             </label>
             <div className="mt-1 flex justify-center px-6 pt-5 pb-6 border-2 border-gray-300 border-dashed rounded-md">
               <div className="space-y-1 text-center">
@@ -392,42 +543,6 @@ export default function AddProduct() {
                 </p>
               </div>
             </div>
-
-            {/* Image Previews */}
-            {previewImages.length > 0 && (
-              <div className="mt-4 grid grid-cols-3 gap-4">
-                {previewImages.map((preview, index) => (
-                  <div key={index} className="relative">
-                    <div className="relative h-24 w-full overflow-hidden rounded-md">
-                      <Image
-                        src={preview}
-                        alt={`Preview ${index + 1}`}
-                        fill
-                        style={{ objectFit: "cover" }}
-                      />
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => removePreviewImage(index)}
-                      className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1"
-                    >
-                      <svg
-                        xmlns="http://www.w3.org/2000/svg"
-                        className="h-4 w-4"
-                        viewBox="0 0 20 20"
-                        fill="currentColor"
-                      >
-                        <path
-                          fillRule="evenodd"
-                          d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z"
-                          clipRule="evenodd"
-                        />
-                      </svg>
-                    </button>
-                  </div>
-                ))}
-              </div>
-            )}
           </div>
 
           {error && <p className="text-red-600 text-sm">{error}</p>}
@@ -435,7 +550,7 @@ export default function AddProduct() {
           <div className="flex justify-end space-x-4">
             <button
               type="button"
-              onClick={() => router.back()}
+              onClick={() => router.push("/seller/products")}
               className="px-4 py-2 text-gray-700 border border-gray-300 rounded hover:bg-gray-50"
             >
               Cancel
@@ -448,8 +563,8 @@ export default function AddProduct() {
               {loading || uploading
                 ? uploading
                   ? "Uploading..."
-                  : "Adding..."
-                : "Add Product"}
+                  : "Updating..."
+                : "Update Product"}
             </button>
           </div>
         </form>

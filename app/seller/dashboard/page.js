@@ -8,8 +8,8 @@ export default function SellerDashboard() {
 
   const dashboardItems = [
     {
-      title: "Add Product",
-      href: "/seller/products/add",
+      title: "Product",
+      href: "/seller/products",
       icon: (
         <svg
           xmlns="http://www.w3.org/2000/svg"
