@@ -5,8 +5,10 @@ import { useRouter } from "next/navigation";
 import { useAuth } from "@/app/context/AuthContext";
 import { toast } from "react-hot-toast";
 import Link from "next/link";
+import ProtectedRoute from "@/app/components/ProtectedRoute";
 
-export default function SellerProfile() {
+// The actual profile content
+function ProfileContent() {
   const router = useRouter();
   const { seller, updateSellerDetails, logout } = useAuth();
   const [loading, setLoading] = useState(false);
@@ -23,16 +25,9 @@ export default function SellerProfile() {
     closeTime: "",
   });
 
-  // Redirect if not logged in
+  // Populate form with seller data
   useEffect(() => {
-    if (!seller) {
-      toast.error("Please sign in to view your profile");
-      router.push("/seller/signin");
-    } else if (seller.needsOnboarding) {
-      toast.error("Please complete your profile setup first");
-      router.push("/seller/onboarding");
-    } else {
-      // Populate form with seller data
+    if (seller) {
       setFormData({
         shopName: seller.shopName || "",
         ownerName: seller.ownerName || "",
@@ -45,7 +40,7 @@ export default function SellerProfile() {
         closeTime: seller.closeTime || "",
       });
     }
-  }, [seller, router]);
+  }, [seller]);
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
@@ -399,5 +394,16 @@ export default function SellerProfile() {
         )}
       </div>
     </div>
+  );
+}
+
+// Wrap the profile content with the ProtectedRoute component
+// Note: requireOnboarding is false because we want to allow access to the profile
+// even if onboarding is not completed (to allow completing it)
+export default function SellerProfile() {
+  return (
+    <ProtectedRoute requireOnboarding={false}>
+      <ProfileContent />
+    </ProtectedRoute>
   );
 }

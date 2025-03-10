@@ -5,11 +5,15 @@ import { useRouter } from "next/navigation";
 import Image from "next/image";
 import Link from "next/link";
 import { toast } from "react-hot-toast";
+import { useAuth } from "@/app/context/AuthContext";
+import ProtectedRoute from "@/app/components/ProtectedRoute";
 
-export default function ProductsList() {
+// The actual products list content
+function ProductsListContent() {
   const router = useRouter();
   const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(true);
+  const { authFetch } = useAuth();
 
   useEffect(() => {
     fetchProducts();
@@ -17,14 +21,9 @@ export default function ProductsList() {
 
   const fetchProducts = async () => {
     try {
-      const token = localStorage.getItem("token");
-      const response = await fetch(
-        `${process.env.NEXT_PUBLIC_API_URL}/api/products`,
-        {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        }
+      setLoading(true);
+      const response = await authFetch(
+        `${process.env.NEXT_PUBLIC_API_URL}/api/products`
       );
 
       if (!response.ok) {
@@ -46,14 +45,10 @@ export default function ProductsList() {
     }
 
     try {
-      const token = localStorage.getItem("token");
-      const response = await fetch(
+      const response = await authFetch(
         `${process.env.NEXT_PUBLIC_API_URL}/api/products/${productId}`,
         {
           method: "DELETE",
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
         }
       );
 
@@ -194,5 +189,14 @@ export default function ProductsList() {
         </div>
       )}
     </div>
+  );
+}
+
+// Wrap the products list content with the ProtectedRoute component
+export default function ProductsList() {
+  return (
+    <ProtectedRoute requireOnboarding={true}>
+      <ProductsListContent />
+    </ProtectedRoute>
   );
 }

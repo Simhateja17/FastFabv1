@@ -162,6 +162,12 @@ const Navbar = () => {
             {seller ? (
               <>
                 <Link
+                  href="/seller/profile"
+                  className="block pl-3 pr-4 py-2 text-base font-medium text-gray-500 hover:text-gray-900 hover:bg-gray-50"
+                >
+                  My Profile
+                </Link>
+                <Link
                   href="/seller/products"
                   className="block pl-3 pr-4 py-2 text-base font-medium text-gray-500 hover:text-gray-900 hover:bg-gray-50"
                 >
@@ -176,7 +182,7 @@ const Navbar = () => {
               </>
             ) : (
               <Link
-                href="/seller/login"
+                href="/seller/signin"
                 className="block pl-3 pr-4 py-2 text-base font-medium text-gray-500 hover:text-gray-900 hover:bg-gray-50"
               >
                 Seller Login

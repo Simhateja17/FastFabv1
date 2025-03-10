@@ -18,10 +18,13 @@ export default function SellerSignup() {
 
   // Redirect if already logged in
   useEffect(() => {
+    console.log("Seller state in signup:", seller);
     if (seller) {
       if (seller.needsOnboarding) {
+        console.log("Redirecting to onboarding");
         router.push("/seller/onboarding");
       } else {
+        console.log("Redirecting to dashboard");
         router.push("/seller/dashboard");
       }
     }
@@ -51,18 +54,30 @@ export default function SellerSignup() {
     setLoading(true);
 
     try {
+      console.log("Registering with:", formData.phone);
       const result = await register(formData.phone, formData.password);
+      console.log("Registration result:", result);
 
       if (result.success) {
         toast.success("Registration successful!");
-        // Explicitly redirect to onboarding
-        router.push("/seller/onboarding");
+
+        // Force a small delay to ensure state updates
+        setTimeout(() => {
+          // Check if we need onboarding
+          if (result.needsOnboarding) {
+            console.log("Redirecting to onboarding after signup");
+            router.push("/seller/onboarding");
+          } else {
+            console.log("Redirecting to dashboard after signup");
+            router.push("/seller/dashboard");
+          }
+        }, 100);
       } else {
         toast.error(result.error || "Registration failed. Please try again.");
       }
     } catch (error) {
-      toast.error("Something went wrong. Please try again.");
       console.error("Registration error:", error);
+      toast.error("Something went wrong. Please try again.");
     } finally {
       setLoading(false);
     }

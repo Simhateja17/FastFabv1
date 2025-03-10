@@ -123,37 +123,72 @@ export function AuthProvider({ children }) {
       if (authCheckCompleted) return;
 
       try {
+        console.log("Initializing auth...");
         const { accessToken, refreshToken } = getTokens();
 
+        // Check for backup seller data in localStorage
+        const storedSellerData = localStorage.getItem("sellerData");
+        if (storedSellerData && isMounted) {
+          try {
+            const parsedSellerData = JSON.parse(storedSellerData);
+            console.log("Found stored seller data:", parsedSellerData);
+            setSeller(parsedSellerData);
+          } catch (e) {
+            console.error("Error parsing stored seller data:", e);
+          }
+        }
+
         if (!accessToken || !refreshToken) {
+          console.log("No tokens found");
           if (isMounted) setLoading(false);
           return;
         }
 
         // Try to get user profile with current access token
         try {
+          console.log("Fetching profile with token");
           const response = await fetch(AUTH_ENDPOINTS.PROFILE, {
             headers: {
               Authorization: `Bearer ${accessToken}`,
             },
           });
 
+          console.log("Profile response status:", response.status);
+
           if (response.ok) {
             const data = await response.json();
-            if (isMounted) setSeller(data.seller);
+            console.log("Profile data:", data);
+            if (isMounted) {
+              // Preserve needsOnboarding flag if it exists in current state
+              const currentSeller = seller || {};
+              const updatedSeller = {
+                ...data.seller,
+                needsOnboarding: data.seller.shopName
+                  ? false
+                  : currentSeller.needsOnboarding || true,
+              };
+              console.log("Setting seller state to:", updatedSeller);
+              setSeller(updatedSeller);
+
+              // Update backup
+              localStorage.setItem("sellerData", JSON.stringify(updatedSeller));
+            }
           } else if (response.status === 401) {
             // If token is invalid, try to refresh
             try {
+              console.log("Attempting to refresh token");
               await refreshAccessToken();
             } catch (refreshError) {
               console.error("Token refresh failed:", refreshError);
               clearTokens();
+              localStorage.removeItem("sellerData");
               if (isMounted) setSeller(null);
             }
           }
         } catch (error) {
           console.error("Auth initialization error:", error);
           clearTokens();
+          localStorage.removeItem("sellerData");
           if (isMounted) setSeller(null);
         }
       } catch (error) {
@@ -203,6 +238,8 @@ export function AuthProvider({ children }) {
   const register = async (phone, password) => {
     try {
       setLoading(true);
+      console.log("Starting registration process for:", phone);
+
       const response = await fetch(AUTH_ENDPOINTS.SIGNUP, {
         method: "POST",
         headers: {
@@ -212,6 +249,7 @@ export function AuthProvider({ children }) {
       });
 
       const data = await response.json();
+      console.log("Registration API response:", data);
 
       if (!response.ok) {
         throw new Error(data.message || "Registration failed");
@@ -222,12 +260,18 @@ export function AuthProvider({ children }) {
 
       // Set seller state with the available data
       // Mark as needsOnboarding: true to ensure redirection to onboarding
-      setSeller({
+      const sellerData = {
         id: data.sellerId,
         phone: phone,
         needsOnboarding: true,
         // Other fields will be null until onboarding
-      });
+      };
+
+      console.log("Setting seller state to:", sellerData);
+      setSeller(sellerData);
+
+      // Also store in localStorage as a backup
+      localStorage.setItem("sellerData", JSON.stringify(sellerData));
 
       return { success: true, sellerId: data.sellerId, needsOnboarding: true };
     } catch (error) {
@@ -273,6 +317,7 @@ export function AuthProvider({ children }) {
 
   const logout = async () => {
     try {
+      console.log("Logging out...");
       const { refreshToken } = getTokens();
 
       if (refreshToken) {
@@ -284,7 +329,9 @@ export function AuthProvider({ children }) {
       }
     } finally {
       // Always clear local tokens and state
+      console.log("Clearing auth state");
       clearTokens();
+      localStorage.removeItem("sellerData");
       setSeller(null);
     }
   };

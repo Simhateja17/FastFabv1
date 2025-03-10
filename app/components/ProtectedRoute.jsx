@@ -1,30 +1,58 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/app/context/AuthContext";
+import { toast } from "react-hot-toast";
 
-export default function ProtectedRoute({ children }) {
-  const { seller, loading } = useAuth();
+/**
+ * A higher-order component that protects routes requiring authentication
+ * and completed onboarding.
+ *
+ * @param {Object} props
+ * @param {React.ReactNode} props.children - The components to render if authenticated
+ * @param {boolean} props.requireOnboarding - Whether to require completed onboarding
+ */
+export default function ProtectedRoute({ children, requireOnboarding = true }) {
   const router = useRouter();
+  const { seller, loading } = useAuth();
+  const [isAuthorized, setIsAuthorized] = useState(false);
 
   useEffect(() => {
-    if (!loading && !seller) {
-      router.push("/seller/signin");
-    }
-  }, [seller, loading, router]);
+    // If still loading auth state, wait
+    if (loading) return;
 
-  if (loading) {
+    console.log("ProtectedRoute check:", { seller, requireOnboarding });
+
+    // If not authenticated, redirect to login
+    if (!seller) {
+      console.log("Not authenticated, redirecting to signin");
+      toast.error("Please sign in to access this page");
+      router.push("/seller/signin");
+      return;
+    }
+
+    // If onboarding is required but not completed, redirect to onboarding
+    if (requireOnboarding && seller.needsOnboarding) {
+      console.log("Onboarding required but not completed, redirecting");
+      toast.error("Please complete your profile setup first");
+      router.push("/seller/onboarding");
+      return;
+    }
+
+    // User is authorized to view the page
+    setIsAuthorized(true);
+  }, [seller, loading, router, requireOnboarding]);
+
+  // Show loading state while checking authorization
+  if (loading || !isAuthorized) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-[#8B6E5A]"></div>
+      <div className="flex justify-center items-center min-h-screen">
+        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary"></div>
       </div>
     );
   }
 
-  if (!seller) {
-    return null;
-  }
-
-  return children;
+  // Render children if authorized
+  return <>{children}</>;
 }
