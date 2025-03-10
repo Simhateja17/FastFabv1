@@ -15,10 +15,44 @@ const validateGSTIN = (gstin) => {
   // Validate state code (first 2 digits between 01-38)
   const stateCode = parseInt(gstin.slice(0, 2));
   const validStateCodes = [
-    "01", "02", "03", "04", "05", "06", "07", "08", "09", "10",
-    "11", "12", "13", "14", "15", "16", "17", "18", "19", "20",
-    "21", "22", "23", "24", "25", "26", "27", "28", "29", "30",
-    "31", "32", "33", "34", "35", "36", "37", "38",
+    "01",
+    "02",
+    "03",
+    "04",
+    "05",
+    "06",
+    "07",
+    "08",
+    "09",
+    "10",
+    "11",
+    "12",
+    "13",
+    "14",
+    "15",
+    "16",
+    "17",
+    "18",
+    "19",
+    "20",
+    "21",
+    "22",
+    "23",
+    "24",
+    "25",
+    "26",
+    "27",
+    "28",
+    "29",
+    "30",
+    "31",
+    "32",
+    "33",
+    "34",
+    "35",
+    "36",
+    "37",
+    "38",
   ];
 
   if (!validStateCodes.includes(gstin.slice(0, 2))) {
@@ -85,41 +119,41 @@ export default function SellerOnboarding() {
     e.preventDefault();
     setLoading(true);
     setError("");
-  
+
     // Final GST validation before submit
     if (!validateGSTIN(formData.gstNumber)) {
       setGstError("Invalid GST number format");
       setLoading(false);
       return;
     }
-  
+
     try {
       const token = localStorage.getItem("token");
       const sellerId = localStorage.getItem("sellerId"); // Ensure sellerId is fetched correctly
-  
+
       if (!sellerId) {
         throw new Error("Seller ID is missing from localStorage.");
       }
-  
+
       if (!token) {
         throw new Error("JWT token is missing from localStorage.");
       }
-  
+
       const response = await fetch(`${API_URL}/api/${sellerId}/details`, {
         method: "PATCH",
         headers: {
           "Content-Type": "application/json",
-          "Authorization": `Bearer ${token}`,
+          Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify(formData),
       });
-  
+
       if (!response.ok) {
         const errorData = await response.text(); // Use text() instead of json() first
         console.error("Server response:", errorData);
         throw new Error(`Failed to update seller details: ${errorData}`);
       }
-  
+
       const data = await response.json();
       router.push("/seller/dashboard");
     } catch (error) {
@@ -129,7 +163,6 @@ export default function SellerOnboarding() {
       setLoading(false);
     }
   };
-  
 
   return (
     <div className="max-w-2xl mx-auto">
@@ -294,9 +327,7 @@ export default function SellerOnboarding() {
           </div>
 
           {error && (
-            <div className="mt-4 text-sm text-red-600 text-center">
-              {error}
-            </div>
+            <div className="mt-4 text-sm text-red-600 text-center">{error}</div>
           )}
         </form>
       </div>
