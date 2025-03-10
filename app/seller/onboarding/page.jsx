@@ -1,8 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { API_URL } from "@/app/config";
+import { useAuth } from "@/app/context/AuthContext";
+import { toast } from "react-hot-toast";
+import { AUTH_ENDPOINTS } from "@/app/config";
 
 const validateGSTIN = (gstin) => {
   // GSTIN Format: 22AAAAA0000A1Z5
@@ -65,8 +67,8 @@ const validateGSTIN = (gstin) => {
 export default function SellerOnboarding() {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
   const [gstError, setGstError] = useState("");
+  const { seller, updateSellerDetails, authFetch, setSeller } = useAuth();
   const [formData, setFormData] = useState({
     shopName: "",
     ownerName: "",
@@ -78,6 +80,18 @@ export default function SellerOnboarding() {
     openTime: "",
     closeTime: "",
   });
+
+  // Redirect if not logged in
+  useEffect(() => {
+    if (!seller) {
+      toast.error("Please sign in to continue");
+      router.push("/seller/signin");
+    } else if (seller.shopName && !seller.needsOnboarding) {
+      // Only redirect to dashboard if seller has completed onboarding
+      // and doesn't need onboarding anymore
+      router.push("/seller/dashboard");
+    }
+  }, [seller, router]);
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
@@ -118,51 +132,50 @@ export default function SellerOnboarding() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
-    setError("");
 
     // Final GST validation before submit
-    if (!validateGSTIN(formData.gstNumber)) {
+    if (formData.gstNumber && !validateGSTIN(formData.gstNumber)) {
       setGstError("Invalid GST number format");
       setLoading(false);
       return;
     }
 
     try {
-      const token = localStorage.getItem("token");
-      const sellerId = localStorage.getItem("sellerId"); // Ensure sellerId is fetched correctly
-
-      if (!sellerId) {
-        throw new Error("Seller ID is missing from localStorage.");
+      if (!seller || !seller.id) {
+        throw new Error("Authentication required. Please sign in again.");
       }
 
-      if (!token) {
-        throw new Error("JWT token is missing from localStorage.");
+      const result = await updateSellerDetails(seller.id, formData);
+
+      if (result.success) {
+        toast.success("Profile updated successfully!");
+        // Update local seller state to remove needsOnboarding flag
+        const updatedSeller = {
+          ...seller,
+          ...result.seller,
+          needsOnboarding: false,
+        };
+        // Update the seller context
+        setSeller(updatedSeller);
+        router.push("/seller/dashboard");
+      } else {
+        toast.error(result.error || "Failed to update profile");
       }
-
-      const response = await fetch(`${API_URL}/api/${sellerId}/details`, {
-        method: "PATCH",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify(formData),
-      });
-
-      if (!response.ok) {
-        const errorData = await response.text(); // Use text() instead of json() first
-        console.error("Server response:", errorData);
-        throw new Error(`Failed to update seller details: ${errorData}`);
-      }
-
-      const data = await response.json();
-      router.push("/seller/dashboard");
     } catch (error) {
-      console.error("Error details:", error);
-      setError(error.message || "Something went wrong. Please try again.");
+      console.error("Error updating profile:", error);
+      toast.error("Something went wrong. Please try again.");
     } finally {
       setLoading(false);
     }
   };
+
+  if (!seller) {
+    return (
+      <div className="flex justify-center items-center min-h-screen">
+        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary"></div>
+      </div>
+    );
+  }
 
   return (
     <div className="max-w-2xl mx-auto">
@@ -254,17 +267,17 @@ export default function SellerOnboarding() {
                 name="pincode"
                 value={formData.pincode}
                 onChange={handleInputChange}
-                pattern="[0-9]{6}"
-                maxLength={6}
                 className="w-full p-3 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#8B6E5A]"
                 required
+                maxLength={6}
+                pattern="[0-9]{6}"
               />
             </div>
           </div>
 
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
-              GST Number
+              GST Number (Optional)
             </label>
             <input
               type="text"
@@ -273,17 +286,13 @@ export default function SellerOnboarding() {
               onChange={handleInputChange}
               className={`w-full p-3 border ${
                 gstError ? "border-red-500" : "border-gray-300"
-              } rounded-md uppercase focus:outline-none focus:ring-2 focus:ring-[#8B6E5A]`}
+              } rounded-md focus:outline-none focus:ring-2 focus:ring-[#8B6E5A]`}
+              placeholder="22AAAAA0000A1Z5"
               maxLength={15}
-              required
             />
             {gstError && (
-              <p className="mt-1 text-sm text-red-600">{gstError}</p>
+              <p className="mt-1 text-sm text-red-500">{gstError}</p>
             )}
-            <p className="mt-1 text-sm text-gray-500">
-              Format: 2 digits (state code) + 5 letters (PAN) + 4 digits + 1
-              letter + Z + 1 character
-            </p>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -316,19 +325,15 @@ export default function SellerOnboarding() {
             </div>
           </div>
 
-          <div className="flex justify-end space-x-4">
+          <div className="flex justify-end">
             <button
               type="submit"
               disabled={loading}
-              className="px-6 py-2 bg-[#8B6E5A] text-white rounded hover:bg-[#7d6351] disabled:opacity-50"
+              className="bg-[#8B6E5A] text-white px-6 py-3 rounded-md hover:bg-[#7d6351] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              {loading ? "Saving..." : "Complete Setup"}
+              {loading ? "Saving..." : "Save & Continue"}
             </button>
           </div>
-
-          {error && (
-            <div className="mt-4 text-sm text-red-600 text-center">{error}</div>
-          )}
         </form>
       </div>
     </div>

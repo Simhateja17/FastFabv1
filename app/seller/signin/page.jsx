@@ -1,8 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { API_URL } from "@/app/config";
+import { useAuth } from "@/app/context/AuthContext";
+import Link from "next/link";
+import { toast } from "react-hot-toast";
 
 export default function SellerSignin() {
   const [formData, setFormData] = useState({
@@ -10,8 +12,15 @@ export default function SellerSignin() {
     password: "",
   });
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
   const router = useRouter();
+  const { login, seller } = useAuth();
+
+  // Redirect if already logged in
+  useEffect(() => {
+    if (seller) {
+      router.push("/seller/dashboard");
+    }
+  }, [seller, router]);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -29,33 +38,19 @@ export default function SellerSignin() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
-    setError("");
 
     try {
-      const response = await fetch(`${API_URL}/api/signin`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          phone: formData.phone,
-          password: formData.password,
-        }),
-      });
+      const result = await login(formData.phone, formData.password);
 
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.message || "Login failed");
+      if (result.success) {
+        toast.success("Login successful!");
+        router.push("/seller/dashboard");
+      } else {
+        toast.error(result.error || "Login failed. Please try again.");
       }
-
-      // Store the token in localStorage
-      localStorage.setItem("token", data.token);
-
-      // Redirect to dashboard
-      router.push("/seller/dashboard");
     } catch (error) {
-      setError(error.message || "Something went wrong. Please try again.");
+      toast.error("Something went wrong. Please try again.");
+      console.error("Login error:", error);
     } finally {
       setLoading(false);
     }
@@ -108,8 +103,6 @@ export default function SellerSignin() {
             />
           </div>
 
-          {error && <p className="mt-2 text-sm text-red-600">{error}</p>}
-
           <button
             type="submit"
             className="w-full bg-[#8B6E5A] text-white py-3 rounded-md hover:bg-[#7d6351] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
@@ -120,15 +113,21 @@ export default function SellerSignin() {
         </form>
 
         <div className="mt-6 text-center">
-          <a href="#" className="text-[#8B6E5A] hover:underline">
+          <Link
+            href="/seller/forgot-password"
+            className="text-[#8B6E5A] hover:underline"
+          >
             Forgot Password?
-          </a>
+          </Link>
         </div>
         <div className="mt-4 text-center">
           <span className="text-gray-600">Don't have an account? </span>
-          <a href="/seller/signup" className="text-[#8B6E5A] hover:underline">
+          <Link
+            href="/seller/signup"
+            className="text-[#8B6E5A] hover:underline"
+          >
             Sign Up
-          </a>
+          </Link>
         </div>
       </div>
     </div>

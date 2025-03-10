@@ -1,7 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
+import { useAuth } from "@/app/context/AuthContext";
+import Link from "next/link";
+import { toast } from "react-hot-toast";
 
 export default function SellerSignup() {
   const [formData, setFormData] = useState({
@@ -10,8 +13,19 @@ export default function SellerSignup() {
     confirmPassword: "",
   });
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
   const router = useRouter();
+  const { register, seller } = useAuth();
+
+  // Redirect if already logged in
+  useEffect(() => {
+    if (seller) {
+      if (seller.needsOnboarding) {
+        router.push("/seller/onboarding");
+      } else {
+        router.push("/seller/dashboard");
+      }
+    }
+  }, [seller, router]);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -28,45 +42,27 @@ export default function SellerSignup() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    setLoading(true);
-    setError("");
 
     if (formData.password !== formData.confirmPassword) {
-      setError("Passwords do not match");
-      setLoading(false);
+      toast.error("Passwords do not match");
       return;
     }
 
+    setLoading(true);
+
     try {
-      const response = await fetch(
-        `${process.env.NEXT_PUBLIC_API_URL}/api/signup`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            phone: formData.phone,
-            password: formData.password,
-          }),
-        }
-      );
+      const result = await register(formData.phone, formData.password);
 
-      const data = await response.json();
-      console.log("Backend response data:", data);  // Log the response
-
-      if (!response.ok) {
-        throw new Error(data.message || "Registration failed");
+      if (result.success) {
+        toast.success("Registration successful!");
+        // Explicitly redirect to onboarding
+        router.push("/seller/onboarding");
+      } else {
+        toast.error(result.error || "Registration failed. Please try again.");
       }
-
-      // Store both token and sellerId in localStorage
-      localStorage.setItem("token", data.token);
-      localStorage.setItem("sellerId", data.sellerId);  // Store sellerId
-
-      // Redirect to onboarding
-      router.push("/seller/onboarding");
     } catch (error) {
-      setError(error.message || "Something went wrong. Please try again.");
+      toast.error("Something went wrong. Please try again.");
+      console.error("Registration error:", error);
     } finally {
       setLoading(false);
     }
@@ -140,8 +136,6 @@ export default function SellerSignup() {
             />
           </div>
 
-          {error && <p className="mt-2 text-sm text-red-600">{error}</p>}
-
           <button
             type="submit"
             className="w-full bg-[#8B6E5A] text-white py-3 rounded-md hover:bg-[#7d6351] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
@@ -153,9 +147,12 @@ export default function SellerSignup() {
 
         <div className="mt-6 text-center">
           <span className="text-gray-600">Already have an account? </span>
-          <a href="/seller/signin" className="text-[#8B6E5A] hover:underline">
+          <Link
+            href="/seller/signin"
+            className="text-[#8B6E5A] hover:underline"
+          >
             Sign In
-          </a>
+          </Link>
         </div>
       </div>
     </div>

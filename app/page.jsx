@@ -1,19 +1,15 @@
 import Link from "next/link";
 import ProductCard from "@/app/components/ProductCard";
+import { PUBLIC_ENDPOINTS } from "@/app/config";
 
 async function getProducts() {
   try {
-    console.log(
-      "Fetching products from:",
-      `${process.env.NEXT_PUBLIC_API_URL}/api/products/all`
-    );
+    console.log("Fetching products from:", PUBLIC_ENDPOINTS.ACTIVE_PRODUCTS);
 
-    const res = await fetch(
-      `${process.env.NEXT_PUBLIC_API_URL}/api/products/all`,
-      {
-        cache: "no-store",
-      }
-    );
+    const res = await fetch(PUBLIC_ENDPOINTS.ACTIVE_PRODUCTS, {
+      cache: "no-store",
+      next: { revalidate: 300 }, // Revalidate every 5 minutes
+    });
 
     console.log("API Response status:", res.status);
 
