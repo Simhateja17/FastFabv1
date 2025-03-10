@@ -147,7 +147,7 @@ const Navbar = () => {
           <div className="pt-2 pb-3 space-y-1">
             {!seller && (
               <Link
-                href="/seller/login"
+                href="/seller/signup"
                 className="block pl-3 pr-4 py-2 text-base font-medium text-[#C17867] hover:bg-gray-50"
               >
                 Become a Seller
