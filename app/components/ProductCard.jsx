@@ -26,9 +26,9 @@ export default function ProductCard({ product }) {
 
   return (
     <Link href={`/products/${product.id}`}>
-      <div className="group relative bg-white rounded-lg shadow-sm overflow-hidden hover:shadow-md transition-shadow">
+      <div className="group relative bg-background-card rounded-lg shadow-sm overflow-hidden hover:shadow-md transition-shadow">
         {/* Product Image */}
-        <div className="aspect-square relative overflow-hidden bg-gray-100">
+        <div className="aspect-square relative overflow-hidden bg-background-alt">
           {firstImage && !imageError ? (
             <Image
               src={firstImage}
@@ -40,9 +40,9 @@ export default function ProductCard({ product }) {
               onError={() => setImageError(true)}
             />
           ) : (
-            <div className="w-full h-full bg-gray-200 flex items-center justify-center">
+            <div className="w-full h-full bg-background-alt flex items-center justify-center">
               <svg
-                className="w-12 h-12 text-gray-400"
+                className="w-12 h-12 text-text-muted"
                 fill="none"
                 stroke="currentColor"
                 viewBox="0 0 24 24"
@@ -66,7 +66,7 @@ export default function ProductCard({ product }) {
 
           {/* Discount Badge */}
           {discountPercentage > 0 && (
-            <div className="absolute top-2 right-2 bg-red-500 text-white px-2 py-1 rounded-md text-sm font-medium">
+            <div className="absolute top-2 right-2 bg-accent text-white px-2 py-1 rounded-md text-sm font-medium">
               {discountPercentage}% OFF
             </div>
           )}
@@ -83,12 +83,12 @@ export default function ProductCard({ product }) {
 
         {/* Product Info */}
         <div className="p-4">
-          <h3 className="text-sm font-medium text-gray-900 truncate">
+          <h3 className="text-sm font-medium text-text-dark truncate">
             {product.name}
           </h3>
 
           {/* Category and Subcategory */}
-          <div className="mt-1 flex items-center text-xs text-gray-500">
+          <div className="mt-1 flex items-center text-xs text-text-muted">
             {product.category && (
               <>
                 <span className="inline-flex items-center">
@@ -120,7 +120,7 @@ export default function ProductCard({ product }) {
 
           {/* Seller Info */}
           {product.seller && (
-            <div className="mt-1 text-xs text-gray-500">
+            <div className="mt-1 text-xs text-text-muted">
               <span className="font-medium">{product.seller.shopName}</span>
               {product.seller.city && (
                 <span className="ml-1">
@@ -133,18 +133,18 @@ export default function ProductCard({ product }) {
 
           <div className="mt-2 flex items-center justify-between">
             <div>
-              <p className="text-sm font-medium text-gray-900">
+              <p className="text-sm font-medium text-primary">
                 ₹{product.sellingPrice}
               </p>
               {product.mrpPrice > product.sellingPrice && (
-                <p className="text-xs text-gray-500 line-through">
+                <p className="text-xs text-text-muted line-through">
                   ₹{product.mrpPrice}
                 </p>
               )}
             </div>
 
             {/* Available Sizes */}
-            <div className="text-xs text-gray-500">
+            <div className="text-xs text-text-muted">
               {product.sizeQuantities &&
                 Object.entries(product.sizeQuantities)
                   .filter(([_, quantity]) => quantity > 0)

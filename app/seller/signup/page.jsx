@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/app/context/AuthContext";
 import Link from "next/link";
+import Image from "next/image";
 import { toast } from "react-hot-toast";
 
 export default function SellerSignup() {
@@ -84,90 +85,102 @@ export default function SellerSignup() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-[#faf9f8]">
-      <div className="w-full max-w-md p-8 bg-white rounded-lg shadow-sm">
-        <h1 className="text-3xl font-semibold text-center text-[#8B6E5A] mb-8">
-          Become a Seller
-        </h1>
-        <form onSubmit={handleSubmit}>
-          <div className="mb-6">
-            <label
-              className="block text-[#8B6E5A] text-sm font-medium mb-2"
-              htmlFor="phone"
+    <div className="min-h-screen flex flex-col items-center justify-center px-4 py-12 bg-background">
+      <div className="w-full max-w-md">
+        <div className="text-center mb-10">
+          <Image
+            src="/logo.svg"
+            alt="Fast&Fab Logo"
+            width={200}
+            height={60}
+            className="mx-auto mb-6"
+          />
+          <h1 className="text-xl font-medium text-text-dark">
+            Become a Seller
+          </h1>
+        </div>
+
+        <div className="bg-background-card p-8 rounded-lg shadow-sm">
+          <form onSubmit={handleSubmit} className="space-y-6">
+            <div>
+              <label
+                htmlFor="phone"
+                className="block text-sm font-medium text-text mb-1"
+              >
+                Phone Number
+              </label>
+              <input
+                type="tel"
+                id="phone"
+                name="phone"
+                className="w-full px-4 py-3 border border-ui-border rounded-md focus:outline-none focus:ring-2 focus:ring-secondary bg-input"
+                placeholder="Enter your phone number"
+                value={formData.phone}
+                onChange={handleChange}
+                pattern="[0-9]{10}"
+                maxLength={10}
+                required
+              />
+            </div>
+
+            <div>
+              <label
+                htmlFor="password"
+                className="block text-sm font-medium text-text mb-1"
+              >
+                Password
+              </label>
+              <input
+                type="password"
+                id="password"
+                name="password"
+                className="w-full px-4 py-3 border border-ui-border rounded-md focus:outline-none focus:ring-2 focus:ring-secondary bg-input"
+                placeholder="Enter your password"
+                value={formData.password}
+                onChange={handleChange}
+                minLength={6}
+                required
+              />
+            </div>
+
+            <div>
+              <label
+                htmlFor="confirmPassword"
+                className="block text-sm font-medium text-text mb-1"
+              >
+                Confirm Password
+              </label>
+              <input
+                type="password"
+                id="confirmPassword"
+                name="confirmPassword"
+                className="w-full px-4 py-3 border border-ui-border rounded-md focus:outline-none focus:ring-2 focus:ring-secondary bg-input"
+                placeholder="Confirm your password"
+                value={formData.confirmPassword}
+                onChange={handleChange}
+                minLength={6}
+                required
+              />
+            </div>
+
+            <button
+              type="submit"
+              className="w-full bg-secondary text-white py-3 rounded-md hover:bg-secondary-dark transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              disabled={loading || formData.phone.length !== 10}
             >
-              Phone Number
-            </label>
-            <input
-              type="tel"
-              id="phone"
-              name="phone"
-              className="w-full p-3 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#8B6E5A]"
-              placeholder="Enter your phone number"
-              value={formData.phone}
-              onChange={handleChange}
-              pattern="[0-9]{10}"
-              maxLength={10}
-              required
-            />
-          </div>
+              {loading ? "Signing up..." : "Sign Up"}
+            </button>
 
-          <div className="mb-6">
-            <label
-              className="block text-[#8B6E5A] text-sm font-medium mb-2"
-              htmlFor="password"
-            >
-              Password
-            </label>
-            <input
-              type="password"
-              id="password"
-              name="password"
-              className="w-full p-3 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#8B6E5A]"
-              placeholder="Enter your password"
-              value={formData.password}
-              onChange={handleChange}
-              minLength={6}
-              required
-            />
-          </div>
-
-          <div className="mb-6">
-            <label
-              className="block text-[#8B6E5A] text-sm font-medium mb-2"
-              htmlFor="confirmPassword"
-            >
-              Confirm Password
-            </label>
-            <input
-              type="password"
-              id="confirmPassword"
-              name="confirmPassword"
-              className="w-full p-3 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#8B6E5A]"
-              placeholder="Confirm your password"
-              value={formData.confirmPassword}
-              onChange={handleChange}
-              minLength={6}
-              required
-            />
-          </div>
-
-          <button
-            type="submit"
-            className="w-full bg-[#8B6E5A] text-white py-3 rounded-md hover:bg-[#7d6351] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-            disabled={loading || formData.phone.length !== 10}
-          >
-            {loading ? "Signing up..." : "Sign Up"}
-          </button>
-        </form>
-
-        <div className="mt-6 text-center">
-          <span className="text-gray-600">Already have an account? </span>
-          <Link
-            href="/seller/signin"
-            className="text-[#8B6E5A] hover:underline"
-          >
-            Sign In
-          </Link>
+            <div className="text-center text-sm text-text-muted">
+              Already have an account?{" "}
+              <Link
+                href="/seller/signin"
+                className="text-primary hover:underline"
+              >
+                Sign in
+              </Link>
+            </div>
+          </form>
         </div>
       </div>
     </div>

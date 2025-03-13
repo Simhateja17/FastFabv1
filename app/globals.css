@@ -1,16 +1,81 @@
 @import "tailwindcss";
-@import url("https://fonts.googleapis.com/css2?family=Montserrat:ital,wght@0,100..900;1,100..900&display=swap");
+/* @import url("https://fonts.googleapis.com/css2?family=Montserrat:ital,wght@0,100..900;1,100..900&display=swap"); */
 
 :root {
-  --background: #ffffff;
-  --foreground-rgb: 0, 0, 0;
+  /* Main brand colors */
+  --color-primary: #c75b7a;
+  --color-primary-light: #d9abab;
+  --color-primary-dark: #921a40;
+
+  --color-secondary: #e85c0d;
+  --color-secondary-light: #fabc3f;
+  --color-secondary-dark: #c7253e;
+
+  --color-accent: #f3ca52;
+  --color-accent-light: #f6e9b2;
+  --color-accent-dark: #f3ca52;
+
+  /* Background colors */
+  --color-background: #fff8e8;
+  --color-background-alt: #ffeac5;
+  --color-background-card: #ffffff;
+
+  /* Text colors */
+  --color-text: #603f26;
+  --color-text-light: #6c4e31;
+  --color-text-muted: #8d493a;
+  --color-text-dark: #543310;
+
+  /* UI element colors */
+  --color-ui-border: #dfd3c3;
+  --color-input: #f8ede3;
+  --color-ring: #d0b8a8;
+
+  /* Feedback colors */
+  --color-error: #c7253e;
+  --color-success: #808836;
+  --color-warning: #ffaa80;
+  --color-info: #c39898;
 }
 
-* {
-  font-family: "Montserrat", sans-serif;
+/* Dark mode theme - can be enabled with a class or media query */
+.dark-theme {
+  /* Main brand colors - slightly adjusted for dark mode */
+  --color-primary: #d95f59;
+  --color-primary-light: #ff4c4c;
+  --color-primary-dark: #8c3061;
+
+  --color-secondary: #ffb22c;
+  --color-secondary-light: #ffde4d;
+  --color-secondary-dark: #eb5b00;
+
+  --color-accent: #f3feb8;
+  --color-accent-light: #fff5e1;
+  --color-accent-dark: #f9d689;
+
+  /* Background colors */
+  --color-background: #522258;
+  --color-background-alt: #674636;
+  --color-background-card: #343131;
+
+  /* Text colors */
+  --color-text: #f8f4e1;
+  --color-text-light: #f1e5d1;
+  --color-text-muted: #dbb5b5;
+
+  /* UI element colors */
+  --color-ui-border: #987070;
+  --color-input: #6f4e37;
+  --color-ring: #af8f6f;
+
+  /* Feedback colors - slightly brighter for dark mode */
+  --color-error: #ff0080;
+  --color-success: #7aba78;
+  --color-warning: #ffbf00;
+  --color-info: #ff9a00;
 }
 
 body {
-  color: rgb(var(--foreground-rgb));
-  background: var(--background);
+  color: var(--color-text);
+  background: var(--color-background);
 }

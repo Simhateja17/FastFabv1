@@ -79,7 +79,7 @@ export default function SignUp() {
   };
 
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center px-4 py-12 bg-gray-50">
+    <div className="min-h-screen flex flex-col items-center justify-center px-4 py-12 bg-background">
       <div className="w-full max-w-md">
         <div className="text-center mb-10">
           <Image
@@ -89,10 +89,10 @@ export default function SignUp() {
             height={60}
             className="mx-auto mb-6"
           />
-          <h1 className="text-xl font-medium text-gray-900">Login/Sign up</h1>
+          <h1 className="text-xl font-medium text-text-dark">Login/Sign up</h1>
         </div>
 
-        <div className="bg-white p-8 rounded-lg shadow-sm">
+        <div className="bg-background-card p-8 rounded-lg shadow-sm">
           {step === 1 ? (
             <form onSubmit={handlePhoneSubmit} className="space-y-6">
               <div>
@@ -110,7 +110,7 @@ export default function SignUp() {
                       e.target.value.replace(/\D/g, "").slice(0, 10)
                     )
                   }
-                  className="w-full px-4 py-3 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full px-4 py-3 border border-ui-border rounded-md focus:outline-none focus:ring-2 focus:ring-secondary bg-input"
                   placeholder="Phone number"
                 />
               </div>
@@ -118,14 +118,14 @@ export default function SignUp() {
               <button
                 type="submit"
                 disabled={loading || authLoading}
-                className="w-full bg-blue-500 text-white py-3 rounded-md hover:bg-blue-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                className="w-full bg-primary text-white py-3 rounded-md hover:bg-primary-dark transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {loading || authLoading ? "Sending OTP..." : "Continue"}
               </button>
 
-              <div className="text-center text-sm text-gray-500">
+              <div className="text-center text-sm text-text-muted">
                 Already have an account?{" "}
-                <Link href="/signin" className="text-blue-500 hover:underline">
+                <Link href="/signin" className="text-secondary hover:underline">
                   Sign in
                 </Link>
               </div>
@@ -146,13 +146,13 @@ export default function SignUp() {
                     onChange={(e) =>
                       setOtp(e.target.value.replace(/\D/g, "").slice(0, 6))
                     }
-                    className="w-full px-4 py-3 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="w-full px-4 py-3 border border-ui-border rounded-md focus:outline-none focus:ring-2 focus:ring-secondary bg-input"
                     placeholder="OTP"
                   />
                   <div className="absolute inset-y-0 right-0 flex items-center pr-3">
                     <svg
                       xmlns="http://www.w3.org/2000/svg"
-                      className="h-5 w-5 text-gray-400"
+                      className="h-5 w-5 text-text-muted"
                       fill="none"
                       viewBox="0 0 24 24"
                       stroke="currentColor"
@@ -177,7 +177,7 @@ export default function SignUp() {
               <button
                 type="submit"
                 disabled={loading || authLoading}
-                className="w-full bg-blue-500 text-white py-3 rounded-md hover:bg-blue-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                className="w-full bg-primary text-white py-3 rounded-md hover:bg-primary-dark transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {loading || authLoading ? "Verifying..." : "Continue"}
               </button>
@@ -186,7 +186,7 @@ export default function SignUp() {
                 <button
                   type="button"
                   onClick={() => setStep(1)}
-                  className="text-blue-500 hover:underline"
+                  className="text-secondary hover:underline"
                 >
                   Change phone number
                 </button>

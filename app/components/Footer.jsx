@@ -1,3 +1,5 @@
+import Link from "next/link";
+
 const Footer = () => {
   return (
     <footer className="bg-background py-12">
@@ -7,20 +9,25 @@ const Footer = () => {
             <h3 className="text-lg font-semibold text-primary mb-4">About</h3>
             <ul className="space-y-2">
               <li>
-                <a
-                  href="/our-story"
-                  className="text-gray-600 hover:text-primary"
-                >
-                  Our Story
-                </a>
+                <Link href="/about" className="text-text hover:text-primary">
+                  About Us
+                </Link>
               </li>
               <li>
-                <a
+                <Link
+                  href="/our-story"
+                  className="text-text hover:text-primary"
+                >
+                  Our Story
+                </Link>
+              </li>
+              <li>
+                <Link
                   href="/sustainability"
-                  className="text-gray-600 hover:text-primary"
+                  className="text-text hover:text-primary"
                 >
                   Sustainability
-                </a>
+                </Link>
               </li>
             </ul>
           </div>
@@ -29,27 +36,97 @@ const Footer = () => {
             <h3 className="text-lg font-semibold text-primary mb-4">Legal</h3>
             <ul className="space-y-2">
               <li>
-                <a
+                <Link
                   href="/privacy-policy"
-                  className="text-gray-600 hover:text-primary"
+                  className="text-text hover:text-primary"
                 >
                   Privacy Policy
+                </Link>
+              </li>
+              <li>
+                <Link
+                  href="/terms-of-service"
+                  className="text-text hover:text-primary"
+                >
+                  Terms of Service
+                </Link>
+              </li>
+              <li>
+                <Link
+                  href="/returns-refunds"
+                  className="text-text hover:text-primary"
+                >
+                  Returns & Refunds
+                </Link>
+              </li>
+            </ul>
+          </div>
+
+          <div>
+            <h3 className="text-lg font-semibold text-primary mb-4">
+              Customer Service
+            </h3>
+            <ul className="space-y-2">
+              <li>
+                <Link href="/contact" className="text-text hover:text-primary">
+                  Contact Us
+                </Link>
+              </li>
+              <li>
+                <Link href="/faq" className="text-text hover:text-primary">
+                  FAQ
+                </Link>
+              </li>
+              <li>
+                <Link
+                  href="/shipping-policy"
+                  className="text-text hover:text-primary"
+                >
+                  Shipping Policy
+                </Link>
+              </li>
+            </ul>
+          </div>
+
+          <div>
+            <h3 className="text-lg font-semibold text-primary mb-4">Connect</h3>
+            <ul className="space-y-2">
+              <li>
+                <a
+                  href="https://instagram.com/fastandfab"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-text hover:text-primary"
+                >
+                  Instagram
                 </a>
               </li>
               <li>
                 <a
-                  href="/terms-of-service"
-                  className="text-gray-600 hover:text-primary"
+                  href="https://facebook.com/fastandfab"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-text hover:text-primary"
                 >
-                  Terms of Service
+                  Facebook
+                </a>
+              </li>
+              <li>
+                <a
+                  href="https://twitter.com/fastandfab"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-text hover:text-primary"
+                >
+                  Twitter
                 </a>
               </li>
             </ul>
           </div>
         </div>
 
-        <div className="mt-12 pt-8 border-t border-gray-200">
-          <p className="text-gray-500 text-center">
+        <div className="mt-12 pt-8 border-t border-ui-border">
+          <p className="text-text-muted text-center">
             © 2025 Fast and Fab. All rights reserved.
           </p>
         </div>

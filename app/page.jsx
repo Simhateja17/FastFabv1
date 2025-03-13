@@ -59,15 +59,15 @@ export default async function Home() {
   console.log("Categories found:", categories);
 
   return (
-    <main className="min-h-screen">
+    <main className="min-h-screen bg-background">
       {/* Hero Section */}
-      <div className="bg-[#faf9f8] py-16">
+      <div className="bg-background-alt py-16">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center">
-            <h1 className="text-4xl font-bold text-[#8B6E5A]">
+            <h1 className="text-4xl font-bold text-primary">
               Welcome to Fast&Fab
             </h1>
-            <p className="mt-4 text-xl text-gray-600">
+            <p className="mt-4 text-xl text-text">
               Discover the latest fashion trends
             </p>
             {categories.length > 0 && (
@@ -76,7 +76,7 @@ export default async function Home() {
                   <Link
                     key={category}
                     href={`/products/category/${category.toLowerCase()}`}
-                    className="inline-block bg-[#8B6E5A] text-white px-6 py-2 rounded-md hover:bg-[#7d6351] transition-colors"
+                    className="inline-block bg-secondary text-white px-6 py-2 rounded-md hover:bg-secondary-dark transition-colors"
                   >
                     {category}
                   </Link>
@@ -93,12 +93,12 @@ export default async function Home() {
           categories.map((category) => (
             <section key={category}>
               <div className="flex items-center justify-between mb-8">
-                <h2 className="text-2xl font-semibold text-[#8B6E5A]">
+                <h2 className="text-2xl font-semibold text-primary">
                   {category}
                 </h2>
                 <Link
                   href={`/products/category/${category.toLowerCase()}`}
-                  className="text-sm text-[#8B6E5A] hover:text-[#7d6351] font-medium"
+                  className="text-sm text-secondary hover:text-secondary-dark font-medium"
                 >
                   View All →
                 </Link>
@@ -111,14 +111,14 @@ export default async function Home() {
             </section>
           ))
         ) : (
-          <div className="text-center py-12 bg-white rounded-lg shadow-sm">
+          <div className="text-center py-12 bg-background-card rounded-lg shadow-sm">
             <svg
               xmlns="http://www.w3.org/2000/svg"
               fill="none"
               viewBox="0 0 24 24"
               strokeWidth={1.5}
               stroke="currentColor"
-              className="w-12 h-12 mx-auto text-gray-400"
+              className="w-12 h-12 mx-auto text-text-muted"
             >
               <path
                 strokeLinecap="round"
@@ -126,10 +126,10 @@ export default async function Home() {
                 d="M20.25 7.5l-.625 10.632a2.25 2.25 0 01-2.247 2.118H6.622a2.25 2.25 0 01-2.247-2.118L3.75 7.5m6 4.125l2.25 2.25m0 0l2.25 2.25M12 13.875l2.25-2.25M12 13.875l-2.25 2.25M3.375 7.5h17.25c.621 0 1.125-.504 1.125-1.125v-1.5c0-.621-.504-1.125-1.125-1.125H3.375c-.621 0-1.125.504-1.125 1.125v1.5c0 .621.504 1.125 1.125 1.125z"
               />
             </svg>
-            <h3 className="mt-4 text-lg font-medium text-gray-900">
+            <h3 className="mt-4 text-lg font-medium text-text-dark">
               No Products Available
             </h3>
-            <p className="mt-2 text-gray-500">
+            <p className="mt-2 text-text-muted">
               Check back soon for our latest products!
             </p>
           </div>

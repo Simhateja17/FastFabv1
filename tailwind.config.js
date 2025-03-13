@@ -8,11 +8,46 @@ module.exports = {
   theme: {
     extend: {
       colors: {
+        // Main brand colors
         primary: {
-          DEFAULT: "#8B6E5A",
-          dark: "#7d6351",
+          DEFAULT: "var(--color-primary)",
+          light: "var(--color-primary-light)",
+          dark: "var(--color-primary-dark)",
         },
-        background: "#faf9f8",
+        secondary: {
+          DEFAULT: "var(--color-secondary)",
+          light: "var(--color-secondary-light)",
+          dark: "var(--color-secondary-dark)",
+        },
+        accent: {
+          DEFAULT: "var(--color-accent)",
+          light: "var(--color-accent-light)",
+          dark: "var(--color-accent-dark)",
+        },
+
+        // Background colors
+        background: {
+          DEFAULT: "var(--color-background)",
+          alt: "var(--color-background-alt)",
+          card: "var(--color-background-card)",
+        },
+
+        // Text colors
+        text: {
+          DEFAULT: "var(--color-text)",
+          light: "var(--color-text-light)",
+          muted: "var(--color-text-muted)",
+          dark: "var(--color-text-dark)",
+        },
+
+        // UI element colors
+        "ui-border": "var(--color-ui-border)",
+        input: "var(--color-input)",
+        ring: "var(--color-ring)",
+        error: "var(--color-error)",
+        success: "var(--color-success)",
+        warning: "var(--color-warning)",
+        info: "var(--color-info)",
       },
       fontFamily: {
         sans: ["var(--font-geist-sans)"],

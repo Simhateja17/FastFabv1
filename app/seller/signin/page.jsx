@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/app/context/AuthContext";
 import Link from "next/link";
+import Image from "next/image";
 import { toast } from "react-hot-toast";
 
 export default function SellerSignin() {
@@ -57,77 +58,105 @@ export default function SellerSignin() {
   };
 
   return (
-    <div className="min-h-[80vh] flex items-center justify-center bg-[#faf9f8]">
-      <div className="w-full max-w-md p-8 bg-white rounded-lg shadow-sm">
-        <h1 className="text-3xl font-semibold text-center text-[#8B6E5A] mb-8">
-          Sign In
-        </h1>
-        <form onSubmit={handleSubmit}>
-          <div className="mb-6">
-            <label
-              className="block text-[#8B6E5A] text-sm font-medium mb-2"
-              htmlFor="phone"
-            >
-              Phone Number
-            </label>
-            <input
-              type="tel"
-              id="phone"
-              name="phone"
-              className="w-full p-3 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#8B6E5A]"
-              placeholder="Enter your phone number"
-              value={formData.phone}
-              onChange={handleChange}
-              pattern="[0-9]{10}"
-              maxLength={10}
-              required
-            />
-          </div>
-
-          <div className="mb-6">
-            <label
-              className="block text-[#8B6E5A] text-sm font-medium mb-2"
-              htmlFor="password"
-            >
-              Password
-            </label>
-            <input
-              type="password"
-              id="password"
-              name="password"
-              className="w-full p-3 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#8B6E5A]"
-              placeholder="Enter your password"
-              value={formData.password}
-              onChange={handleChange}
-              required
-            />
-          </div>
-
-          <button
-            type="submit"
-            className="w-full bg-[#8B6E5A] text-white py-3 rounded-md hover:bg-[#7d6351] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-            disabled={loading || formData.phone.length !== 10}
-          >
-            {loading ? "Signing in..." : "Sign In"}
-          </button>
-        </form>
-
-        <div className="mt-6 text-center">
-          <Link
-            href="/seller/forgot-password"
-            className="text-[#8B6E5A] hover:underline"
-          >
-            Forgot Password?
-          </Link>
+    <div className="min-h-screen flex flex-col items-center justify-center px-4 py-12 bg-background">
+      <div className="w-full max-w-md">
+        <div className="text-center mb-10">
+          <Image
+            src="/logo.svg"
+            alt="Fast&Fab Logo"
+            width={200}
+            height={60}
+            className="mx-auto mb-6"
+          />
+          <h1 className="text-xl font-medium text-text-dark">Seller Login</h1>
         </div>
-        <div className="mt-4 text-center">
-          <span className="text-gray-600">Don't have an account? </span>
-          <Link
-            href="/seller/signup"
-            className="text-[#8B6E5A] hover:underline"
-          >
-            Sign Up
-          </Link>
+
+        <div className="bg-background-card p-8 rounded-lg shadow-sm">
+          <form onSubmit={handleSubmit} className="space-y-6">
+            <div>
+              <label
+                htmlFor="phone"
+                className="block text-sm font-medium text-text mb-1"
+              >
+                Phone Number
+              </label>
+              <input
+                type="tel"
+                id="phone"
+                name="phone"
+                className="w-full px-4 py-3 border border-ui-border rounded-md focus:outline-none focus:ring-2 focus:ring-secondary bg-input"
+                placeholder="Enter your phone number"
+                value={formData.phone}
+                onChange={handleChange}
+                pattern="[0-9]{10}"
+                maxLength={10}
+                required
+              />
+            </div>
+
+            <div>
+              <label
+                htmlFor="password"
+                className="block text-sm font-medium text-text mb-1"
+              >
+                Password
+              </label>
+              <input
+                type="password"
+                id="password"
+                name="password"
+                className="w-full px-4 py-3 border border-ui-border rounded-md focus:outline-none focus:ring-2 focus:ring-secondary bg-input"
+                placeholder="Enter your password"
+                value={formData.password}
+                onChange={handleChange}
+                required
+              />
+            </div>
+
+            <div className="flex items-center justify-between">
+              <div className="flex items-center">
+                <input
+                  id="remember-me"
+                  name="remember-me"
+                  type="checkbox"
+                  className="h-4 w-4 text-secondary focus:ring-secondary border-ui-border rounded"
+                />
+                <label
+                  htmlFor="remember-me"
+                  className="ml-2 block text-sm text-text"
+                >
+                  Remember me
+                </label>
+              </div>
+
+              <div className="text-sm">
+                <Link
+                  href="/seller/forgot-password"
+                  className="text-secondary hover:underline"
+                >
+                  Forgot password?
+                </Link>
+              </div>
+            </div>
+
+            <button
+              type="submit"
+              className="w-full bg-secondary text-white py-3 rounded-md hover:bg-secondary-dark transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              disabled={loading || formData.phone.length !== 10}
+            >
+              {loading ? "Signing in..." : "Sign In"}
+            </button>
+
+            <div className="text-center text-sm text-text-muted">
+              Don't have an account?{" "}
+              <Link
+                href="/seller/signup"
+                className="text-primary hover:underline"
+              >
+                Sign up
+              </Link>
+            </div>
+          </form>
         </div>
       </div>
     </div>
