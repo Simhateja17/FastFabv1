@@ -3,33 +3,51 @@
 import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { FiMenu, FiX, FiLogOut, FiUser } from "react-icons/fi";
+import { FiMenu, FiX, FiLogOut, FiUser, FiShoppingBag } from "react-icons/fi";
 import { BsCart, BsPerson } from "react-icons/bs";
 import { useAuth } from "../context/AuthContext";
+import { useUserAuth } from "../context/UserAuthContext";
+import Image from "next/image";
 
 const Navbar = () => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
-  const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+  const [isSellerDropdownOpen, setIsSellerDropdownOpen] = useState(false);
+  const [isUserDropdownOpen, setIsUserDropdownOpen] = useState(false);
   const pathname = usePathname();
   const router = useRouter();
-  const { seller, logout, checkAuth } = useAuth();
-  const dropdownRef = useRef(null);
+  const {
+    seller,
+    logout: sellerLogout,
+    checkAuth: checkSellerAuth,
+  } = useAuth();
+  const { user, logout: userLogout } = useUserAuth();
+  const sellerDropdownRef = useRef(null);
+  const userDropdownRef = useRef(null);
 
   const redirect = seller ? `/seller/dashboard` : "/";
 
   // Check authentication status on component mount
   useEffect(() => {
     const verifyAuth = async () => {
-      await checkAuth();
+      await checkSellerAuth();
     };
     verifyAuth();
-  }, [checkAuth]);
+  }, [checkSellerAuth]);
 
-  // Close dropdown when clicking outside
+  // Close dropdowns when clicking outside
   useEffect(() => {
     const handleClickOutside = (event) => {
-      if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
-        setIsDropdownOpen(false);
+      if (
+        sellerDropdownRef.current &&
+        !sellerDropdownRef.current.contains(event.target)
+      ) {
+        setIsSellerDropdownOpen(false);
+      }
+      if (
+        userDropdownRef.current &&
+        !userDropdownRef.current.contains(event.target)
+      ) {
+        setIsUserDropdownOpen(false);
       }
     };
 
@@ -39,9 +57,15 @@ const Navbar = () => {
     };
   }, []);
 
-  const handleLogout = () => {
-    logout();
-    setIsDropdownOpen(false);
+  const handleSellerLogout = () => {
+    sellerLogout();
+    setIsSellerDropdownOpen(false);
+    router.push("/");
+  };
+
+  const handleUserLogout = () => {
+    userLogout();
+    setIsUserDropdownOpen(false);
     router.push("/");
   };
 
@@ -53,21 +77,82 @@ const Navbar = () => {
     }));
   };
 
+  const renderUserAuthLinks = () => {
+    if (user) {
+      return (
+        <div className="relative" ref={userDropdownRef}>
+          <button
+            onClick={() => setIsUserDropdownOpen(!isUserDropdownOpen)}
+            className="flex items-center space-x-1 text-gray-700 hover:text-primary"
+          >
+            <BsPerson className="text-xl" />
+            <span className="hidden md:inline">{user.name || "Account"}</span>
+          </button>
+
+          {isUserDropdownOpen && (
+            <div className="absolute right-0 mt-2 w-48 bg-white rounded-md shadow-lg py-1 z-10">
+              <Link
+                href="/profile"
+                className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+                onClick={() => setIsUserDropdownOpen(false)}
+              >
+                My Profile
+              </Link>
+              <Link
+                href="/orders"
+                className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+                onClick={() => setIsUserDropdownOpen(false)}
+              >
+                My Orders
+              </Link>
+              <button
+                onClick={handleUserLogout}
+                className="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+              >
+                Logout
+              </button>
+            </div>
+          )}
+        </div>
+      );
+    }
+
+    return (
+      <div className="flex items-center space-x-4">
+        <Link href="/signin" className="text-gray-700 hover:text-primary">
+          Login
+        </Link>
+        <Link
+          href="/signup"
+          className="hidden md:block bg-primary text-white px-4 py-2 rounded-md hover:bg-primary-dark"
+        >
+          Sign Up
+        </Link>
+      </div>
+    );
+  };
+
   return (
     <nav className="bg-white shadow-sm">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between h-16">
           {/* Logo - visible on all screens */}
           <Link href={`${redirect}`} className="text-xl font-medium">
-            Fast&Fab
+            <Image
+              src="/logo.svg"
+              alt="Fast&Fab Logo"
+              width={100}
+              height={30}
+              className="m-auto"
+            />
           </Link>
 
-          {/* Desktop Navigation Items */}
-          <div className="hidden sm:flex sm:items-center sm:gap-4">
+          {/* Desktop Navigation */}
+          <div className="hidden md:flex md:items-center md:space-x-6">
             {!seller && (
               <Link
-                href="/seller/signup"
-                className="text-[#C17867] border border-[#C17867] px-4 py-1.5 rounded-md hover:bg-[#C17867] hover:text-white transition-colors text-sm"
+                href="/seller/signin"
+                className="text-gray-600 hover:text-gray-900"
               >
                 Become a Seller
               </Link>
@@ -76,17 +161,20 @@ const Navbar = () => {
               <BsCart className="w-6 h-6" />
             </Link>
 
-            {/* User Profile with Dropdown */}
-            <div className="relative" ref={dropdownRef}>
+            {/* User Authentication Links */}
+            {renderUserAuthLinks()}
+
+            {/* Seller Profile with Dropdown */}
+            <div className="relative" ref={sellerDropdownRef}>
               <button
-                onClick={() => setIsDropdownOpen(!isDropdownOpen)}
+                onClick={() => setIsSellerDropdownOpen(!isSellerDropdownOpen)}
                 className="text-gray-600 hover:text-gray-900 focus:outline-none"
               >
                 <BsPerson className="w-6 h-6" />
               </button>
 
               {/* Dropdown Menu */}
-              {isDropdownOpen && (
+              {isSellerDropdownOpen && (
                 <div className="absolute right-0 mt-2 w-48 bg-white rounded-md shadow-lg py-1 z-10 border border-gray-200">
                   {seller ? (
                     <>
@@ -105,7 +193,7 @@ const Navbar = () => {
                         My Products
                       </Link>
                       <button
-                        onClick={handleLogout}
+                        onClick={handleSellerLogout}
                         className=" w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 flex items-center"
                       >
                         <FiLogOut className="mr-2" />
@@ -159,13 +247,54 @@ const Navbar = () => {
             >
               Cart
             </Link>
+
+            {/* User Authentication Links for Mobile */}
+            {user ? (
+              <>
+                <Link
+                  href="/profile"
+                  className="block pl-3 pr-4 py-2 text-base font-medium text-gray-500 hover:text-gray-900 hover:bg-gray-50"
+                >
+                  My Profile
+                </Link>
+                <Link
+                  href="/orders"
+                  className="block pl-3 pr-4 py-2 text-base font-medium text-gray-500 hover:text-gray-900 hover:bg-gray-50"
+                >
+                  My Orders
+                </Link>
+                <button
+                  onClick={handleUserLogout}
+                  className="block w-full text-left pl-3 pr-4 py-2 text-base font-medium text-gray-500 hover:text-gray-900 hover:bg-gray-50"
+                >
+                  User Logout
+                </button>
+              </>
+            ) : (
+              <>
+                <Link
+                  href="/signin"
+                  className="block pl-3 pr-4 py-2 text-base font-medium text-gray-500 hover:text-gray-900 hover:bg-gray-50"
+                >
+                  Login
+                </Link>
+                <Link
+                  href="/signup"
+                  className="block pl-3 pr-4 py-2 text-base font-medium text-gray-500 hover:text-gray-900 hover:bg-gray-50"
+                >
+                  Sign Up
+                </Link>
+              </>
+            )}
+
+            {/* Seller Authentication Links for Mobile */}
             {seller ? (
               <>
                 <Link
                   href="/seller/profile"
                   className="block pl-3 pr-4 py-2 text-base font-medium text-gray-500 hover:text-gray-900 hover:bg-gray-50"
                 >
-                  My Profile
+                  Seller Profile
                 </Link>
                 <Link
                   href="/seller/products"
@@ -174,10 +303,10 @@ const Navbar = () => {
                   My Products
                 </Link>
                 <button
-                  onClick={handleLogout}
+                  onClick={handleSellerLogout}
                   className="block w-full text-left pl-3 pr-4 py-2 text-base font-medium text-gray-500 hover:text-gray-900 hover:bg-gray-50"
                 >
-                  Logout
+                  Seller Logout
                 </button>
               </>
             ) : (
