@@ -151,18 +151,18 @@ const Navbar = () => {
           <div className="hidden md:flex md:items-center md:space-x-6">
             {!seller && (
               <Link
-                href="/seller/signin"
+                href="/seller/signup"
                 className="text-text-muted hover:text-text-dark"
               >
                 Become a Seller
               </Link>
             )}
-            <Link href="/cart" className="text-text-muted hover:text-text-dark">
-              <BsCart className="w-6 h-6" />
-            </Link>
 
             {/* User Authentication Links */}
             {renderUserAuthLinks()}
+            <Link href="/cart" className="text-text-muted hover:text-text-dark">
+              <BsCart className="w-6 h-6" />
+            </Link>
 
             {/* Seller Profile with Dropdown */}
             <div className="relative" ref={sellerDropdownRef}>

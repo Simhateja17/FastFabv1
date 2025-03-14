@@ -113,16 +113,16 @@ function DashboardContent() {
 
   return (
     <div className="p-6">
-      <h1 className="text-2xl font-semibold text-[#8B6E5A] mb-6">
+      <h1 className="text-2xl font-semibold text-primary mb-6">
         Seller Dashboard
       </h1>
 
       {seller && (
-        <div className="bg-white p-4 rounded-lg shadow-sm mb-6">
-          <h2 className="font-medium text-lg">
+        <div className="bg-background-card p-4 rounded-lg shadow-sm mb-6 border border-ui-border">
+          <h2 className="font-medium text-lg text-text-dark">
             Welcome, {seller.shopName || seller.phone}!
           </h2>
-          <p className="text-gray-600 mt-1">
+          <p className="text-text-muted mt-1">
             Manage your products and orders from here.
           </p>
         </div>
@@ -133,13 +133,13 @@ function DashboardContent() {
           <Link
             key={item.title}
             href={item.href}
-            className="p-6 bg-white rounded-lg shadow-sm hover:shadow-md transition-shadow"
+            className="p-6 bg-background-card rounded-lg shadow-sm hover:shadow-md transition-shadow border border-ui-border"
           >
             <div className="flex items-center space-x-4">
-              <div className="p-3 bg-[#faf9f8] rounded-full text-[#8B6E5A]">
+              <div className="p-3 bg-primary bg-opacity-10 rounded-full text-primary">
                 {item.icon}
               </div>
-              <h2 className="text-xl font-medium text-gray-900">
+              <h2 className="text-xl font-medium text-text-dark">
                 {item.title}
               </h2>
             </div>

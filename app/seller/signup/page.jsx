@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/app/context/AuthContext";
 import Link from "next/link";
@@ -16,11 +16,40 @@ export default function SellerSignup() {
   const [loading, setLoading] = useState(false);
   const router = useRouter();
   const { register, seller } = useAuth();
+  // Use a ref to track if we're already redirecting
+  const isRedirectingRef = useRef(false);
+  // Use a ref to track if the component is mounted
+  const isMountedRef = useRef(true);
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      isMountedRef.current = false;
+    };
+  }, []);
 
   // Redirect if already logged in
   useEffect(() => {
+    // If already redirecting or not mounted, skip
+    if (isRedirectingRef.current || !isMountedRef.current) return;
+
     console.log("Seller state in signup:", seller);
+
     if (seller) {
+      isRedirectingRef.current = true;
+
+      // Store the redirect in localStorage to prevent future redirects
+      const redirectPath = seller.needsOnboarding
+        ? "/seller/onboarding"
+        : "/seller/dashboard";
+      localStorage.setItem(
+        "lastRedirect",
+        JSON.stringify({
+          time: Date.now(),
+          path: redirectPath,
+        })
+      );
+
       if (seller.needsOnboarding) {
         console.log("Redirecting to onboarding");
         router.push("/seller/onboarding");
@@ -62,17 +91,32 @@ export default function SellerSignup() {
       if (result.success) {
         toast.success("Registration successful!");
 
-        // Force a small delay to ensure state updates
-        setTimeout(() => {
-          // Check if we need onboarding
-          if (result.needsOnboarding) {
-            console.log("Redirecting to onboarding after signup");
-            router.push("/seller/onboarding");
-          } else {
-            console.log("Redirecting to dashboard after signup");
-            router.push("/seller/dashboard");
-          }
-        }, 100);
+        // Prevent multiple redirects
+        if (isRedirectingRef.current || !isMountedRef.current) {
+          return;
+        }
+        isRedirectingRef.current = true;
+
+        // Store the redirect in localStorage
+        const redirectPath = result.needsOnboarding
+          ? "/seller/onboarding"
+          : "/seller/dashboard";
+        localStorage.setItem(
+          "lastRedirect",
+          JSON.stringify({
+            time: Date.now(),
+            path: redirectPath,
+          })
+        );
+
+        // Check if we need onboarding
+        if (result.needsOnboarding) {
+          console.log("Redirecting to onboarding after signup");
+          router.push("/seller/onboarding");
+        } else {
+          console.log("Redirecting to dashboard after signup");
+          router.push("/seller/dashboard");
+        }
       } else {
         toast.error(result.error || "Registration failed. Please try again.");
       }
@@ -80,7 +124,9 @@ export default function SellerSignup() {
       console.error("Registration error:", error);
       toast.error("Something went wrong. Please try again.");
     } finally {
-      setLoading(false);
+      if (isMountedRef.current) {
+        setLoading(false);
+      }
     }
   };
 
@@ -165,7 +211,7 @@ export default function SellerSignup() {
 
             <button
               type="submit"
-              className="w-full bg-secondary text-white py-3 rounded-md hover:bg-secondary-dark transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              className="w-full bg-secondary text-primary py-3 rounded-md hover:bg-secondary-dark transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               disabled={loading || formData.phone.length !== 10}
             >
               {loading ? "Signing up..." : "Sign Up"}

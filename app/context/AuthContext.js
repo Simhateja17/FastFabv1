@@ -9,6 +9,8 @@ const AuthContext = createContext();
 const setTokens = (accessToken, refreshToken) => {
   localStorage.setItem("accessToken", accessToken);
   localStorage.setItem("refreshToken", refreshToken);
+  // Set a timestamp for when the profile was last checked
+  localStorage.setItem("lastProfileCheck", Date.now().toString());
 };
 
 const getTokens = () => {
@@ -24,7 +26,11 @@ const getTokens = () => {
 const clearTokens = () => {
   localStorage.removeItem("accessToken");
   localStorage.removeItem("refreshToken");
+  localStorage.removeItem("lastProfileCheck");
 };
+
+// Global variable to prevent multiple auth checks across renders
+let isGlobalAuthCheckInProgress = false;
 
 export function AuthProvider({ children }) {
   const [seller, setSeller] = useState(null);
@@ -117,10 +123,24 @@ export function AuthProvider({ children }) {
   // Check for token on initial load
   useEffect(() => {
     let isMounted = true;
-    let authCheckCompleted = false;
 
     const initializeAuth = async () => {
-      if (authCheckCompleted) return;
+      // Prevent multiple auth checks globally across renders
+      if (isGlobalAuthCheckInProgress) {
+        console.log("Auth check already in progress, skipping");
+        return;
+      }
+
+      // Check if we've recently checked the profile (within the last 5 seconds)
+      const lastCheck = localStorage.getItem("lastProfileCheck");
+      const now = Date.now();
+      if (lastCheck && now - parseInt(lastCheck) < 5000) {
+        console.log("Profile recently checked, using cached data");
+        setLoading(false);
+        return;
+      }
+
+      isGlobalAuthCheckInProgress = true;
 
       try {
         console.log("Initializing auth...");
@@ -172,12 +192,16 @@ export function AuthProvider({ children }) {
 
               // Update backup
               localStorage.setItem("sellerData", JSON.stringify(updatedSeller));
+              // Update last check timestamp
+              localStorage.setItem("lastProfileCheck", now.toString());
             }
           } else if (response.status === 401) {
             // If token is invalid, try to refresh
             try {
               console.log("Attempting to refresh token");
               await refreshAccessToken();
+              // Update last check timestamp
+              localStorage.setItem("lastProfileCheck", now.toString());
             } catch (refreshError) {
               console.error("Token refresh failed:", refreshError);
               clearTokens();
@@ -194,7 +218,7 @@ export function AuthProvider({ children }) {
       } catch (error) {
         console.error("Auth initialization error:", error);
       } finally {
-        authCheckCompleted = true;
+        isGlobalAuthCheckInProgress = false;
         if (isMounted) setLoading(false);
       }
     };
@@ -226,6 +250,12 @@ export function AuthProvider({ children }) {
       // Store tokens
       setTokens(data.accessToken, data.refreshToken);
       setSeller(data.seller);
+
+      // Also store in localStorage as a backup
+      localStorage.setItem("sellerData", JSON.stringify(data.seller));
+
+      // Set a timestamp for when the profile was last checked to prevent immediate profile checks
+      localStorage.setItem("lastProfileCheck", Date.now().toString());
 
       return { success: true, seller: data.seller };
     } catch (error) {
@@ -272,6 +302,9 @@ export function AuthProvider({ children }) {
 
       // Also store in localStorage as a backup
       localStorage.setItem("sellerData", JSON.stringify(sellerData));
+
+      // Set a timestamp for when the profile was last checked to prevent immediate profile checks
+      localStorage.setItem("lastProfileCheck", Date.now().toString());
 
       return { success: true, sellerId: data.sellerId, needsOnboarding: true };
     } catch (error) {
