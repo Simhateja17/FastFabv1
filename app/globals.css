@@ -2,77 +2,77 @@
 /* @import url("https://fonts.googleapis.com/css2?family=Montserrat:ital,wght@0,100..900;1,100..900&display=swap"); */
 
 :root {
-  /* Main brand colors */
-  --color-primary: #c75b7a;
-  --color-primary-light: #d9abab;
-  --color-primary-dark: #921a40;
+  /* Main brand colors - Vibrant & Energetic */
+  --color-primary: #ff3366; /* Vibrant pink - creates urgency and excitement */
+  --color-primary-light: #ff6b99;
+  --color-primary-dark: #cc1a4a;
 
-  --color-secondary: #e85c0d;
-  --color-secondary-light: #fabc3f;
-  --color-secondary-dark: #c7253e;
+  --color-secondary: #00c2a8; /* Teal - conveys trust and reliability */
+  --color-secondary-light: #40e0d0;
+  --color-secondary-dark: #008b8b;
 
-  --color-accent: #f3ca52;
-  --color-accent-light: #f6e9b2;
-  --color-accent-dark: #f3ca52;
+  --color-accent: #ffc045; /* Warm yellow - creates sense of urgency */
+  --color-accent-light: #ffe082;
+  --color-accent-dark: #ffab00;
 
-  /* Background colors */
-  --color-background: #fff8e8;
-  --color-background-alt: #ffeac5;
+  /* Background colors - Clean & Minimal */
+  --color-background: #ffffff; /* Pure white for clean, fast shopping experience */
+  --color-background-alt: #f9f9f9;
   --color-background-card: #ffffff;
 
-  /* Text colors */
-  --color-text: #603f26;
-  --color-text-light: #6c4e31;
-  --color-text-muted: #8d493a;
-  --color-text-dark: #543310;
+  /* Text colors - Clear & Readable */
+  --color-text: #333333; /* Dark gray for readability */
+  --color-text-light: #555555;
+  --color-text-muted: #777777;
+  --color-text-dark: #111111;
 
-  /* UI element colors */
-  --color-ui-border: #dfd3c3;
-  --color-input: #f8ede3;
-  --color-ring: #d0b8a8;
+  /* UI element colors - Crisp & Functional */
+  --color-ui-border: #e0e0e0;
+  --color-input: #f5f5f5;
+  --color-ring: #d0d0d0;
 
-  /* Feedback colors */
-  --color-error: #c7253e;
-  --color-success: #808836;
-  --color-warning: #ffaa80;
-  --color-info: #c39898;
+  /* Feedback colors - Clear Communication */
+  --color-error: #ff3b30; /* Bright red for errors */
+  --color-success: #34c759; /* Green for success */
+  --color-warning: #ff9500; /* Orange for warnings */
+  --color-info: #007aff; /* Blue for information */
 }
 
 /* Dark mode theme - can be enabled with a class or media query */
 .dark-theme {
   /* Main brand colors - slightly adjusted for dark mode */
-  --color-primary: #d95f59;
-  --color-primary-light: #ff4c4c;
-  --color-primary-dark: #8c3061;
+  --color-primary: #ff4d7d;
+  --color-primary-light: #ff80ab;
+  --color-primary-dark: #c60055;
 
-  --color-secondary: #ffb22c;
-  --color-secondary-light: #ffde4d;
-  --color-secondary-dark: #eb5b00;
+  --color-secondary: #00e5c7;
+  --color-secondary-light: #5effee;
+  --color-secondary-dark: #00b2a0;
 
-  --color-accent: #f3feb8;
-  --color-accent-light: #fff5e1;
-  --color-accent-dark: #f9d689;
+  --color-accent: #ffca64;
+  --color-accent-light: #ffecb3;
+  --color-accent-dark: #ffb74d;
 
   /* Background colors */
-  --color-background: #522258;
-  --color-background-alt: #674636;
-  --color-background-card: #343131;
+  --color-background: #121212;
+  --color-background-alt: #1e1e1e;
+  --color-background-card: #2c2c2c;
 
   /* Text colors */
-  --color-text: #f8f4e1;
-  --color-text-light: #f1e5d1;
-  --color-text-muted: #dbb5b5;
+  --color-text: #f5f5f5;
+  --color-text-light: #e0e0e0;
+  --color-text-muted: #b0b0b0;
 
   /* UI element colors */
-  --color-ui-border: #987070;
-  --color-input: #6f4e37;
-  --color-ring: #af8f6f;
+  --color-ui-border: #444444;
+  --color-input: #333333;
+  --color-ring: #555555;
 
   /* Feedback colors - slightly brighter for dark mode */
-  --color-error: #ff0080;
-  --color-success: #7aba78;
-  --color-warning: #ffbf00;
-  --color-info: #ff9a00;
+  --color-error: #ff6b6b;
+  --color-success: #4cd964;
+  --color-warning: #ffcc00;
+  --color-info: #5ac8fa;
 }
 
 body {

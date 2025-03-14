@@ -111,7 +111,7 @@ export default function SignIn() {
               <button
                 type="submit"
                 disabled={loading || authLoading}
-                className="w-full bg-secondary text-white py-3 rounded-md hover:bg-secondary-dark transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                className="w-full bg-secondary text-primary py-3 rounded-md hover:bg-secondary-dark transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {loading || authLoading ? "Sending OTP..." : "Continue"}
               </button>

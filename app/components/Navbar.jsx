@@ -124,7 +124,7 @@ const Navbar = () => {
         </Link>
         <Link
           href="/signup"
-          className="hidden md:block bg-primary text-white px-4 py-2 rounded-md hover:bg-primary-dark"
+          className="hidden md:block bg-primary text-primary px-4 py-2 rounded-md hover:bg-primary-dark"
         >
           Sign Up
         </Link>

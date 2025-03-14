@@ -7,7 +7,7 @@ export default function ReturnsAndRefunds() {
   return (
     <div className="bg-background min-h-screen">
       {/* Hero Section */}
-      <div className="bg-secondary text-primary">
+      <div className="bg-secondary text-white">
         <div className="max-w-6xl mx-auto px-4 py-16 sm:px-6 lg:px-8 text-center">
           <h1 className="text-4xl font-bold mb-4">Returns & Refunds Policy</h1>
           <p className="text-xl max-w-3xl mx-auto">

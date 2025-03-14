@@ -141,7 +141,7 @@ export default function SellerSignin() {
 
             <button
               type="submit"
-              className="w-full bg-secondary text-white py-3 rounded-md hover:bg-secondary-dark transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              className="w-full  text-primary py-3 rounded-md hover:bg-secondary-dark transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               disabled={loading || formData.phone.length !== 10}
             >
               {loading ? "Signing in..." : "Sign In"}
