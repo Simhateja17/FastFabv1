@@ -4,6 +4,8 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useUserAuth } from "@/app/context/UserAuthContext";
 import { toast } from "react-hot-toast";
+import { useAuth } from "@/app/context/AuthContext";
+import LoadingSpinner from "@/app/components/LoadingSpinner";
 
 export default function CompleteProfile() {
   const router = useRouter();
@@ -85,7 +87,7 @@ export default function CompleteProfile() {
   if (authLoading) {
     return (
       <div className="flex justify-center items-center min-h-screen">
-        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500"></div>
+        <LoadingSpinner size="large" color="primary" />
       </div>
     );
   }

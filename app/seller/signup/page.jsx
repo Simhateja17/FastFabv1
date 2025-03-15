@@ -7,6 +7,7 @@ import Link from "next/link";
 import Image from "next/image";
 import { toast } from "react-hot-toast";
 import SellerTermsModal from "@/app/components/SellerTermsModal";
+import LoadingButton from "@/app/components/LoadingButton";
 
 export default function SellerSignup() {
   const [formData, setFormData] = useState({
@@ -149,6 +150,10 @@ export default function SellerSignup() {
         }
         isRedirectingRef.current = true;
 
+        // Set a flag in localStorage to indicate this is a new registration
+        // This will be checked by ProtectedRoute to ensure proper redirection
+        localStorage.setItem("isNewRegistration", "true");
+
         console.log("Redirecting new seller to onboarding");
         router.push("/seller/onboarding");
       } else {
@@ -264,15 +269,16 @@ export default function SellerSignup() {
               </label>
             </div>
 
-            <button
+            <LoadingButton
               type="submit"
-              className="w-full bg-secondary text-primary py-3 rounded-md hover:bg-secondary-dark transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-              disabled={
-                loading || formData.phone.length !== 10 || !termsAccepted
-              }
+              variant="secondary"
+              fullWidth
+              isLoading={loading}
+              loadingText="Signing up..."
+              disabled={formData.phone.length !== 10 || !termsAccepted}
             >
-              {loading ? "Signing up..." : "Sign Up"}
-            </button>
+              Sign Up
+            </LoadingButton>
 
             <div className="text-center text-sm text-text-muted">
               Already have an account?{" "}

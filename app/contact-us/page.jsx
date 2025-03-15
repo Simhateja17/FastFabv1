@@ -3,7 +3,8 @@
 import { useState } from "react";
 import Link from "next/link";
 import { toast } from "react-hot-toast";
-import { FiMail, FiPhone, FiMapPin } from "react-icons/fi";
+import { FiMail, FiPhone, FiMapPin, FiClock, FiUser } from "react-icons/fi";
+import LoadingButton from "@/app/components/LoadingButton";
 
 export default function ContactUs() {
   const [formData, setFormData] = useState({
@@ -46,6 +47,9 @@ export default function ContactUs() {
           <p className="text-lg text-center max-w-2xl mx-auto">
             We're here to help! Reach out to us with any questions or concerns.
           </p>
+          <p className="text-sm text-center mt-2">
+            Last updated on 15-03-2025 19:11:27
+          </p>
         </div>
       </div>
 
@@ -58,6 +62,14 @@ export default function ContactUs() {
               <h2 className="text-xl font-semibold mb-6">Get in Touch</h2>
 
               <div className="space-y-4">
+                <div className="flex items-center">
+                  <FiUser className="h-5 w-5 mr-3" />
+                  <div>
+                    <p className="font-medium">Legal Entity</p>
+                    <p>COUTURE SERVICES PRIVATE LIMITED</p>
+                  </div>
+                </div>
+
                 <div className="flex items-center">
                   <FiMail className="h-5 w-5 mr-3" />
                   <div>
@@ -75,15 +87,29 @@ export default function ContactUs() {
                   <FiPhone className="h-5 w-5 mr-3" />
                   <div>
                     <p className="font-medium">Phone</p>
-                    <p>+91 9876543210</p>
+                    <p>+91 6301658275</p>
                   </div>
                 </div>
 
-                <div className="flex items-center">
-                  <FiMapPin className="h-5 w-5 mr-3" />
+                <div className="flex items-start">
+                  <FiMapPin className="h-5 w-5 mr-3 mt-1" />
                   <div>
-                    <p className="font-medium">Address</p>
-                    <p>123 Fashion Street, Hyderabad, Telangana, India</p>
+                    <p className="font-medium">Registered Address</p>
+                    <p>
+                      2/61, EGUVAVAMANDAPALLI, Mandapalli, Rajampet, Cuddapah-
+                      516150, Andhra Pradesh, PIN: 516150
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-start">
+                  <FiMapPin className="h-5 w-5 mr-3 mt-1" />
+                  <div>
+                    <p className="font-medium">Operational Address</p>
+                    <p>
+                      2/61, EGUVAVAMANDAPALLI, Mandapalli, Rajampet, Cuddapah-
+                      516150, Andhra Pradesh, PIN: 516150
+                    </p>
                   </div>
                 </div>
               </div>
@@ -171,13 +197,15 @@ export default function ContactUs() {
                   ></textarea>
                 </div>
 
-                <button
+                <LoadingButton
                   type="submit"
-                  className="w-full bg-primary text-white py-2 rounded-md hover:bg-primary-dark transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                  disabled={loading}
+                  variant="primary"
+                  fullWidth
+                  isLoading={loading}
+                  loadingText="Sending..."
                 >
-                  {loading ? "Sending..." : "Send Message"}
-                </button>
+                  Send Message
+                </LoadingButton>
               </form>
             </div>
           </div>

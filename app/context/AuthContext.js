@@ -131,11 +131,24 @@ export function AuthProvider({ children }) {
         return;
       }
 
-      // Check if we've recently checked the profile (within the last 5 seconds)
+      // Check if we've recently checked the profile (within the last 30 seconds)
       const lastCheck = localStorage.getItem("lastProfileCheck");
       const now = Date.now();
-      if (lastCheck && now - parseInt(lastCheck) < 5000) {
+      if (lastCheck && now - parseInt(lastCheck) < 30000) {
         console.log("Profile recently checked, using cached data");
+
+        // Use cached seller data if available
+        const storedSellerData = localStorage.getItem("sellerData");
+        if (storedSellerData && isMounted) {
+          try {
+            const parsedSellerData = JSON.parse(storedSellerData);
+            console.log("Using cached seller data:", parsedSellerData);
+            setSeller(parsedSellerData);
+          } catch (e) {
+            console.error("Error parsing stored seller data:", e);
+          }
+        }
+
         setLoading(false);
         return;
       }
@@ -179,14 +192,21 @@ export function AuthProvider({ children }) {
             const data = await response.json();
             console.log("Profile data:", data);
             if (isMounted) {
-              // Preserve needsOnboarding flag if it exists in current state
+              // Check for new registration flag
+              const isNewRegistration =
+                localStorage.getItem("isNewRegistration") === "true";
+
+              // Preserve needsOnboarding flag if it exists in current state or if this is a new registration
               const currentSeller = seller || {};
               const updatedSeller = {
                 ...data.seller,
-                needsOnboarding: data.seller.shopName
+                needsOnboarding: isNewRegistration
+                  ? true
+                  : data.seller.shopName
                   ? false
                   : currentSeller.needsOnboarding || true,
               };
+
               console.log("Setting seller state to:", updatedSeller);
               setSeller(updatedSeller);
 
@@ -233,6 +253,8 @@ export function AuthProvider({ children }) {
   const login = async (phone, password) => {
     try {
       setLoading(true);
+      console.log("Starting login process for:", phone);
+
       const response = await fetch(AUTH_ENDPOINTS.SIGNIN, {
         method: "POST",
         headers: {
@@ -242,6 +264,7 @@ export function AuthProvider({ children }) {
       });
 
       const data = await response.json();
+      console.log("Login API response:", data);
 
       if (!response.ok) {
         throw new Error(data.message || "Login failed");
@@ -249,16 +272,29 @@ export function AuthProvider({ children }) {
 
       // Store tokens
       setTokens(data.accessToken, data.refreshToken);
-      setSeller(data.seller);
+
+      // Determine if seller needs onboarding based on shopName
+      const needsOnboarding = !data.seller.shopName;
+      const sellerData = {
+        ...data.seller,
+        needsOnboarding,
+      };
+
+      console.log("Setting seller state to:", sellerData);
+      setSeller(sellerData);
 
       // Also store in localStorage as a backup
-      localStorage.setItem("sellerData", JSON.stringify(data.seller));
+      localStorage.setItem("sellerData", JSON.stringify(sellerData));
 
       // Set a timestamp for when the profile was last checked to prevent immediate profile checks
       localStorage.setItem("lastProfileCheck", Date.now().toString());
 
-      return { success: true, seller: data.seller };
+      // Clear any new registration flag
+      localStorage.removeItem("isNewRegistration");
+
+      return { success: true, seller: sellerData };
     } catch (error) {
+      console.error("Login error:", error);
       return { success: false, error: error.message };
     } finally {
       setLoading(false);
@@ -289,11 +325,11 @@ export function AuthProvider({ children }) {
       setTokens(data.accessToken, data.refreshToken);
 
       // Set seller state with the available data
-      // Mark as needsOnboarding: true to ensure redirection to onboarding
+      // IMPORTANT: Force needsOnboarding to true for new registrations
       const sellerData = {
         id: data.sellerId,
         phone: phone,
-        needsOnboarding: true,
+        needsOnboarding: true, // Always true for new registrations
         // Other fields will be null until onboarding
       };
 
@@ -305,6 +341,9 @@ export function AuthProvider({ children }) {
 
       // Set a timestamp for when the profile was last checked to prevent immediate profile checks
       localStorage.setItem("lastProfileCheck", Date.now().toString());
+
+      // Set a flag to indicate this is a new registration
+      localStorage.setItem("isNewRegistration", "true");
 
       return { success: true, sellerId: data.sellerId, needsOnboarding: true };
     } catch (error) {

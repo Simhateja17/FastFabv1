@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useAuth } from "@/app/context/AuthContext";
 import { toast } from "react-hot-toast";
 import { AUTH_ENDPOINTS } from "@/app/config";
+import LoadingSpinner from "@/app/components/LoadingSpinner";
 
 const validateGSTIN = (gstin) => {
   // GSTIN Format: 22AAAAA0000A1Z5
@@ -172,7 +173,7 @@ export default function SellerOnboarding() {
   if (!seller) {
     return (
       <div className="flex justify-center items-center min-h-screen bg-background">
-        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-secondary"></div>
+        <LoadingSpinner size="large" color="secondary" />
       </div>
     );
   }

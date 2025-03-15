@@ -6,6 +6,7 @@ import { useAuth } from "@/app/context/AuthContext";
 import { toast } from "react-hot-toast";
 import Link from "next/link";
 import ProtectedRoute from "@/app/components/ProtectedRoute";
+import LoadingSpinner from "@/app/components/LoadingSpinner";
 
 // The actual profile content
 function ProfileContent() {
@@ -100,7 +101,7 @@ function ProfileContent() {
   if (!seller) {
     return (
       <div className="flex justify-center items-center min-h-screen">
-        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary"></div>
+        <LoadingSpinner size="large" color="primary" />
       </div>
     );
   }
