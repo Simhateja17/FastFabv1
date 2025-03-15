@@ -6,6 +6,7 @@ import { useAuth } from "@/app/context/AuthContext";
 import Link from "next/link";
 import Image from "next/image";
 import { toast } from "react-hot-toast";
+import SellerTermsModal from "@/app/components/SellerTermsModal";
 
 export default function SellerSignup() {
   const [formData, setFormData] = useState({
@@ -14,6 +15,8 @@ export default function SellerSignup() {
     confirmPassword: "",
   });
   const [loading, setLoading] = useState(false);
+  const [termsAccepted, setTermsAccepted] = useState(false);
+  const [showTermsModal, setShowTermsModal] = useState(false);
   const router = useRouter();
   const { register, seller } = useAuth();
   // Use a ref to track if we're already redirecting
@@ -76,6 +79,11 @@ export default function SellerSignup() {
   const handleSubmit = async (e) => {
     e.preventDefault();
 
+    if (!termsAccepted) {
+      setShowTermsModal(true);
+      return;
+    }
+
     if (formData.password !== formData.confirmPassword) {
       toast.error("Passwords do not match");
       return;
@@ -96,7 +104,51 @@ export default function SellerSignup() {
           return;
         }
         isRedirectingRef.current = true;
- 
+
+        console.log("Redirecting new seller to onboarding");
+        router.push("/seller/onboarding");
+      } else {
+        toast.error(result.error || "Registration failed. Please try again.");
+      }
+    } catch (error) {
+      console.error("Registration error:", error);
+      toast.error("Something went wrong. Please try again.");
+    } finally {
+      if (isMountedRef.current) {
+        setLoading(false);
+      }
+    }
+  };
+
+  const handleTermsAccept = () => {
+    setTermsAccepted(true);
+    setShowTermsModal(false);
+    // Automatically submit the form after accepting terms
+    if (
+      formData.password === formData.confirmPassword &&
+      formData.phone.length === 10
+    ) {
+      handleRegistration();
+    }
+  };
+
+  const handleRegistration = async () => {
+    setLoading(true);
+
+    try {
+      console.log("Registering with:", formData.phone);
+      const result = await register(formData.phone, formData.password);
+      console.log("Registration result:", result);
+
+      if (result.success) {
+        toast.success("Registration successful!");
+
+        // Prevent multiple redirects
+        if (isRedirectingRef.current || !isMountedRef.current) {
+          return;
+        }
+        isRedirectingRef.current = true;
+
         console.log("Redirecting new seller to onboarding");
         router.push("/seller/onboarding");
       } else {
@@ -191,10 +243,33 @@ export default function SellerSignup() {
               />
             </div>
 
+            <div className="flex items-center">
+              <input
+                type="checkbox"
+                id="terms"
+                checked={termsAccepted}
+                onChange={() => setTermsAccepted(!termsAccepted)}
+                className="h-4 w-4 text-primary border-ui-border rounded focus:ring-primary"
+              />
+              <label htmlFor="terms" className="ml-2 text-sm text-text">
+                I accept and agree to the{" "}
+                <button
+                  type="button"
+                  onClick={() => setShowTermsModal(true)}
+                  className="text-primary hover:underline"
+                >
+                  Terms of Use
+                </button>
+                .
+              </label>
+            </div>
+
             <button
               type="submit"
               className="w-full bg-secondary text-primary py-3 rounded-md hover:bg-secondary-dark transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-              disabled={loading || formData.phone.length !== 10}
+              disabled={
+                loading || formData.phone.length !== 10 || !termsAccepted
+              }
             >
               {loading ? "Signing up..." : "Sign Up"}
             </button>
@@ -211,6 +286,13 @@ export default function SellerSignup() {
           </form>
         </div>
       </div>
+
+      {/* Terms and Conditions Modal */}
+      <SellerTermsModal
+        isOpen={showTermsModal}
+        onClose={() => setShowTermsModal(false)}
+        onAccept={handleTermsAccept}
+      />
     </div>
   );
 }

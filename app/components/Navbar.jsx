@@ -158,6 +158,13 @@ const Navbar = () => {
               </Link>
             )}
 
+            <Link
+              href="/contact-us"
+              className="text-text-muted hover:text-text-dark"
+            >
+              Contact Us
+            </Link>
+
             {/* User Authentication Links */}
             {renderUserAuthLinks()}
             <Link href="/cart" className="text-text-muted hover:text-text-dark">
@@ -241,6 +248,12 @@ const Navbar = () => {
                 Become a Seller
               </Link>
             )}
+            <Link
+              href="/contact-us"
+              className="block pl-3 pr-4 py-2 text-base font-medium text-text-muted hover:text-text-dark hover:bg-background-alt"
+            >
+              Contact Us
+            </Link>
             <Link
               href="/cart"
               className="block pl-3 pr-4 py-2 text-base font-medium text-text-muted hover:text-text-dark hover:bg-background-alt"
