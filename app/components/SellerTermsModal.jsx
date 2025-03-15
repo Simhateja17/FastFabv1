@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { XMarkIcon } from "@heroicons/react/24/outline";
+import { FiX } from "react-icons/fi";
 
 export default function SellerTermsModal({ isOpen, onClose, onAccept }) {
   const [isChecked, setIsChecked] = useState(false);
@@ -52,7 +52,7 @@ export default function SellerTermsModal({ isOpen, onClose, onAccept }) {
             onClick={onClose}
             className="text-text-muted hover:text-text-dark"
           >
-            <XMarkIcon className="h-6 w-6" />
+            <FiX className="h-6 w-6" />
           </button>
         </div>
 
