@@ -42,10 +42,18 @@ export default function SellerSignin() {
 
     try {
       const result = await login(formData.phone, formData.password);
+      console.log("Login API response:", result);
 
       if (result.success) {
         toast.success("Login successful!");
-        router.push("/seller/dashboard");
+        
+        if (!result.seller?.shopName || !result.seller?.gstin) {
+          console.log("Seller profile incomplete, redirecting to onboarding");
+          router.push("/seller/onboarding");
+        } else {
+          console.log("Seller profile complete, redirecting to dashboard");
+          router.push("/seller/dashboard");
+        }
       } else {
         toast.error(result.error || "Login failed. Please try again.");
       }

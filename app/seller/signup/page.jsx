@@ -96,27 +96,9 @@ export default function SellerSignup() {
           return;
         }
         isRedirectingRef.current = true;
-
-        // Store the redirect in localStorage
-        const redirectPath = result.needsOnboarding
-          ? "/seller/onboarding"
-          : "/seller/dashboard";
-        localStorage.setItem(
-          "lastRedirect",
-          JSON.stringify({
-            time: Date.now(),
-            path: redirectPath,
-          })
-        );
-
-        // Check if we need onboarding
-        if (result.needsOnboarding) {
-          console.log("Redirecting to onboarding after signup");
-          router.push("/seller/onboarding");
-        } else {
-          console.log("Redirecting to dashboard after signup");
-          router.push("/seller/dashboard");
-        }
+ 
+        console.log("Redirecting new seller to onboarding");
+        router.push("/seller/onboarding");
       } else {
         toast.error(result.error || "Registration failed. Please try again.");
       }
