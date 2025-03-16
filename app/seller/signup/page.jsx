@@ -19,50 +19,7 @@ export default function SellerSignup() {
   const [termsAccepted, setTermsAccepted] = useState(false);
   const [showTermsModal, setShowTermsModal] = useState(false);
   const router = useRouter();
-  const { register, seller } = useAuth();
-  // Use a ref to track if we're already redirecting
-  const isRedirectingRef = useRef(false);
-  // Use a ref to track if the component is mounted
-  const isMountedRef = useRef(true);
-
-  // Cleanup on unmount
-  useEffect(() => {
-    return () => {
-      isMountedRef.current = false;
-    };
-  }, []);
-
-  // Redirect if already logged in
-  useEffect(() => {
-    // If already redirecting or not mounted, skip
-    if (isRedirectingRef.current || !isMountedRef.current) return;
-
-    console.log("Seller state in signup:", seller);
-
-    if (seller) {
-      isRedirectingRef.current = true;
-
-      // Store the redirect in localStorage to prevent future redirects
-      const redirectPath = seller.needsOnboarding
-        ? "/seller/onboarding"
-        : "/seller/dashboard";
-      localStorage.setItem(
-        "lastRedirect",
-        JSON.stringify({
-          time: Date.now(),
-          path: redirectPath,
-        })
-      );
-
-      if (seller.needsOnboarding) {
-        console.log("Redirecting to onboarding");
-        router.push("/seller/onboarding");
-      } else {
-        console.log("Redirecting to dashboard");
-        router.push("/seller/dashboard");
-      }
-    }
-  }, [seller, router]);
+  const { register } = useAuth();
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -100,12 +57,10 @@ export default function SellerSignup() {
       if (result.success) {
         toast.success("Registration successful!");
 
-        // Prevent multiple redirects
-        if (isRedirectingRef.current || !isMountedRef.current) {
-          return;
-        }
-        isRedirectingRef.current = true;
+        // Set a flag in localStorage to indicate this is a new registration
+        localStorage.setItem("isNewRegistration", "true");
 
+        // Simple direct navigation - no complex state management
         console.log("Redirecting new seller to onboarding");
         router.push("/seller/onboarding");
       } else {
@@ -115,9 +70,7 @@ export default function SellerSignup() {
       console.error("Registration error:", error);
       toast.error("Something went wrong. Please try again.");
     } finally {
-      if (isMountedRef.current) {
-        setLoading(false);
-      }
+      setLoading(false);
     }
   };
 
@@ -129,43 +82,7 @@ export default function SellerSignup() {
       formData.password === formData.confirmPassword &&
       formData.phone.length === 10
     ) {
-      handleRegistration();
-    }
-  };
-
-  const handleRegistration = async () => {
-    setLoading(true);
-
-    try {
-      console.log("Registering with:", formData.phone);
-      const result = await register(formData.phone, formData.password);
-      console.log("Registration result:", result);
-
-      if (result.success) {
-        toast.success("Registration successful!");
-
-        // Prevent multiple redirects
-        if (isRedirectingRef.current || !isMountedRef.current) {
-          return;
-        }
-        isRedirectingRef.current = true;
-
-        // Set a flag in localStorage to indicate this is a new registration
-        // This will be checked by ProtectedRoute to ensure proper redirection
-        localStorage.setItem("isNewRegistration", "true");
-
-        console.log("Redirecting new seller to onboarding");
-        router.push("/seller/onboarding");
-      } else {
-        toast.error(result.error || "Registration failed. Please try again.");
-      }
-    } catch (error) {
-      console.error("Registration error:", error);
-      toast.error("Something went wrong. Please try again.");
-    } finally {
-      if (isMountedRef.current) {
-        setLoading(false);
-      }
+      handleSubmit({ preventDefault: () => {} });
     }
   };
 
@@ -261,7 +178,7 @@ export default function SellerSignup() {
                 <button
                   type="button"
                   onClick={() => setShowTermsModal(true)}
-                  className="text-blue-500  hover:underline"
+                  className="text-blue-500 hover:underline"
                 >
                   Terms of Use
                 </button>

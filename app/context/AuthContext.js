@@ -325,12 +325,11 @@ export function AuthProvider({ children }) {
       setTokens(data.accessToken, data.refreshToken);
 
       // Set seller state with the available data
-      // IMPORTANT: Force needsOnboarding to true for new registrations
       const sellerData = {
+        ...data.seller,
         id: data.sellerId,
         phone: phone,
         needsOnboarding: true, // Always true for new registrations
-        // Other fields will be null until onboarding
       };
 
       console.log("Setting seller state to:", sellerData);
@@ -338,9 +337,6 @@ export function AuthProvider({ children }) {
 
       // Also store in localStorage as a backup
       localStorage.setItem("sellerData", JSON.stringify(sellerData));
-
-      // Set a timestamp for when the profile was last checked to prevent immediate profile checks
-      localStorage.setItem("lastProfileCheck", Date.now().toString());
 
       // Set a flag to indicate this is a new registration
       localStorage.setItem("isNewRegistration", "true");

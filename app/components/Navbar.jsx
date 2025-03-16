@@ -166,7 +166,7 @@ const Navbar = () => {
             </Link>
 
             {/* User Authentication Links */}
-            {renderUserAuthLinks()}
+            {!seller && renderUserAuthLinks()}
             <Link href="/cart" className="text-text-muted hover:text-text-dark">
               <BsCart className="w-6 h-6" />
             </Link>
@@ -262,7 +262,7 @@ const Navbar = () => {
             </Link>
 
             {/* User Authentication Links for Mobile */}
-            {user ? (
+            {user || !seller ? (
               <>
                 <Link
                   href="/profile"
