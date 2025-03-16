@@ -439,6 +439,7 @@ export function AuthProvider({ children }) {
         checkAuth,
         updateSellerDetails,
         authFetch,
+        setSeller,
       }}
     >
       {children}

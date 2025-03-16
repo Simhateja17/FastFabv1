@@ -156,8 +156,22 @@ export default function SellerOnboarding() {
           ...result.seller,
           needsOnboarding: false,
         };
-        // Update the seller context
-        setSeller(updatedSeller);
+
+        // Update the seller context if setSeller is available
+        try {
+          if (setSeller && typeof setSeller === "function") {
+            setSeller(updatedSeller);
+          }
+        } catch (error) {
+          console.log(
+            "Could not update seller state, but continuing with redirect"
+          );
+        }
+
+        // Store updated seller in localStorage as a backup
+        localStorage.setItem("sellerData", JSON.stringify(updatedSeller));
+
+        // Redirect to dashboard
         router.push("/seller/dashboard");
       } else {
         toast.error(result.error || "Failed to update profile");
