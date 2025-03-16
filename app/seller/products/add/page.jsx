@@ -5,6 +5,8 @@ import { useRouter } from "next/navigation";
 import { useAuth } from "@/app/context/AuthContext";
 import Image from "next/image";
 import { toast } from "react-hot-toast";
+import LoadingButton from "@/app/components/LoadingButton";
+import { FiUpload, FiX } from "react-icons/fi";
 
 const SIZES = ["XS", "S", "M", "L", "XL"];
 const CATEGORIES = [
@@ -229,13 +231,15 @@ export default function AddProduct() {
 
   return (
     <div className="max-w-2xl mx-auto p-6">
-      <div className="bg-white rounded-lg shadow-sm p-6">
-        <h1 className="text-2xl font-semibold mb-6">Add New Product</h1>
+      <div className="bg-background-card rounded-lg shadow-sm p-6">
+        <h1 className="text-2xl font-semibold mb-6 text-primary">
+          Add New Product
+        </h1>
 
         <form onSubmit={handleSubmit} className="space-y-6">
           {/* Product Name */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
+            <label className="block text-sm font-medium text-text mb-2">
               Product Name
             </label>
             <input
@@ -243,7 +247,7 @@ export default function AddProduct() {
               name="name"
               value={formData.name}
               onChange={handleInputChange}
-              className="w-full p-3 border border-gray-300 rounded-md"
+              className="w-full p-3 border border-ui-border rounded-md focus:outline-none focus:ring-1 focus:ring-primary bg-input"
               required
             />
           </div>
@@ -251,14 +255,14 @@ export default function AddProduct() {
           {/* Category and Subcategory Selection */}
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
+              <label className="block text-sm font-medium text-text mb-2">
                 Category
               </label>
               <select
                 name="category"
                 value={formData.category}
                 onChange={handleCategoryChange}
-                className="w-full p-3 border border-gray-300 rounded-md"
+                className="w-full p-3 border border-ui-border rounded-md focus:outline-none focus:ring-1 focus:ring-primary bg-input"
                 required
               >
                 <option value="">Select Category</option>
@@ -270,14 +274,14 @@ export default function AddProduct() {
               </select>
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
+              <label className="block text-sm font-medium text-text mb-2">
                 Subcategory
               </label>
               <select
                 name="subcategory"
                 value={formData.subcategory}
                 onChange={handleInputChange}
-                className="w-full p-3 border border-gray-300 rounded-md"
+                className="w-full p-3 border border-ui-border rounded-md focus:outline-none focus:ring-1 focus:ring-primary bg-input"
                 required
                 disabled={!formData.category}
               >
@@ -293,13 +297,13 @@ export default function AddProduct() {
 
           {/* Quantity by Size */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
+            <label className="block text-sm font-medium text-text mb-2">
               Quantity
             </label>
             <div className="grid grid-cols-5 gap-4">
               {SIZES.map((size) => (
                 <div key={size} className="text-center">
-                  <div className="mb-2 inline-block p-2 border border-gray-300 rounded-lg">
+                  <div className="mb-2 inline-block p-2 border border-ui-border rounded-lg bg-background-alt">
                     {size}
                   </div>
                   <input
@@ -308,7 +312,7 @@ export default function AddProduct() {
                     onChange={(e) =>
                       handleSizeQuantityChange(size, e.target.value)
                     }
-                    className="w-full p-2 border border-gray-300 rounded-md text-center"
+                    className="w-full p-2 border border-ui-border rounded-md text-center focus:outline-none focus:ring-1 focus:ring-primary bg-input"
                     placeholder="0"
                   />
                 </div>
@@ -319,7 +323,7 @@ export default function AddProduct() {
           {/* Price */}
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
+              <label className="block text-sm font-medium text-text mb-2">
                 MRP Price
               </label>
               <input
@@ -327,13 +331,13 @@ export default function AddProduct() {
                 name="mrpPrice"
                 value={formData.mrpPrice}
                 onChange={handleInputChange}
-                className="w-full p-3 border border-gray-300 rounded-md"
+                className="w-full p-3 border border-ui-border rounded-md focus:outline-none focus:ring-1 focus:ring-primary bg-input"
                 required
                 placeholder="0.00"
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
+              <label className="block text-sm font-medium text-text mb-2">
                 Selling Price
               </label>
               <input
@@ -341,7 +345,7 @@ export default function AddProduct() {
                 name="sellingPrice"
                 value={formData.sellingPrice}
                 onChange={handleInputChange}
-                className="w-full p-3 border border-gray-300 rounded-md"
+                className="w-full p-3 border border-ui-border rounded-md focus:outline-none focus:ring-1 focus:ring-primary bg-input"
                 required
                 placeholder="0.00"
               />
@@ -350,29 +354,16 @@ export default function AddProduct() {
 
           {/* Image Upload */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
+            <label className="block text-sm font-medium text-text mb-2">
               Add Photos
             </label>
-            <div className="mt-1 flex justify-center px-6 pt-5 pb-6 border-2 border-gray-300 border-dashed rounded-md">
+            <div className="mt-1 flex justify-center px-6 pt-5 pb-6 border-2 border-ui-border border-dashed rounded-md bg-background-alt">
               <div className="space-y-1 text-center">
-                <svg
-                  className="mx-auto h-12 w-12 text-gray-400"
-                  stroke="currentColor"
-                  fill="none"
-                  viewBox="0 0 48 48"
-                  aria-hidden="true"
-                >
-                  <path
-                    d="M28 8H12a4 4 0 00-4 4v20m32-12v8m0 0v8a4 4 0 01-4 4H12a4 4 0 01-4-4v-4m32-4l-3.172-3.172a4 4 0 00-5.656 0L28 28M8 32l9.172-9.172a4 4 0 015.656 0L28 28m0 0l4 4m4-24h8m-4-4v8m-12 4h.02"
-                    strokeWidth={2}
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  />
-                </svg>
-                <div className="flex text-sm text-gray-600">
+                <FiUpload className="mx-auto h-12 w-12 text-text-muted" />
+                <div className="flex text-sm text-text-muted">
                   <label
                     htmlFor="file-upload"
-                    className="relative cursor-pointer bg-white rounded-md font-medium text-indigo-600 hover:text-indigo-500 focus-within:outline-none focus-within:ring-2 focus-within:ring-offset-2 focus-within:ring-indigo-500"
+                    className="relative cursor-pointer bg-background-alt rounded-md font-medium text-secondary hover:text-secondary-dark focus-within:outline-none focus-within:ring-2 focus-within:ring-offset-2 focus-within:ring-secondary"
                   >
                     <span>Upload files</span>
                     <input
@@ -387,7 +378,7 @@ export default function AddProduct() {
                   </label>
                   <p className="pl-1">or drag and drop</p>
                 </div>
-                <p className="text-xs text-gray-500">
+                <p className="text-xs text-text-muted">
                   PNG, JPG, GIF up to 10MB
                 </p>
               </div>
@@ -409,20 +400,9 @@ export default function AddProduct() {
                     <button
                       type="button"
                       onClick={() => removePreviewImage(index)}
-                      className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1"
+                      className="absolute -top-2 -right-2 bg-error text-white rounded-full p-1"
                     >
-                      <svg
-                        xmlns="http://www.w3.org/2000/svg"
-                        className="h-4 w-4"
-                        viewBox="0 0 20 20"
-                        fill="currentColor"
-                      >
-                        <path
-                          fillRule="evenodd"
-                          d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z"
-                          clipRule="evenodd"
-                        />
-                      </svg>
+                      <FiX className="h-4 w-4" />
                     </button>
                   </div>
                 ))}
@@ -430,27 +410,25 @@ export default function AddProduct() {
             )}
           </div>
 
-          {error && <p className="text-red-600 text-sm">{error}</p>}
+          {error && <p className="text-error text-sm">{error}</p>}
 
           <div className="flex justify-end space-x-4">
             <button
               type="button"
               onClick={() => router.back()}
-              className="px-4 py-2 text-gray-700 border border-gray-300 rounded hover:bg-gray-50"
+              className="px-4 py-2 text-text border border-ui-border rounded-md hover:bg-background-alt transition-colors"
             >
               Cancel
             </button>
-            <button
+            <LoadingButton
               type="submit"
+              variant="primary"
+              isLoading={loading || uploading}
+              loadingText={uploading ? "Uploading..." : "Adding..."}
               disabled={loading || uploading}
-              className="px-4 py-2 bg-indigo-600 text-white rounded hover:bg-indigo-700 disabled:opacity-50"
             >
-              {loading || uploading
-                ? uploading
-                  ? "Uploading..."
-                  : "Adding..."
-                : "Add Product"}
-            </button>
+              Add Product
+            </LoadingButton>
           </div>
         </form>
       </div>

@@ -57,7 +57,7 @@ const ProtectedRoute = ({ children, requireOnboarding = false }) => {
         if (!seller) {
           console.log("Not authenticated, redirecting to login");
           localStorage.setItem("lastAuthRedirect", now.toString());
-          router.push("/seller/login");
+          router.push("/seller/signin");
           return;
         }
 
