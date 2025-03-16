@@ -2,6 +2,14 @@ import "./globals.css";
 import Navbar from "./components/Navbar";
 import Footer from "./components/Footer";
 import { Providers } from "./providers";
+import { Inter } from "next/font/google";
+
+// Load Inter font
+const inter = Inter({
+  subsets: ["latin"],
+  display: "swap",
+  variable: "--font-inter",
+});
 
 export const metadata = {
   icons: {
@@ -13,8 +21,8 @@ export const metadata = {
 
 export default function RootLayout({ children }) {
   return (
-    <html lang="en" className="antialiased">
-      <body className="min-h-screen flex flex-col font-montserrat">
+    <html lang="en" className={`antialiased ${inter.variable}`}>
+      <body className="min-h-screen flex flex-col">
         <Providers>
           <Navbar />
           <main className="flex-grow">{children}</main>

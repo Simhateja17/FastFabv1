@@ -261,7 +261,7 @@ export default function SellerSignup() {
                 <button
                   type="button"
                   onClick={() => setShowTermsModal(true)}
-                  className="text-primary hover:underline"
+                  className="text-blue-500  hover:underline"
                 >
                   Terms of Use
                 </button>
@@ -272,6 +272,7 @@ export default function SellerSignup() {
             <LoadingButton
               type="submit"
               variant="secondary"
+              className="w-full py-3 text-lg font-bold text-white bg-ui-button hover:bg-ui"
               fullWidth
               isLoading={loading}
               loadingText="Signing up..."

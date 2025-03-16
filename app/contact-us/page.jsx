@@ -41,7 +41,7 @@ export default function ContactUs() {
   return (
     <div className="min-h-screen bg-background">
       {/* Hero Section */}
-      <div className="bg-primary text-primary py-12">
+      <div className="bg-primary text-white py-12">
         <div className="container mx-auto px-4">
           <h1 className="text-3xl font-bold mb-4 text-center">Contact Us</h1>
           <p className="text-lg text-center max-w-2xl mx-auto">
@@ -58,7 +58,7 @@ export default function ContactUs() {
         <div className="max-w-4xl mx-auto bg-background-card rounded-lg shadow-sm overflow-hidden">
           <div className="grid md:grid-cols-2">
             {/* Contact Information */}
-            <div className="bg-primary text-primary p-6">
+            <div className="bg-primary text-white p-6">
               <h2 className="text-xl font-semibold mb-6">Get in Touch</h2>
 
               <div className="space-y-4">

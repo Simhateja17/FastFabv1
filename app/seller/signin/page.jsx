@@ -46,7 +46,7 @@ export default function SellerSignin() {
 
       if (result.success) {
         toast.success("Login successful!");
-        
+
         if (!result.seller?.shopName || !result.seller?.gstin) {
           console.log("Seller profile incomplete, redirecting to onboarding");
           router.push("/seller/onboarding");
@@ -149,7 +149,7 @@ export default function SellerSignin() {
 
             <button
               type="submit"
-              className="w-full  text-primary py-3 rounded-md hover:bg-secondary-dark transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              className="w-full text-pink-500 text-bold   hover:text-white py-3 rounded-md hover:bg-secondary-dark transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               disabled={loading || formData.phone.length !== 10}
             >
               {loading ? "Signing in..." : "Sign In"}
