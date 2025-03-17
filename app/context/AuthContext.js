@@ -1,7 +1,7 @@
 "use client";
 
 import { createContext, useContext, useState, useEffect } from "react";
-import { API_URL, AUTH_ENDPOINTS } from "@/app/config";
+
 
 const AuthContext = createContext();
 
@@ -39,7 +39,7 @@ export function AuthProvider({ children }) {
         throw new Error("No refresh token available");
       }
 
-      const response = await fetch(AUTH_ENDPOINTS.REFRESH_TOKEN, {
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/auth/refresh`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -139,7 +139,7 @@ export function AuthProvider({ children }) {
         }
 
         // Try to get seller profile with current token
-        const response = await fetch(AUTH_ENDPOINTS.PROFILE, {
+        const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/auth/profile`, {
           headers: {
             Authorization: `Bearer ${accessToken}`,
           },
@@ -176,7 +176,7 @@ export function AuthProvider({ children }) {
   const login = async (phone, password) => {
     try {
       setLoading(true);
-      const response = await fetch(AUTH_ENDPOINTS.SIGNIN, {
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/auth/signin`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -185,17 +185,23 @@ export function AuthProvider({ children }) {
       });
 
       const data = await response.json();
+      console.log('Login response:', data);
 
       if (!response.ok) {
-        throw new Error(data.message || "Login failed");
+        return { success: false, error: data.message || 'Login failed' };
       }
 
-      setTokens(data.accessToken, data.refreshToken);
-      setSeller(data.seller);
-      return data;
+      if (data.accessToken && data.refreshToken) {
+        setTokens(data.accessToken, data.refreshToken);
+        setSeller(data.seller);
+        return { success: true, seller: data.seller };
+      } else {
+        console.error('Missing tokens in login response');
+        return { success: false, error: 'Invalid server response' };
+      }
     } catch (error) {
       console.error("Login error:", error);
-      throw error;
+      return { success: false, error: error.message || 'Something went wrong' };
     } finally {
       setLoading(false);
     }
@@ -205,7 +211,7 @@ export function AuthProvider({ children }) {
   const register = async (phone, password) => {
     try {
       setLoading(true);
-      const response = await fetch(AUTH_ENDPOINTS.SIGNUP, {
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/auth/signup`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -233,7 +239,7 @@ export function AuthProvider({ children }) {
   // Logout function
   const logout = async () => {
     try {
-      await authFetch(AUTH_ENDPOINTS.LOGOUT, { method: "POST" });
+      await authFetch(`${process.env.NEXT_PUBLIC_API_URL}/auth/logout`, { method: "POST" });
     } catch (error) {
       console.error("Logout error:", error);
     } finally {
@@ -245,21 +251,22 @@ export function AuthProvider({ children }) {
   // Update seller details
   const updateSellerDetails = async (sellerId, details) => {
     try {
-      const response = await authFetch(AUTH_ENDPOINTS.UPDATE_DETAILS(sellerId), {
-        method: "PUT",
+      const response = await authFetch(`${process.env.NEXT_PUBLIC_API_URL}/auth/${sellerId}/details`, {
+        method: "PATCH",
         body: JSON.stringify(details),
       });
 
       if (!response.ok) {
-        throw new Error("Failed to update seller details");
+        const errorData = await response.json();
+        throw new Error(errorData.message || "Failed to update seller details");
       }
 
-      const updatedSeller = await response.json();
-      setSeller(updatedSeller);
-      return updatedSeller;
+      const data = await response.json();
+      setSeller(data.seller);
+      return { success: true, seller: data.seller };
     } catch (error) {
       console.error("Error updating seller details:", error);
-      throw error;
+      return { success: false, error: error.message };
     }
   };
 

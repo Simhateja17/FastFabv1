@@ -55,7 +55,7 @@ export default function SellerSignin() {
           router.push("/seller/dashboard");
         }
       } else {
-        toast.error(result.error || "Login failed. Please try again.");
+        toast.error(result.error);
       }
     } catch (error) {
       toast.error("Something went wrong. Please try again.");

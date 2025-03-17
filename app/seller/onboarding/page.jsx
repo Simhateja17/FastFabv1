@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/app/context/AuthContext";
 import { toast } from "react-hot-toast";
-import { AUTH_ENDPOINTS } from "@/app/config";
+
 import LoadingSpinner from "@/app/components/LoadingSpinner";
 
 const validateGSTIN = (gstin) => {
@@ -147,6 +147,7 @@ export default function SellerOnboarding() {
       }
 
       const result = await updateSellerDetails(seller.id, formData);
+      console.log('Update profile response:', result);
 
       if (result.success) {
         toast.success("Profile updated successfully!");
@@ -157,16 +158,8 @@ export default function SellerOnboarding() {
           needsOnboarding: false,
         };
 
-        // Update the seller context if setSeller is available
-        try {
-          if (setSeller && typeof setSeller === "function") {
-            setSeller(updatedSeller);
-          }
-        } catch (error) {
-          console.log(
-            "Could not update seller state, but continuing with redirect"
-          );
-        }
+        // Update the seller context
+        setSeller(updatedSeller);
 
         // Store updated seller in localStorage as a backup
         localStorage.setItem("sellerData", JSON.stringify(updatedSeller));
@@ -174,7 +167,9 @@ export default function SellerOnboarding() {
         // Redirect to dashboard
         router.push("/seller/dashboard");
       } else {
-        toast.error(result.error || "Failed to update profile");
+        const errorMessage = result.error || "Failed to update profile";
+        console.error('Profile update failed:', errorMessage);
+        toast.error(errorMessage);
       }
     } catch (error) {
       console.error("Error updating profile:", error);

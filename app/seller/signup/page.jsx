@@ -54,7 +54,7 @@ export default function SellerSignup() {
       const result = await register(formData.phone, formData.password);
       console.log("Registration result:", result);
 
-      if (result.success) {
+      if (result && result.accessToken) {
         toast.success("Registration successful!");
 
         // Set a flag in localStorage to indicate this is a new registration
