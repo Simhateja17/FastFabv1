@@ -1,7 +1,7 @@
 "use client";
 
 import { createContext, useContext, useState, useEffect } from "react";
-import { API_URL, TOKEN_EXPIRY } from "@/app/config";
+import { API_URL } from "@/app/config";
 
 const UserAuthContext = createContext();
 
@@ -109,10 +109,10 @@ export function UserAuthProvider({ children }) {
             },
           });
         } catch (refreshError) {
-          // If refresh fails, clear tokens and return the original 401 response
+          // If refresh fails, clear tokens
           clearUserTokens();
           setUser(null);
-          return response;
+          throw refreshError;
         }
       }
 
@@ -123,71 +123,49 @@ export function UserAuthProvider({ children }) {
     }
   };
 
-  // Initialize auth state from localStorage
-  const initializeAuth = async () => {
-    let isMounted = true;
-    try {
-      const { accessToken, refreshToken } = getUserTokens();
-
-      // If no tokens, user is not logged in
-      if (!accessToken || !refreshToken) {
-        setLoading(false);
-        return;
-      }
-
-      // Try to get user profile with current token
-      const response = await fetch(USER_AUTH_ENDPOINTS.PROFILE, {
-        headers: {
-          Authorization: `Bearer ${accessToken}`,
-        },
-      });
-
-      // If successful, set user state
-      if (response.ok) {
-        const userData = await response.json();
-        if (isMounted) setUser(userData);
-      } else if (response.status === 401) {
-        // If unauthorized, try to refresh token
-        try {
-          await refreshAccessToken();
-        } catch (error) {
-          // If refresh fails, clear tokens
-          clearUserTokens();
-          if (isMounted) setUser(null);
-        }
-      } else {
-        // Other errors, clear tokens
-        clearUserTokens();
-        if (isMounted) setUser(null);
-      }
-    } catch (error) {
-      console.error("Auth initialization error:", error);
-      clearUserTokens();
-      if (isMounted) setUser(null);
-    } finally {
-      if (isMounted) setLoading(false);
-    }
-  };
-
+  // Initialize auth state on mount
   useEffect(() => {
-    let isMounted = true;
-
-    // Check if we have user data in localStorage
-    const userData = localStorage.getItem("userData");
-    if (userData) {
+    const initializeAuth = async () => {
       try {
-        const parsedData = JSON.parse(userData);
-        setUser(parsedData);
+        const { accessToken, refreshToken } = getUserTokens();
+
+        if (!accessToken || !refreshToken) {
+          setLoading(false);
+          return;
+        }
+
+        // Try to get user profile with current token
+        const response = await fetch(USER_AUTH_ENDPOINTS.PROFILE, {
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+          },
+        });
+
+        if (response.ok) {
+          const userData = await response.json();
+          setUser(userData);
+        } else if (response.status === 401) {
+          // If unauthorized, try to refresh token
+          try {
+            await refreshAccessToken();
+          } catch (error) {
+            clearUserTokens();
+            setUser(null);
+          }
+        } else {
+          clearUserTokens();
+          setUser(null);
+        }
       } catch (error) {
-        console.error("Error parsing user data:", error);
+        console.error("Auth initialization error:", error);
+        clearUserTokens();
+        setUser(null);
+      } finally {
+        setLoading(false);
       }
-    }
+    };
 
     initializeAuth();
-
-    return () => {
-      isMounted = false;
-    };
   }, []);
 
   // Send OTP to phone number
