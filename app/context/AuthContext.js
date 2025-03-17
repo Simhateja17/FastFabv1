@@ -71,8 +71,12 @@ export function AuthProvider({ children }) {
     // Set up headers with access token
     const headers = {
       ...options.headers,
-      "Content-Type": "application/json",
     };
+
+    // Only add Content-Type: application/json if we're not sending FormData
+    if (!(options.body instanceof FormData)) {
+      headers["Content-Type"] = "application/json";
+    }
 
     if (accessToken) {
       headers.Authorization = `Bearer ${accessToken}`;
@@ -91,14 +95,23 @@ export function AuthProvider({ children }) {
           // Try to refresh the token
           const newAccessToken = await refreshAccessToken();
 
+          // Don't add Content-Type for FormData in retry
+          const retryHeaders = {
+            ...headers,
+            Authorization: `Bearer ${newAccessToken}`,
+          };
+
           // Retry the request with the new token
-          return fetch(url, {
+          const retryResponse = await fetch(url, {
             ...options,
-            headers: {
-              ...headers,
-              Authorization: `Bearer ${newAccessToken}`,
-            },
+            headers: retryHeaders,
           });
+
+          if (!retryResponse.ok) {
+            throw new Error('Request failed after token refresh');
+          }
+
+          return retryResponse;
         } catch (refreshError) {
           // If refresh fails, clear auth state and throw error
           clearTokens();

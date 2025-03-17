@@ -26,7 +26,7 @@ const CATEGORIES = [
 
 export default function AddProduct() {
   const router = useRouter();
-  const { seller } = useAuth();
+  const { seller, authFetch } = useAuth();
   const [loading, setLoading] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState("");
@@ -113,30 +113,25 @@ export default function AddProduct() {
 
     setUploading(true);
     try {
-      const token = localStorage.getItem("token");
       const formData = new FormData();
 
       selectedFiles.forEach((file) => {
         formData.append("images", file);
       });
 
-      const response = await fetch(
+      const response = await authFetch(
         `${process.env.NEXT_PUBLIC_API_URL}/api/products/upload-images`,
         {
           method: "POST",
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
           body: formData,
         }
       );
 
+      const data = await response.json();
       if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.message || "Failed to upload images");
+        throw new Error(data.message || "Failed to upload images");
       }
 
-      const data = await response.json();
       setUploadedImages(data.imageUrls);
       return data.imageUrls;
     } catch (error) {
@@ -168,20 +163,15 @@ export default function AddProduct() {
         throw new Error("Failed to upload images");
       }
 
-      const token = localStorage.getItem("token");
-      const sellerId = localStorage.getItem("sellerId");
-
-      const response = await fetch(
+      const response = await authFetch(
         `${process.env.NEXT_PUBLIC_API_URL}/api/products`,
         {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
           },
           body: JSON.stringify({
             ...formData,
-            sellerId,
             mrpPrice: parseFloat(formData.mrpPrice),
             sellingPrice: parseFloat(formData.sellingPrice),
             images: imageUrls,

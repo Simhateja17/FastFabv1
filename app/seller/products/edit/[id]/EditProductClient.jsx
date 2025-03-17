@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
 import { toast } from "react-hot-toast";
+import { useAuth } from "@/app/context/AuthContext";
 
 const SIZES = ["XS", "S", "M", "L", "XL"];
 const CATEGORIES = [
@@ -23,6 +24,7 @@ const CATEGORIES = [
 
 export default function EditProductClient({ productId }) {
   const router = useRouter();
+  const { authFetch } = useAuth();
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState("");
@@ -54,26 +56,10 @@ export default function EditProductClient({ productId }) {
 
   const fetchProduct = async () => {
     try {
-      const token = localStorage.getItem("token");
-      if (!token) {
-        toast.error("Authentication required. Please login again.");
-        router.push("/login");
-        return;
-      }
-
       console.log("Fetching product with ID:", productId);
-      console.log(
-        "API URL:",
-        `${process.env.NEXT_PUBLIC_API_URL}/api/products/${productId}`
-      );
 
-      const response = await fetch(
-        `${process.env.NEXT_PUBLIC_API_URL}/api/products/${productId}`,
-        {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        }
+      const response = await authFetch(
+        `${process.env.NEXT_PUBLIC_API_URL}/api/products/${productId}`
       );
 
       console.log("Fetch response status:", response.status);
@@ -188,23 +174,15 @@ export default function EditProductClient({ productId }) {
 
     setUploading(true);
     try {
-      const token = localStorage.getItem("token");
-      if (!token) {
-        throw new Error("Authentication required");
-      }
-
       const formDataObj = new FormData();
       selectedFiles.forEach((file) => {
         formDataObj.append("images", file);
       });
 
-      const response = await fetch(
+      const response = await authFetch(
         `${process.env.NEXT_PUBLIC_API_URL}/api/products/upload-images`,
         {
           method: "POST",
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
           body: formDataObj,
         }
       );
@@ -259,13 +237,12 @@ export default function EditProductClient({ productId }) {
         images: imageUrls,
       });
 
-      const response = await fetch(
+      const response = await authFetch(
         `${process.env.NEXT_PUBLIC_API_URL}/api/products/${productId}`,
         {
           method: "PUT",
           headers: {
             "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
           },
           body: JSON.stringify({
             ...formData,
