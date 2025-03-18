@@ -6,6 +6,7 @@ import ProductCard from "@/app/components/ProductCard";
 import { PUBLIC_ENDPOINTS } from "@/app/config";
 import { FiSearch, FiShoppingBag } from "react-icons/fi";
 import LoadingSpinner from "@/app/components/LoadingSpinner";
+import SellerBanner from "@/app/components/SellerBanner";
 
 export default function Home() {
   const [products, setProducts] = useState([]);
@@ -84,6 +85,9 @@ export default function Home() {
 
   return (
     <main className="min-h-screen bg-background">
+      {/* Seller Banner Modal */}
+      <SellerBanner />
+
       {/* Hero Section */}
       <div className="bg-background-alt py-16">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
