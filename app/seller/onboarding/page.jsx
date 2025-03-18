@@ -7,68 +7,12 @@ import { toast } from "react-hot-toast";
 
 import LoadingSpinner from "@/app/components/LoadingSpinner";
 
-const validateGSTIN = (gstin) => {
-  // GSTIN Format: 22AAAAA0000A1Z5
-  const gstinRegex = /^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]Z[0-9A-Z]$/;
 
-  if (!gstinRegex.test(gstin)) {
-    return false;
-  }
-
-  // Validate state code (first 2 digits between 01-38)
-  const stateCode = parseInt(gstin.slice(0, 2));
-  const validStateCodes = [
-    "01",
-    "02",
-    "03",
-    "04",
-    "05",
-    "06",
-    "07",
-    "08",
-    "09",
-    "10",
-    "11",
-    "12",
-    "13",
-    "14",
-    "15",
-    "16",
-    "17",
-    "18",
-    "19",
-    "20",
-    "21",
-    "22",
-    "23",
-    "24",
-    "25",
-    "26",
-    "27",
-    "28",
-    "29",
-    "30",
-    "31",
-    "32",
-    "33",
-    "34",
-    "35",
-    "36",
-    "37",
-    "38",
-  ];
-
-  if (!validStateCodes.includes(gstin.slice(0, 2))) {
-    return false;
-  }
-
-  return true;
-};
 
 export default function SellerOnboarding() {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
-  const [gstError, setGstError] = useState("");
+
   const { seller, updateSellerDetails, authFetch, setSeller } = useAuth();
   const [formData, setFormData] = useState({
     shopName: "",
@@ -100,17 +44,6 @@ export default function SellerOnboarding() {
     if (name === "gstNumber") {
       // Convert to uppercase and remove spaces
       const formattedValue = value.toUpperCase().replace(/\s/g, "");
-
-      // Clear GST error when input changes
-      setGstError("");
-
-      // Validate GST format when user types
-      if (formattedValue.length === 15) {
-        if (!validateGSTIN(formattedValue)) {
-          setGstError("Invalid GST number format");
-        }
-      }
-
       setFormData((prev) => ({
         ...prev,
         [name]: formattedValue,
@@ -134,12 +67,6 @@ export default function SellerOnboarding() {
     e.preventDefault();
     setLoading(true);
 
-    // Final GST validation before submit
-    if (formData.gstNumber && !validateGSTIN(formData.gstNumber)) {
-      setGstError("Invalid GST number format");
-      setLoading(false);
-      return;
-    }
 
     try {
       if (!seller || !seller.id) {
