@@ -1,5 +1,6 @@
 import Link from "next/link";
-import { FaInstagram, FaFacebook, FaTwitter } from "react-icons/fa";
+import { FaInstagram, FaFacebook } from "react-icons/fa";
+import { FaXTwitter } from "react-icons/fa6";
 
 const Footer = () => {
   return (
@@ -124,7 +125,7 @@ const Footer = () => {
                   rel="noopener noreferrer"
                   className="text-text hover:text-primary flex items-center"
                 >
-                  <FaTwitter className="mr-2" />
+                  <FaXTwitter className="mr-2" />
                   Twitter
                 </a>
               </li>
