@@ -221,12 +221,9 @@ export default function SellerOnboarding() {
               name="gstNumber"
               value={formData.gstNumber}
               onChange={handleInputChange}
-              className={`w-full p-3 border ${
-                gstError ? "border-error" : "border-ui-border"
-              } rounded-md focus:outline-none focus:ring-2 focus:ring-primary bg-input`}
+              className="w-full p-3 border border-ui-border rounded-md focus:outline-none focus:ring-2 focus:ring-primary bg-input"
               maxLength={15}
             />
-            {gstError && <p className="mt-1 text-sm text-error">{gstError}</p>}
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
