@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { FaInstagram, FaFacebook, FaTwitter } from "react-icons/fa";
 
 const Footer = () => {
   return (
@@ -96,31 +97,34 @@ const Footer = () => {
             <ul className="space-y-2">
               <li>
                 <a
-                  href="https://instagram.com/fastandfab"
+                  href=" https://www.instagram.com/fastandfab2025/"
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="text-text hover:text-primary"
+                  className="text-text hover:text-primary flex items-center"
                 >
+                  <FaInstagram className="mr-2" />
                   Instagram
                 </a>
               </li>
               <li>
                 <a
-                  href="https://facebook.com/fastandfab"
+                  href=" https://www.facebook.com/profile.php?id=61574085060609# "
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="text-text hover:text-primary"
+                  className="text-text hover:text-primary flex items-center"
                 >
+                  <FaFacebook className="mr-2" />
                   Facebook
                 </a>
               </li>
               <li>
                 <a
-                  href="https://twitter.com/fastandfab"
+                  href="https://x.com/fast_and_fab"
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="text-text hover:text-primary"
+                  className="text-text hover:text-primary flex items-center"
                 >
+                  <FaTwitter className="mr-2" />
                   Twitter
                 </a>
               </li>
