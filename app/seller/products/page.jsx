@@ -7,6 +7,15 @@ import Link from "next/link";
 import { toast } from "react-hot-toast";
 import { useAuth } from "@/app/context/AuthContext";
 import ProtectedRoute from "@/app/components/ProtectedRoute";
+import {
+  FiPackage,
+  FiPlus,
+  FiEdit2,
+  FiTrash2,
+  FiImage,
+  FiBox,
+  FiChevronRight,
+} from "react-icons/fi";
 
 // The actual products list content
 function ProductsListContent() {
@@ -72,122 +81,164 @@ function ProductsListContent() {
   }
 
   return (
-    <div className="max-w-7xl mx-auto p-6">
-      <div className="flex justify-between items-center mb-6">
-        <h1 className="text-2xl font-semibold">Your Products</h1>
-        <Link
-          href="/seller/products/add"
-          className="bg-primary px-4 py-2 text-white rounded-md hover:bg-primary-dark"
-        >
-          Add New Product
-        </Link>
-      </div>
-
-      {products.length === 0 ? (
-        <div className="text-center py-12 bg-white rounded-lg shadow-sm">
-          <svg
-            xmlns="http://www.w3.org/2000/svg"
-            className="mx-auto h-12 w-12 text-gray-400"
-            fill="none"
-            viewBox="0 0 24 24"
-            stroke="currentColor"
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth={2}
-              d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4"
-            />
-          </svg>
-          <h3 className="mt-2 text-sm font-medium text-gray-900">
-            No products found
-          </h3>
-          <p className="mt-1 text-sm text-gray-500">
-            Get started by creating a new product.
-          </p>
-          <div className="mt-6">
-            <Link
-              href="/seller/products/add"
-              className="inline-flex items-center px-4 py-2 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-primary hover:bg-primary-dark"
-            >
-              Add Product
+    <div className="bg-background min-h-screen">
+      {/* Breadcrumb */}
+      <div className="bg-background-alt border-b border-ui-border">
+        <div className="max-w-7xl mx-auto px-4 py-3 sm:px-6 lg:px-8">
+          <div className="flex items-center text-sm text-text-muted">
+            <Link href="/seller/dashboard" className="hover:text-primary">
+              Dashboard
             </Link>
+            <FiChevronRight className="mx-2 text-primary" />
+            <span className="text-text-dark">Products</span>
           </div>
         </div>
-      ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {products.map((product) => (
-            <div
-              key={product.id}
-              className="bg-white rounded-lg shadow-sm overflow-hidden"
-            >
-              <div className="aspect-square relative">
-                {product.images && product.images[0] ? (
-                  <Image
-                    src={product.images[0]}
-                    alt={product.name}
-                    fill
-                    className="object-cover"
-                  />
-                ) : (
-                  <div className="w-full h-full bg-gray-200 flex items-center justify-center">
-                    <svg
-                      className="w-12 h-12 text-gray-400"
-                      fill="none"
-                      stroke="currentColor"
-                      viewBox="0 0 24 24"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"
-                      />
-                    </svg>
-                  </div>
-                )}
-              </div>
+      </div>
 
-              <div className="p-4">
-                <h3 className="text-lg font-medium text-gray-900 truncate">
-                  {product.name}
-                </h3>
-                <p className="mt-1 text-sm text-gray-500 truncate">
-                  {product.category} • {product.subcategory}
-                </p>
-                <div className="mt-2 flex items-center justify-between">
-                  <div>
-                    <p className="text-sm font-medium text-gray-900">
-                      ₹{product.sellingPrice}
-                    </p>
-                    {product.mrpPrice > product.sellingPrice && (
-                      <p className="text-xs text-gray-500 line-through">
-                        ₹{product.mrpPrice}
+      <div className="max-w-7xl mx-auto p-4 sm:p-6">
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
+          <h1 className="text-2xl font-bold text-text-dark flex items-center">
+            <span className="bg-secondary bg-opacity-20 text-secondary p-2 rounded-full mr-3">
+              <FiPackage className="w-6 h-6 stroke-2 text-white" />
+            </span>
+            Your Products
+          </h1>
+          <Link
+            href="/seller/products/add"
+            className="bg-secondary px-4 py-2 text-white rounded-md hover:bg-secondary-dark transition-colors flex items-center shadow-sm"
+          >
+            <FiPlus className="mr-2 text-white" />
+            Add New Product
+          </Link>
+        </div>
+
+        {products.length === 0 ? (
+          <div className="text-center py-12 bg-background-card rounded-lg shadow-md border border-ui-border">
+            <FiBox className="mx-auto h-12 w-12 text-text-muted" />
+            <h3 className="mt-2 text-lg font-medium text-text-dark">
+              No products found
+            </h3>
+            <p className="mt-1 text-sm text-text-muted">
+              Get started by creating a new product.
+            </p>
+            <div className="mt-6">
+              <Link
+                href="/seller/products/add"
+                className="inline-flex items-center px-5 py-2.5 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-secondary hover:bg-secondary-dark transition-colors"
+              >
+                <FiPlus className="mr-2" />
+                Add Product
+              </Link>
+            </div>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {products.map((product) => (
+              <div
+                key={product.id}
+                className="bg-background-card rounded-lg shadow-md border border-ui-border overflow-hidden hover:shadow-lg transition-shadow"
+              >
+                <div className="aspect-square relative">
+                  {product.images && product.images[0] ? (
+                    <Image
+                      src={product.images[0]}
+                      alt={product.name}
+                      fill
+                      className="object-cover"
+                    />
+                  ) : (
+                    <div className="w-full h-full bg-background-alt flex items-center justify-center">
+                      <FiImage className="w-12 h-12 text-white" />
+                    </div>
+                  )}
+                  {product.mrpPrice > product.sellingPrice && (
+                    <div className="absolute top-2 left-2 bg-accent text-white text-xs font-bold px-2 py-1 rounded-full">
+                      {Math.round(
+                        ((product.mrpPrice - product.sellingPrice) /
+                          product.mrpPrice) *
+                          100
+                      )}
+                      % OFF
+                    </div>
+                  )}
+                </div>
+
+                <div className="p-4">
+                  <h3 className="text-lg font-medium text-text-dark truncate">
+                    {product.name}
+                  </h3>
+                  <div className="mt-1 flex items-center">
+                    <span className="text-xs bg-primary bg-opacity-10 text-white rounded-full px-2 py-0.5 mr-1">
+                      {product.category}
+                    </span>
+                    <span className="text-xs bg-background-alt text-text-muted rounded-full px-2 py-0.5">
+                      {product.subcategory}
+                    </span>
+                  </div>
+                  <div className="mt-3 flex items-center justify-between">
+                    <div>
+                      <p className="text-md font-bold text-primary">
+                        ₹{product.sellingPrice}
                       </p>
-                    )}
+                      {product.mrpPrice > product.sellingPrice && (
+                        <p className="text-xs text-text-muted line-through">
+                          ₹{product.mrpPrice}
+                        </p>
+                      )}
+                    </div>
+                    <div className="flex space-x-2">
+                      <button
+                        onClick={() =>
+                          router.push(`/seller/products/edit/${product.id}`)
+                        }
+                        className="p-2 bg-secondary bg-opacity-10 text-secondary rounded-full hover:bg-opacity-20 transition-colors flex items-center justify-center"
+                        title="Edit Product"
+                      >
+                        <FiEdit2 className="w-4 h-4 text-white" />
+                      </button>
+                      <button
+                        onClick={() => handleDelete(product.id)}
+                        className="p-2 bg-error bg-opacity-10 text-error rounded-full hover:bg-opacity-20 transition-colors flex items-center justify-center"
+                        title="Delete Product"
+                      >
+                        <FiTrash2 className="w-4 h-4 text-white" />
+                      </button>
+                    </div>
                   </div>
-                  <div className="flex space-x-2">
-                    <button
-                      onClick={() =>
-                        router.push(`/seller/products/edit/${product.id}`)
-                      }
-                      className="px-3 py-1 text-sm bg-blue-500 text-white rounded hover:bg-blue-600"
-                    >
-                      Edit
-                    </button>
-                    <button
-                      onClick={() => handleDelete(product.id)}
-                      className="px-3 py-1 text-sm bg-red-500 text-white rounded hover:bg-red-600"
-                    >
-                      Delete
-                    </button>
-                  </div>
+
+                  {/* Available sizes summary */}
+                  {product.sizeQuantities && (
+                    <div className="mt-3 pt-3 border-t border-ui-border">
+                      <p className="text-xs text-text-muted mb-1">
+                        Available Sizes:
+                      </p>
+                      <div className="flex flex-wrap gap-1">
+                        {Object.entries(product.sizeQuantities)
+                          .filter(([_, qty]) => qty > 0)
+                          .map(([size]) => (
+                            <span
+                              key={size}
+                              className="text-xs bg-background-alt text-text-dark px-2 py-0.5 rounded"
+                            >
+                              {size}
+                            </span>
+                          ))}
+                        {Object.values(product.sizeQuantities || {}).every(
+                          (qty) => qty === 0
+                        ) && (
+                          <span className="text-xs text-error">
+                            Out of stock
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
-            </div>
-          ))}
-        </div>
-      )}
+            ))}
+          </div>
+        )}
+      </div>
     </div>
   );
 }

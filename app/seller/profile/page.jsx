@@ -36,6 +36,7 @@ function ProfileContent() {
 
   // Extract the actual seller data from the nested structure
   const sellerData = seller?.seller || seller;
+  console.log(sellerData);
 
   // Populate form with seller data
   useEffect(() => {
