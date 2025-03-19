@@ -6,7 +6,15 @@ import { useAuth } from "@/app/context/AuthContext";
 import { toast } from "react-hot-toast";
 import Link from "next/link";
 import ProtectedRoute from "@/app/components/ProtectedRoute";
-import LoadingSpinner from "@/app/components/LoadingSpinner";
+import {
+  FiUser,
+  FiChevronRight,
+  FiEdit,
+  FiLogOut,
+  FiHome,
+  FiPackage,
+  FiShoppingBag,
+} from "react-icons/fi";
 
 // The actual profile content
 function ProfileContent() {
@@ -26,22 +34,25 @@ function ProfileContent() {
     closeTime: "",
   });
 
+  // Extract the actual seller data from the nested structure
+  const sellerData = seller?.seller || seller;
+
   // Populate form with seller data
   useEffect(() => {
-    if (seller) {
+    if (sellerData) {
       setFormData({
-        shopName: seller.shopName || "",
-        ownerName: seller.ownerName || "",
-        address: seller.address || "",
-        city: seller.city || "",
-        state: seller.state || "",
-        pincode: seller.pincode || "",
-        gstNumber: seller.gstNumber || "",
-        openTime: seller.openTime || "",
-        closeTime: seller.closeTime || "",
+        shopName: sellerData.shopName || "",
+        ownerName: sellerData.ownerName || "",
+        address: sellerData.address || "",
+        city: sellerData.city || "",
+        state: sellerData.state || "",
+        pincode: sellerData.pincode || "",
+        gstNumber: sellerData.gstNumber || "",
+        openTime: sellerData.openTime || "",
+        closeTime: sellerData.closeTime || "",
       });
     }
-  }, [seller]);
+  }, [sellerData]);
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
@@ -72,11 +83,11 @@ function ProfileContent() {
     setLoading(true);
 
     try {
-      if (!seller || !seller.id) {
+      if (!sellerData || !sellerData.id) {
         throw new Error("Authentication required. Please sign in again.");
       }
 
-      const result = await updateSellerDetails(seller.id, formData);
+      const result = await updateSellerDetails(sellerData.id, formData);
 
       if (result.success) {
         toast.success("Profile updated successfully!");
@@ -101,306 +112,375 @@ function ProfileContent() {
   if (!seller) {
     return (
       <div className="flex justify-center items-center min-h-screen">
-        <LoadingSpinner size="large" color="primary" />
+        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary"></div>
       </div>
     );
   }
 
   return (
-    <div className="max-w-4xl mx-auto p-6">
-      <div className="bg-white rounded-lg shadow-sm p-6">
-        <div className="flex justify-between items-center mb-8">
-          <h1 className="text-2xl font-semibold text-[#8B6E5A]">
-            Seller Profile
-          </h1>
-          <div className="flex space-x-4">
-            {isEditing ? (
-              <button
-                onClick={() => setIsEditing(false)}
-                className="px-4 py-2 border border-gray-300 rounded-md hover:bg-gray-50 transition-colors"
-              >
-                Cancel
-              </button>
-            ) : (
-              <button
-                onClick={() => setIsEditing(true)}
-                className="px-4 py-2 bg-[#8B6E5A] text-white rounded-md hover:bg-[#7d6351] transition-colors"
-              >
-                Edit Profile
-              </button>
-            )}
-            <button
-              onClick={handleLogout}
-              className="px-4 py-2 border border-red-300 text-red-600 rounded-md hover:bg-red-50 transition-colors"
-            >
-              Logout
-            </button>
+    <div className="bg-background min-h-screen">
+      {/* Breadcrumb */}
+      <div className="bg-background-alt border-b border-ui-border">
+        <div className="max-w-7xl mx-auto px-4 py-3 sm:px-6 lg:px-8">
+          <div className="flex items-center text-sm text-text-muted">
+            <Link href="/seller/dashboard" className="hover:text-primary">
+              Dashboard
+            </Link>
+            <FiChevronRight className="mx-2 text-white" />
+            <span className="text-text-dark">My Profile</span>
           </div>
         </div>
+      </div>
 
-        {isEditing ? (
-          <form onSubmit={handleSubmit} className="space-y-6">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Shop Name
-                </label>
-                <input
-                  type="text"
-                  name="shopName"
-                  value={formData.shopName}
-                  onChange={handleInputChange}
-                  className="w-full p-3 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#8B6E5A]"
-                  required
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Owner Name
-                </label>
-                <input
-                  type="text"
-                  name="ownerName"
-                  value={formData.ownerName}
-                  onChange={handleInputChange}
-                  className="w-full p-3 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#8B6E5A]"
-                  required
-                />
-              </div>
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Address
-              </label>
-              <textarea
-                name="address"
-                value={formData.address}
-                onChange={handleInputChange}
-                rows={3}
-                className="w-full p-3 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#8B6E5A]"
-                required
-              />
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  City
-                </label>
-                <input
-                  type="text"
-                  name="city"
-                  value={formData.city}
-                  onChange={handleInputChange}
-                  className="w-full p-3 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#8B6E5A]"
-                  required
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  State
-                </label>
-                <input
-                  type="text"
-                  name="state"
-                  value={formData.state}
-                  onChange={handleInputChange}
-                  className="w-full p-3 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#8B6E5A]"
-                  required
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Pincode
-                </label>
-                <input
-                  type="text"
-                  name="pincode"
-                  value={formData.pincode}
-                  onChange={handleInputChange}
-                  className="w-full p-3 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#8B6E5A]"
-                  required
-                  maxLength={6}
-                  pattern="[0-9]{6}"
-                />
-              </div>
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                GST Number (Optional)
-              </label>
-              <input
-                type="text"
-                name="gstNumber"
-                value={formData.gstNumber}
-                onChange={handleInputChange}
-                className="w-full p-3 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#8B6E5A]"
-                placeholder="22AAAAA0000A1Z5"
-                maxLength={15}
-              />
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Opening Time
-                </label>
-                <input
-                  type="time"
-                  name="openTime"
-                  value={formData.openTime}
-                  onChange={handleInputChange}
-                  className="w-full p-3 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#8B6E5A]"
-                  required
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Closing Time
-                </label>
-                <input
-                  type="time"
-                  name="closeTime"
-                  value={formData.closeTime}
-                  onChange={handleInputChange}
-                  className="w-full p-3 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#8B6E5A]"
-                  required
-                />
-              </div>
-            </div>
-
-            <div className="flex justify-end">
+      <div className="max-w-4xl mx-auto p-4 sm:p-6">
+        <div className="bg-background-card rounded-lg shadow-md p-4 sm:p-6 border border-ui-border">
+          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-8">
+            <h1 className="text-2xl font-bold text-text-dark flex items-center">
+              <span className="bg-secondary bg-opacity-20 text-secondary p-2 rounded-full mr-3">
+                <FiUser className="w-6 h-6 stroke-2 text-white" />
+              </span>
+              Seller Profile
+            </h1>
+            <div className="flex flex-wrap gap-3">
+              {isEditing ? (
+                <button
+                  onClick={() => setIsEditing(false)}
+                  className="px-4 py-2 border border-ui-border rounded-md hover:bg-background-alt transition-colors text-text-dark w-full sm:w-auto"
+                >
+                  Cancel
+                </button>
+              ) : (
+                <button
+                  onClick={() => setIsEditing(true)}
+                  className="px-4 py-2 bg-secondary text-white rounded-md hover:bg-secondary-dark transition-colors flex items-center justify-center w-full sm:w-auto"
+                >
+                  <FiEdit className="mr-2" />
+                  Edit Profile
+                </button>
+              )}
               <button
-                type="submit"
-                disabled={loading}
-                className="bg-[#8B6E5A] text-white px-6 py-3 rounded-md hover:bg-[#7d6351] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                onClick={handleLogout}
+                className="px-4 py-2 border border-error text-error rounded-md hover:bg-error hover:bg-opacity-10 transition-colors flex items-center justify-center w-full sm:w-auto"
               >
-                {loading ? "Saving..." : "Save Changes"}
+                <FiLogOut className="mr-2" />
+                Logout
               </button>
             </div>
-          </form>
-        ) : (
-          <div className="space-y-6">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div>
-                <h2 className="text-sm font-medium text-gray-500">
-                  Phone Number
-                </h2>
-                <p className="mt-1 text-lg">{seller.phone}</p>
+          </div>
+
+          {isEditing ? (
+            <form onSubmit={handleSubmit} className="space-y-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div>
+                  <label className="block text-sm font-medium text-text-dark mb-2">
+                    Shop Name
+                  </label>
+                  <input
+                    type="text"
+                    name="shopName"
+                    value={formData.shopName}
+                    onChange={handleInputChange}
+                    className="w-full p-3 border border-ui-border rounded-md bg-background focus:ring-2 focus:ring-secondary focus:border-secondary focus:outline-none transition-colors"
+                    required
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-text-dark mb-2">
+                    Owner Name
+                  </label>
+                  <input
+                    type="text"
+                    name="ownerName"
+                    value={formData.ownerName}
+                    onChange={handleInputChange}
+                    className="w-full p-3 border border-ui-border rounded-md bg-background focus:ring-2 focus:ring-secondary focus:border-secondary focus:outline-none transition-colors"
+                    required
+                  />
+                </div>
               </div>
+
               <div>
-                <h2 className="text-sm font-medium text-gray-500">Joined On</h2>
-                <p className="mt-1 text-lg">
-                  {seller.createdAt
-                    ? new Date(seller.createdAt).toLocaleDateString()
-                    : "N/A"}
+                <label className="block text-sm font-medium text-text-dark mb-2">
+                  Address
+                </label>
+                <textarea
+                  name="address"
+                  value={formData.address}
+                  onChange={handleInputChange}
+                  rows={3}
+                  className="w-full p-3 border border-ui-border rounded-md bg-background focus:ring-2 focus:ring-secondary focus:border-secondary focus:outline-none transition-colors"
+                  required
+                />
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <div>
+                  <label className="block text-sm font-medium text-text-dark mb-2">
+                    City
+                  </label>
+                  <input
+                    type="text"
+                    name="city"
+                    value={formData.city}
+                    onChange={handleInputChange}
+                    className="w-full p-3 border border-ui-border rounded-md bg-background focus:ring-2 focus:ring-secondary focus:border-secondary focus:outline-none transition-colors"
+                    required
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-text-dark mb-2">
+                    State
+                  </label>
+                  <input
+                    type="text"
+                    name="state"
+                    value={formData.state}
+                    onChange={handleInputChange}
+                    className="w-full p-3 border border-ui-border rounded-md bg-background focus:ring-2 focus:ring-secondary focus:border-secondary focus:outline-none transition-colors"
+                    required
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-text-dark mb-2">
+                    Pincode
+                  </label>
+                  <input
+                    type="text"
+                    name="pincode"
+                    value={formData.pincode}
+                    onChange={handleInputChange}
+                    className="w-full p-3 border border-ui-border rounded-md bg-background focus:ring-2 focus:ring-secondary focus:border-secondary focus:outline-none transition-colors"
+                    required
+                    maxLength={6}
+                    pattern="[0-9]{6}"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-text-dark mb-2">
+                  GST Number{" "}
+                  <span className="text-text-muted text-xs">(optional)</span>
+                </label>
+                <input
+                  type="text"
+                  name="gstNumber"
+                  value={formData.gstNumber}
+                  onChange={handleInputChange}
+                  className="w-full p-3 border border-ui-border rounded-md bg-background focus:ring-2 focus:ring-secondary focus:border-secondary focus:outline-none transition-colors"
+                  placeholder="22AAAAA0000A1Z5"
+                  maxLength={15}
+                />
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div>
+                  <label className="block text-sm font-medium text-text-dark mb-2">
+                    Opening Time
+                  </label>
+                  <input
+                    type="time"
+                    name="openTime"
+                    value={formData.openTime}
+                    onChange={handleInputChange}
+                    className="w-full p-3 border border-ui-border rounded-md bg-background focus:ring-2 focus:ring-secondary focus:border-secondary focus:outline-none transition-colors"
+                    required
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-text-dark mb-2">
+                    Closing Time
+                  </label>
+                  <input
+                    type="time"
+                    name="closeTime"
+                    value={formData.closeTime}
+                    onChange={handleInputChange}
+                    className="w-full p-3 border border-ui-border rounded-md bg-background focus:ring-2 focus:ring-secondary focus:border-secondary focus:outline-none transition-colors"
+                    required
+                  />
+                </div>
+              </div>
+
+              <div className="flex justify-end">
+                <button
+                  type="submit"
+                  disabled={loading}
+                  className="bg-secondary text-white px-6 py-3 rounded-md hover:bg-secondary-dark transition-colors disabled:opacity-50 disabled:cursor-not-allowed shadow-sm"
+                >
+                  {loading ? "Saving..." : "Save Changes"}
+                </button>
+              </div>
+            </form>
+          ) : (
+            <div className="space-y-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="p-4 bg-background-alt rounded-lg border border-ui-border">
+                  <h2 className="text-sm font-medium text-text-muted">
+                    Phone Number
+                  </h2>
+                  <p className="mt-1 text-lg font-medium text-text-dark">
+                    {sellerData.phone}
+                  </p>
+                </div>
+                <div className="p-4 bg-background-alt rounded-lg border border-ui-border">
+                  <h2 className="text-sm font-medium text-text-muted">
+                    Joined On
+                  </h2>
+                  <p className="mt-1 text-lg font-medium text-text-dark">
+                    {sellerData.createdAt
+                      ? new Date(sellerData.createdAt).toLocaleDateString(
+                          "en-US",
+                          {
+                            year: "numeric",
+                            month: "long",
+                            day: "numeric",
+                          }
+                        )
+                      : "N/A"}
+                  </p>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="p-4 bg-background-alt rounded-lg border border-ui-border">
+                  <h2 className="text-sm font-medium text-text-muted">
+                    Shop Name
+                  </h2>
+                  <p className="mt-1 text-lg font-medium text-text-dark">
+                    {sellerData.shopName || "Not set"}
+                  </p>
+                </div>
+                <div className="p-4 bg-background-alt rounded-lg border border-ui-border">
+                  <h2 className="text-sm font-medium text-text-muted">
+                    Owner Name
+                  </h2>
+                  <p className="mt-1 text-lg font-medium text-text-dark">
+                    {sellerData.ownerName || "Not set"}
+                  </p>
+                </div>
+              </div>
+
+              <div className="p-4 bg-background-alt rounded-lg border border-ui-border">
+                <h2 className="text-sm font-medium text-text-muted">Address</h2>
+                <p className="mt-1 text-lg font-medium text-text-dark">
+                  {sellerData.address || "Not set"}
                 </p>
               </div>
-            </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div>
-                <h2 className="text-sm font-medium text-gray-500">Shop Name</h2>
-                <p className="mt-1 text-lg">{seller.shopName || "Not set"}</p>
-              </div>
-              <div>
-                <h2 className="text-sm font-medium text-gray-500">
-                  Owner Name
-                </h2>
-                <p className="mt-1 text-lg">{seller.ownerName || "Not set"}</p>
-              </div>
-            </div>
-
-            <div>
-              <h2 className="text-sm font-medium text-gray-500">Address</h2>
-              <p className="mt-1 text-lg">{seller.address || "Not set"}</p>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-              <div>
-                <h2 className="text-sm font-medium text-gray-500">City</h2>
-                <p className="mt-1 text-lg">{seller.city || "Not set"}</p>
-              </div>
-              <div>
-                <h2 className="text-sm font-medium text-gray-500">State</h2>
-                <p className="mt-1 text-lg">{seller.state || "Not set"}</p>
-              </div>
-              <div>
-                <h2 className="text-sm font-medium text-gray-500">Pincode</h2>
-                <p className="mt-1 text-lg">{seller.pincode || "Not set"}</p>
-              </div>
-            </div>
-
-            <div>
-              <h2 className="text-sm font-medium text-gray-500">GST Number</h2>
-              <p className="mt-1 text-lg">{seller.gstNumber || "Not set"}</p>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div>
-                <h2 className="text-sm font-medium text-gray-500">
-                  Opening Time
-                </h2>
-                <p className="mt-1 text-lg">{seller.openTime || "Not set"}</p>
-              </div>
-              <div>
-                <h2 className="text-sm font-medium text-gray-500">
-                  Closing Time
-                </h2>
-                <p className="mt-1 text-lg">{seller.closeTime || "Not set"}</p>
-              </div>
-            </div>
-
-            <div className="border-t border-gray-200 pt-6">
-              <h2 className="text-lg font-medium text-gray-900 mb-4">
-                Quick Links
-              </h2>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <Link
-                  href="/seller/dashboard"
-                  className="block p-4 bg-gray-50 rounded-md hover:bg-gray-100 transition-colors"
-                >
-                  <h3 className="font-medium">Dashboard</h3>
-                  <p className="text-sm text-gray-500 mt-1">
-                    View your seller dashboard
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <div className="p-4 bg-background-alt rounded-lg border border-ui-border">
+                  <h2 className="text-sm font-medium text-text-muted">City</h2>
+                  <p className="mt-1 text-lg font-medium text-text-dark">
+                    {sellerData.city || "Not set"}
                   </p>
-                </Link>
-                <Link
-                  href="/seller/products"
-                  className="block p-4 bg-gray-50 rounded-md hover:bg-gray-100 transition-colors"
-                >
-                  <h3 className="font-medium">Products</h3>
-                  <p className="text-sm text-gray-500 mt-1">
-                    Manage your product listings
+                </div>
+                <div className="p-4 bg-background-alt rounded-lg border border-ui-border">
+                  <h2 className="text-sm font-medium text-text-muted">State</h2>
+                  <p className="mt-1 text-lg font-medium text-text-dark">
+                    {sellerData.state || "Not set"}
                   </p>
-                </Link>
-                <Link
-                  href="/seller/orders"
-                  className="block p-4 bg-gray-50 rounded-md hover:bg-gray-100 transition-colors"
-                >
-                  <h3 className="font-medium">Orders</h3>
-                  <p className="text-sm text-gray-500 mt-1">
-                    View and manage your orders
+                </div>
+                <div className="p-4 bg-background-alt rounded-lg border border-ui-border">
+                  <h2 className="text-sm font-medium text-text-muted">
+                    Pincode
+                  </h2>
+                  <p className="mt-1 text-lg font-medium text-text-dark">
+                    {sellerData.pincode || "Not set"}
                   </p>
-                </Link>
+                </div>
+              </div>
+
+              <div className="p-4 bg-background-alt rounded-lg border border-ui-border">
+                <h2 className="text-sm font-medium text-text-muted">
+                  GST Number
+                </h2>
+                <p className="mt-1 text-lg font-medium text-text-dark">
+                  {sellerData.gstNumber || "Not set"}
+                </p>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="p-4 bg-background-alt rounded-lg border border-ui-border">
+                  <h2 className="text-sm font-medium text-text-muted">
+                    Opening Time
+                  </h2>
+                  <p className="mt-1 text-lg font-medium text-text-dark">
+                    {sellerData.openTime || "Not set"}
+                  </p>
+                </div>
+                <div className="p-4 bg-background-alt rounded-lg border border-ui-border">
+                  <h2 className="text-sm font-medium text-text-muted">
+                    Closing Time
+                  </h2>
+                  <p className="mt-1 text-lg font-medium text-text-dark">
+                    {sellerData.closeTime || "Not set"}
+                  </p>
+                </div>
+              </div>
+
+              <div className="border-t border-ui-border pt-6 mt-8">
+                <h2 className="text-lg font-medium text-text-dark mb-4">
+                  Quick Links
+                </h2>
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                  <Link
+                    href="/seller/dashboard"
+                    className="flex items-center p-4 bg-background-alt rounded-lg border border-ui-border hover:shadow-md transition-shadow"
+                  >
+                    <div className="p-2 bg-primary bg-opacity-15 rounded-full text-primary mr-3">
+                      <FiHome className="h-5 w-5" />
+                    </div>
+                    <div>
+                      <h3 className="font-medium text-text-dark">Dashboard</h3>
+                      <p className="text-sm text-text-muted mt-1">
+                        View your seller dashboard
+                      </p>
+                    </div>
+                  </Link>
+                  <Link
+                    href="/seller/products"
+                    className="flex items-center p-4 bg-background-alt rounded-lg border border-ui-border hover:shadow-md transition-shadow"
+                  >
+                    <div className="p-2 bg-primary bg-opacity-15 rounded-full text-primary mr-3">
+                      <FiPackage className="h-5 w-5" />
+                    </div>
+                    <div>
+                      <h3 className="font-medium text-text-dark">Products</h3>
+                      <p className="text-sm text-text-muted mt-1">
+                        Manage your product listings
+                      </p>
+                    </div>
+                  </Link>
+                  <Link
+                    href="/seller/orders"
+                    className="flex items-center p-4 bg-background-alt rounded-lg border border-ui-border hover:shadow-md transition-shadow"
+                  >
+                    <div className="p-2 bg-primary bg-opacity-15 rounded-full text-primary mr-3">
+                      <FiShoppingBag className="h-5 w-5" />
+                    </div>
+                    <div>
+                      <h3 className="font-medium text-text-dark">Orders</h3>
+                      <p className="text-sm text-text-muted mt-1">
+                        View and manage your orders
+                      </p>
+                    </div>
+                  </Link>
+                </div>
               </div>
             </div>
-          </div>
-        )}
+          )}
+        </div>
       </div>
     </div>
   );
 }
 
 // Wrap the profile content with the ProtectedRoute component
-// Note: requireOnboarding is false because we want to allow access to the profile
-// even if onboarding is not completed (to allow completing it)
 export default function SellerProfile() {
   return (
     <ProtectedRoute requireOnboarding={false}>

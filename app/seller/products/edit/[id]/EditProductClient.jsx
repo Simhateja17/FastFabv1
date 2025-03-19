@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import Image from "next/image";
 import { toast } from "react-hot-toast";
 import { useAuth } from "@/app/context/AuthContext";
+import { FiArrowLeft, FiEdit2, FiX, FiUpload } from "react-icons/fi";
 
 const SIZES = ["XS", "S", "M", "L", "XL"];
 const CATEGORIES = [
@@ -307,41 +308,15 @@ export default function EditProductClient({ productId }) {
           onClick={() => router.push("/seller/products")}
           className="inline-flex items-center text-secondary hover:text-secondary-dark transition-colors"
         >
-          <svg
-            className="w-5 h-5 mr-2"
-            fill="none"
-            stroke="currentColor"
-            viewBox="0 0 24 24"
-            xmlns="http://www.w3.org/2000/svg"
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth={2}
-              d="M10 19l-7-7m0 0l7-7m-7 7h18"
-            />
-          </svg>
+          <FiArrowLeft className="w-5 h-5 mr-2 stroke-2" />
           Back to Products
         </button>
       </div>
 
       <div className="bg-background-card rounded-lg shadow-md p-6 border border-ui-border">
         <h1 className="text-2xl font-bold text-text-dark mb-6 flex items-center">
-          <span className="bg-secondary bg-opacity-10 text-secondary p-2 rounded-full mr-3">
-            <svg
-              className="w-6 h-6"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-              xmlns="http://www.w3.org/2000/svg"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"
-              />
-            </svg>
+          <span className="bg-secondary bg-opacity-20 text-secondary p-2 rounded-full mr-3">
+            <FiEdit2 className="w-6 h-6 stroke-2 text-white" />
           </span>
           Edit Product
         </h1>
@@ -514,18 +489,7 @@ export default function EditProductClient({ productId }) {
                       onClick={() => removeImage(index)}
                       className="absolute -top-2 -right-2 bg-error text-white rounded-full p-1 shadow-sm hover:bg-opacity-90 transition-colors"
                     >
-                      <svg
-                        xmlns="http://www.w3.org/2000/svg"
-                        className="h-4 w-4"
-                        viewBox="0 0 20 20"
-                        fill="currentColor"
-                      >
-                        <path
-                          fillRule="evenodd"
-                          d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z"
-                          clipRule="evenodd"
-                        />
-                      </svg>
+                      <FiX className="h-4 w-4 stroke-2" />
                     </button>
                   </div>
                 ))}
@@ -540,20 +504,7 @@ export default function EditProductClient({ productId }) {
             </label>
             <div className="flex justify-center px-6 pt-4 pb-6">
               <div className="space-y-1 text-center">
-                <svg
-                  className="mx-auto h-12 w-12 text-text-muted"
-                  stroke="currentColor"
-                  fill="none"
-                  viewBox="0 0 48 48"
-                  aria-hidden="true"
-                >
-                  <path
-                    d="M28 8H12a4 4 0 00-4 4v20m32-12v8m0 0v8a4 4 0 01-4 4H12a4 4 0 01-4-4v-4m32-4l-3.172-3.172a4 4 0 00-5.656 0L28 28M8 32l9.172-9.172a4 4 0 015.656 0L28 28m0 0l4 4m4-24h8m-4-4v8m-12 4h.02"
-                    strokeWidth={2}
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  />
-                </svg>
+                <FiUpload className="mx-auto h-14 w-14 text-secondary opacity-80 stroke-[1.5]" />
                 <div className="flex text-sm text-text-muted">
                   <label
                     htmlFor="file-upload"

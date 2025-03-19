@@ -6,7 +6,13 @@ import { useAuth } from "@/app/context/AuthContext";
 import Image from "next/image";
 import { toast } from "react-hot-toast";
 import Link from "next/link";
-import { FiUpload, FiX, FiChevronRight } from "react-icons/fi";
+import {
+  FiUpload,
+  FiX,
+  FiChevronRight,
+  FiArrowLeft,
+  FiPlus,
+} from "react-icons/fi";
 
 const SIZES = ["XS", "S", "M", "L", "XL"];
 const CATEGORIES = [
@@ -228,11 +234,11 @@ export default function AddProduct() {
             <Link href="/seller/dashboard" className="hover:text-primary">
               Dashboard
             </Link>
-            <FiChevronRight className="mx-2" />
+            <FiChevronRight className="mx-2 text-primary" />
             <Link href="/seller/products" className="hover:text-primary">
               Products
             </Link>
-            <FiChevronRight className="mx-2" />
+            <FiChevronRight className="mx-2 text-primary" />
             <span className="text-text-dark">Add Product</span>
           </div>
         </div>
@@ -245,41 +251,15 @@ export default function AddProduct() {
             onClick={() => router.push("/seller/products")}
             className="inline-flex items-center text-secondary hover:text-secondary-dark transition-colors"
           >
-            <svg
-              className="w-5 h-5 mr-2"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-              xmlns="http://www.w3.org/2000/svg"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M10 19l-7-7m0 0l7-7m-7 7h18"
-              />
-            </svg>
+            <FiArrowLeft className="w-5 h-5 mr-2 stroke-2" />
             Back to Products
           </button>
         </div>
 
         <div className="bg-background-card rounded-lg shadow-md p-6 border border-ui-border">
           <h1 className="text-2xl font-bold text-text-dark mb-6 flex items-center">
-            <span className="bg-secondary bg-opacity-10 text-secondary p-2 rounded-full mr-3">
-              <svg
-                className="w-6 h-6"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-                xmlns="http://www.w3.org/2000/svg"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M12 6v6m0 0v6m0-6h6m-6 0H6"
-                />
-              </svg>
+            <span className="bg-secondary  text-secondary p-2 rounded-full mr-3">
+              <FiPlus className="w-6 h-6 stroke-2 text-white" />
             </span>
             Add New Product
           </h1>
@@ -437,7 +417,7 @@ export default function AddProduct() {
               </label>
               <div className="flex justify-center px-6 pt-4 pb-6">
                 <div className="space-y-1 text-center">
-                  <FiUpload className="mx-auto h-12 w-12 text-text-muted" />
+                  <FiUpload className="mx-auto h-14 w-14 text-secondary opacity-80 stroke-[1.5]" />
                   <div className="flex text-sm text-text-muted">
                     <label
                       htmlFor="file-upload"
@@ -485,7 +465,7 @@ export default function AddProduct() {
                         onClick={() => removePreviewImage(index)}
                         className="absolute -top-2 -right-2 bg-error text-white rounded-full p-1 shadow-sm hover:bg-opacity-90 transition-colors"
                       >
-                        <FiX className="h-4 w-4" />
+                        <FiX className="h-4 w-4 stroke-2" />
                       </button>
                     </div>
                   ))}

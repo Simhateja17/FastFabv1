@@ -12,11 +12,11 @@ export default function EditProductPage({ params }) {
             <Link href="/seller/dashboard" className="hover:text-primary">
               Dashboard
             </Link>
-            <FiChevronRight className="mx-2" />
+            <FiChevronRight className="mx-2 text-white" />
             <Link href="/seller/products" className="hover:text-primary">
               Products
             </Link>
-            <FiChevronRight className="mx-2" />
+            <FiChevronRight className="mx-2 text-white" />
             <span className="text-text-dark">Edit Product</span>
           </div>
         </div>
