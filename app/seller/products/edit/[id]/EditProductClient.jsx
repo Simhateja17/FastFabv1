@@ -300,14 +300,56 @@ export default function EditProductClient({ productId }) {
   }
 
   return (
-    <div className="max-w-2xl mx-auto p-6">
-      <div className="bg-white rounded-lg shadow-sm p-6">
-        <h1 className="text-2xl font-semibold mb-6">Edit Product</h1>
+    <div className="max-w-4xl mx-auto p-6 bg-background min-h-screen">
+      {/* Back Button */}
+      <div className="mb-6">
+        <button
+          onClick={() => router.push("/seller/products")}
+          className="inline-flex items-center text-secondary hover:text-secondary-dark transition-colors"
+        >
+          <svg
+            className="w-5 h-5 mr-2"
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+            xmlns="http://www.w3.org/2000/svg"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+              d="M10 19l-7-7m0 0l7-7m-7 7h18"
+            />
+          </svg>
+          Back to Products
+        </button>
+      </div>
+
+      <div className="bg-background-card rounded-lg shadow-md p-6 border border-ui-border">
+        <h1 className="text-2xl font-bold text-text-dark mb-6 flex items-center">
+          <span className="bg-secondary bg-opacity-10 text-secondary p-2 rounded-full mr-3">
+            <svg
+              className="w-6 h-6"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+              xmlns="http://www.w3.org/2000/svg"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"
+              />
+            </svg>
+          </span>
+          Edit Product
+        </h1>
 
         <form onSubmit={handleSubmit} className="space-y-6">
           {/* Product Name */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
+            <label className="block text-sm font-medium text-text-dark mb-2">
               Product Name
             </label>
             <input
@@ -315,7 +357,7 @@ export default function EditProductClient({ productId }) {
               name="name"
               value={formData.name}
               onChange={handleInputChange}
-              className="w-full p-3 border border-gray-300 rounded-md"
+              className="w-full p-3 border border-ui-border rounded-md bg-background focus:ring-2 focus:ring-secondary focus:border-secondary focus:outline-none transition-colors"
               required
             />
           </div>
@@ -323,14 +365,14 @@ export default function EditProductClient({ productId }) {
           {/* Category and Subcategory Selection */}
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
+              <label className="block text-sm font-medium text-text-dark mb-2">
                 Category
               </label>
               <select
                 name="category"
                 value={formData.category}
                 onChange={handleCategoryChange}
-                className="w-full p-3 border border-gray-300 rounded-md"
+                className="w-full p-3 border border-ui-border rounded-md bg-background focus:ring-2 focus:ring-secondary focus:border-secondary focus:outline-none transition-colors"
                 required
               >
                 <option value="">Select Category</option>
@@ -342,14 +384,14 @@ export default function EditProductClient({ productId }) {
               </select>
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
+              <label className="block text-sm font-medium text-text-dark mb-2">
                 Subcategory
               </label>
               <select
                 name="subcategory"
                 value={formData.subcategory}
                 onChange={handleInputChange}
-                className="w-full p-3 border border-gray-300 rounded-md"
+                className="w-full p-3 border border-ui-border rounded-md bg-background focus:ring-2 focus:ring-secondary focus:border-secondary focus:outline-none transition-colors disabled:bg-background-alt disabled:opacity-70"
                 required
                 disabled={!formData.category}
               >
@@ -365,7 +407,7 @@ export default function EditProductClient({ productId }) {
 
           {/* Description */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
+            <label className="block text-sm font-medium text-text-dark mb-2">
               Product Description
             </label>
             <textarea
@@ -373,20 +415,20 @@ export default function EditProductClient({ productId }) {
               value={formData.description}
               onChange={handleInputChange}
               rows={4}
-              className="w-full p-3 border border-gray-300 rounded-md"
+              className="w-full p-3 border border-ui-border rounded-md bg-background focus:ring-2 focus:ring-secondary focus:border-secondary focus:outline-none transition-colors"
               required
             />
           </div>
 
           {/* Quantity by Size */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Quantity
+          <div className="bg-background-alt p-4 rounded-lg border border-ui-border">
+            <label className="block text-sm font-medium text-text-dark mb-3">
+              Quantity by Size
             </label>
             <div className="grid grid-cols-5 gap-4">
               {SIZES.map((size) => (
                 <div key={size} className="text-center">
-                  <div className="mb-2 inline-block p-2 border border-gray-300 rounded-lg">
+                  <div className="mb-2 inline-block p-2 border border-ui-border bg-background rounded-lg font-medium text-secondary">
                     {size}
                   </div>
                   <input
@@ -395,7 +437,7 @@ export default function EditProductClient({ productId }) {
                     onChange={(e) =>
                       handleSizeQuantityChange(size, e.target.value)
                     }
-                    className="w-full p-2 border border-gray-300 rounded-md text-center"
+                    className="w-full p-2 border border-ui-border rounded-md text-center bg-background focus:ring-2 focus:ring-secondary focus:border-secondary focus:outline-none transition-colors"
                     placeholder="0"
                   />
                 </div>
@@ -406,45 +448,60 @@ export default function EditProductClient({ productId }) {
           {/* Price */}
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                MRP Price
+              <label className="block text-sm font-medium text-text-dark mb-2">
+                MRP Price (₹)
               </label>
               <input
                 type="text"
                 name="mrpPrice"
                 value={formData.mrpPrice}
                 onChange={handleInputChange}
-                className="w-full p-3 border border-gray-300 rounded-md"
+                className="w-full p-3 border border-ui-border rounded-md bg-background focus:ring-2 focus:ring-secondary focus:border-secondary focus:outline-none transition-colors"
                 required
                 placeholder="0.00"
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Selling Price
+              <label className="block text-sm font-medium text-text-dark mb-2">
+                Selling Price (₹)
               </label>
               <input
                 type="text"
                 name="sellingPrice"
                 value={formData.sellingPrice}
                 onChange={handleInputChange}
-                className="w-full p-3 border border-gray-300 rounded-md"
+                className="w-full p-3 border border-ui-border rounded-md bg-background focus:ring-2 focus:ring-secondary focus:border-secondary focus:outline-none transition-colors"
                 required
                 placeholder="0.00"
               />
+              {formData.mrpPrice &&
+                formData.sellingPrice &&
+                parseFloat(formData.mrpPrice) >
+                  parseFloat(formData.sellingPrice) && (
+                  <div className="mt-2 text-sm text-accent font-medium">
+                    Discount:{" "}
+                    {Math.round(
+                      ((parseFloat(formData.mrpPrice) -
+                        parseFloat(formData.sellingPrice)) /
+                        parseFloat(formData.mrpPrice)) *
+                        100
+                    )}
+                    %
+                  </div>
+                )}
             </div>
           </div>
 
           {/* Current Images */}
           {previewImages.length > 0 && (
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
+            <div className="bg-background-alt p-4 rounded-lg border border-ui-border">
+              <label className="block text-sm font-medium text-text-dark mb-3">
                 Current Images
               </label>
               <div className="grid grid-cols-3 gap-4">
                 {previewImages.map((image, index) => (
                   <div key={index} className="relative">
-                    <div className="relative h-24 w-full overflow-hidden rounded-md">
+                    <div className="relative h-24 w-full overflow-hidden rounded-lg border border-ui-border bg-background-alt shadow-sm transition-transform hover:scale-105">
                       <Image
                         src={image}
                         alt={`Product ${index + 1}`}
@@ -455,7 +512,7 @@ export default function EditProductClient({ productId }) {
                     <button
                       type="button"
                       onClick={() => removeImage(index)}
-                      className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1"
+                      className="absolute -top-2 -right-2 bg-error text-white rounded-full p-1 shadow-sm hover:bg-opacity-90 transition-colors"
                     >
                       <svg
                         xmlns="http://www.w3.org/2000/svg"
@@ -477,14 +534,14 @@ export default function EditProductClient({ productId }) {
           )}
 
           {/* Add New Images */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
+          <div className="border border-ui-border border-dashed rounded-lg bg-background-alt">
+            <label className="block text-sm font-medium text-text-dark p-4 pb-0">
               Add More Photos
             </label>
-            <div className="mt-1 flex justify-center px-6 pt-5 pb-6 border-2 border-gray-300 border-dashed rounded-md">
+            <div className="flex justify-center px-6 pt-4 pb-6">
               <div className="space-y-1 text-center">
                 <svg
-                  className="mx-auto h-12 w-12 text-gray-400"
+                  className="mx-auto h-12 w-12 text-text-muted"
                   stroke="currentColor"
                   fill="none"
                   viewBox="0 0 48 48"
@@ -497,10 +554,10 @@ export default function EditProductClient({ productId }) {
                     strokeLinejoin="round"
                   />
                 </svg>
-                <div className="flex text-sm text-gray-600">
+                <div className="flex text-sm text-text-muted">
                   <label
                     htmlFor="file-upload"
-                    className="relative cursor-pointer bg-white rounded-md font-medium text-indigo-600 hover:text-indigo-500 focus-within:outline-none focus-within:ring-2 focus-within:ring-offset-2 focus-within:ring-indigo-500"
+                    className="relative cursor-pointer bg-background rounded-md font-medium text-secondary hover:text-secondary-dark focus-within:outline-none focus-within:ring-2 focus-within:ring-offset-2 focus-within:ring-secondary transition-colors"
                   >
                     <span>Upload files</span>
                     <input
@@ -515,27 +572,32 @@ export default function EditProductClient({ productId }) {
                   </label>
                   <p className="pl-1">or drag and drop</p>
                 </div>
-                <p className="text-xs text-gray-500">
+                <p className="text-xs text-text-muted">
                   PNG, JPG, GIF up to 10MB
                 </p>
               </div>
             </div>
           </div>
 
-          {error && <p className="text-red-600 text-sm">{error}</p>}
+          {error && (
+            <div className="bg-error bg-opacity-10 text-error px-4 py-3 rounded-md">
+              {error}
+            </div>
+          )}
 
-          <div className="flex justify-end space-x-4">
+          {/* Form Buttons */}
+          <div className="flex justify-end space-x-4 pt-4 border-t border-ui-border">
             <button
               type="button"
               onClick={() => router.push("/seller/products")}
-              className="px-4 py-2 text-gray-700 border border-gray-300 rounded hover:bg-gray-50"
+              className="px-5 py-2.5 text-text-dark border border-ui-border rounded-md hover:bg-background-alt transition-colors"
             >
               Cancel
             </button>
             <button
               type="submit"
               disabled={loading || uploading}
-              className="px-4 py-2 bg-indigo-600 text-white rounded hover:bg-indigo-700 disabled:opacity-50"
+              className="px-5 py-2.5 bg-secondary text-white rounded-md hover:bg-secondary-dark transition-colors disabled:opacity-70 shadow-sm"
             >
               {loading || uploading
                 ? uploading

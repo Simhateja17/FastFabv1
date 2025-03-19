@@ -199,7 +199,7 @@ export default function ProductDetails({ params }) {
         <div className="flex flex-col lg:flex-row -mx-4">
           {/* Product Images */}
           <div className="lg:w-1/2 px-4 mb-8 lg:mb-0">
-            <div className="mb-4 aspect-square relative rounded-lg overflow-hidden bg-background-alt">
+            <div className="mb-4 aspect-square relative rounded-lg overflow-hidden bg-background-alt border border-ui-border shadow-sm">
               {images.length > 0 ? (
                 <Image
                   src={images[selectedImage]}
@@ -216,7 +216,7 @@ export default function ProductDetails({ params }) {
 
               {/* Discount Badge */}
               {calculateDiscountPercentage() > 0 && (
-                <div className="absolute top-4 left-4 bg-accent text-white px-2 py-1 rounded-md text-sm font-medium">
+                <div className="absolute top-4 left-4 bg-accent text-white px-3 py-1 rounded-full text-sm font-medium shadow-sm">
                   {calculateDiscountPercentage()}% OFF
                 </div>
               )}
@@ -229,9 +229,9 @@ export default function ProductDetails({ params }) {
                   <button
                     key={index}
                     onClick={() => setSelectedImage(index)}
-                    className={`relative w-20 h-20 rounded-md overflow-hidden flex-shrink-0 border-2 ${
+                    className={`relative w-20 h-20 rounded-md overflow-hidden flex-shrink-0 border-2 transition-all ${
                       selectedImage === index
-                        ? "border-secondary"
+                        ? "border-secondary shadow-md"
                         : "border-transparent"
                     }`}
                   >
@@ -249,155 +249,173 @@ export default function ProductDetails({ params }) {
 
           {/* Product Info */}
           <div className="lg:w-1/2 px-4">
-            {/* Category */}
-            <div className="flex items-center mb-2">
-              <span className="text-sm text-secondary font-medium">
-                {product.category}
-                {product.subcategory && ` • ${product.subcategory}`}
-              </span>
-            </div>
-
-            {/* Product Name */}
-            <h1 className="text-3xl font-bold text-text-dark mb-4">
-              {product.name}
-            </h1>
-
-            {/* Pricing */}
-            <div className="flex items-baseline mb-6">
-              <span className="text-2xl font-bold text-primary mr-2">
-                ₹{product.sellingPrice}
-              </span>
-              {product.mrpPrice > product.sellingPrice && (
-                <span className="text-lg text-text-muted line-through">
-                  ₹{product.mrpPrice}
+            <div className="bg-background-card rounded-lg border border-ui-border p-6 shadow-sm">
+              {/* Category */}
+              <div className="flex items-center mb-2">
+                <span className="text-sm bg-primary bg-opacity-10 text-primary rounded-full px-3 py-1">
+                  {product.category}
+                  {product.subcategory && ` • ${product.subcategory}`}
                 </span>
-              )}
-              {calculateDiscountPercentage() > 0 && (
-                <span className="ml-2 text-sm text-accent font-medium">
-                  Save {calculateDiscountPercentage()}%
+              </div>
+
+              {/* Product Name */}
+              <h1 className="text-3xl font-bold text-text-dark mb-4">
+                {product.name}
+              </h1>
+
+              {/* Pricing */}
+              <div className="flex items-baseline mb-6">
+                <span className="text-2xl font-bold text-primary mr-2">
+                  ₹{product.sellingPrice}
                 </span>
-              )}
-            </div>
+                {product.mrpPrice > product.sellingPrice && (
+                  <span className="text-lg text-text-muted line-through">
+                    ₹{product.mrpPrice}
+                  </span>
+                )}
+                {calculateDiscountPercentage() > 0 && (
+                  <span className="ml-2 text-sm text-accent font-medium">
+                    Save {calculateDiscountPercentage()}%
+                  </span>
+                )}
+              </div>
 
-            {/* Availability */}
-            <div className="mb-6">
-              {isInStock ? (
-                <div className="flex items-center text-success">
-                  <FiCheck className="mr-2" />
-                  <span>In Stock</span>
-                </div>
-              ) : (
-                <div className="flex items-center text-error">
-                  <FiInfo className="mr-2" />
-                  <span>Out of Stock</span>
-                </div>
-              )}
-            </div>
-
-            {/* Description */}
-            {product.description && (
+              {/* Availability */}
               <div className="mb-6">
-                <h2 className="text-lg font-medium text-text-dark mb-2">
-                  Description
-                </h2>
-                <p className="text-text">{product.description}</p>
+                {isInStock ? (
+                  <div className="flex items-center text-success bg-success bg-opacity-10 px-3 py-2 rounded-md inline-block">
+                    <FiCheck className="mr-2" />
+                    <span className="font-medium">In Stock</span>
+                  </div>
+                ) : (
+                  <div className="flex items-center text-error bg-error bg-opacity-10 px-3 py-2 rounded-md inline-block">
+                    <FiInfo className="mr-2" />
+                    <span className="font-medium">Out of Stock</span>
+                  </div>
+                )}
               </div>
-            )}
 
-            {/* Size Selection */}
-            {Object.keys(product.sizeQuantities || {}).length > 0 && (
-              <div className="mb-6">
-                <h2 className="text-lg font-medium text-text-dark mb-2">
-                  Select Size
-                </h2>
-                <div className="flex flex-wrap gap-2">
-                  {Object.entries(product.sizeQuantities).map(([size, qty]) => (
-                    <button
-                      key={size}
-                      onClick={() => handleSizeSelect(size)}
-                      disabled={qty <= 0}
-                      className={`
-                        h-10 min-w-[2.5rem] px-3 rounded-md border 
-                        ${
-                          selectedSize === size
-                            ? "border-secondary bg-secondary bg-opacity-10 text-secondary"
-                            : qty > 0
-                            ? "border-ui-border bg-background-alt text-text hover:border-secondary"
-                            : "border-ui-border bg-background-alt text-text-muted opacity-50 cursor-not-allowed"
-                        }
-                      `}
-                    >
-                      {size}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {/* Quantity Selector */}
-            {isInStock && (
-              <div className="mb-8">
-                <h2 className="text-lg font-medium text-text-dark mb-2">
-                  Quantity
-                </h2>
-                <div className="flex items-center">
-                  <button
-                    onClick={() => handleQuantityChange(-1)}
-                    disabled={quantity <= 1}
-                    className="w-10 h-10 rounded-md border border-ui-border bg-background-alt text-text flex items-center justify-center disabled:opacity-50"
-                  >
-                    -
-                  </button>
-                  <span className="w-12 text-center">{quantity}</span>
-                  <button
-                    onClick={() => handleQuantityChange(1)}
-                    disabled={
-                      !selectedSize ||
-                      quantity >= (product.sizeQuantities?.[selectedSize] || 0)
-                    }
-                    className="w-10 h-10 rounded-md border border-ui-border bg-background-alt text-text flex items-center justify-center disabled:opacity-50"
-                  >
-                    +
-                  </button>
-                </div>
-              </div>
-            )}
-
-            {/* Add to Cart Button */}
-            <div className="mb-8">
-              <button
-                onClick={handleAddToCart}
-                disabled={!isInStock || !selectedSize}
-                className="w-full py-3 px-6 bg-secondary text-white rounded-md font-medium hover:bg-secondary-dark transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
-              >
-                <FiShoppingBag className="mr-2" />
-                {isInStock ? "Add to Cart" : "Out of Stock"}
-              </button>
-            </div>
-
-            {/* Feature Highlights */}
-            <div className="border-t border-ui-border pt-6">
-              <div className="space-y-4">
-                <div className="flex items-start">
-                  <FiTruck className="text-secondary mt-1 mr-3" />
-                  <div>
-                    <h3 className="font-medium text-text-dark">
-                      30-Minute Delivery
-                    </h3>
-                    <p className="text-sm text-text-muted">
-                      Get it delivered in just 30 minutes in Hyderabad
+              {/* Description */}
+              {product.description && (
+                <div className="mb-6">
+                  <h2 className="text-lg font-medium text-text-dark mb-2">
+                    Description
+                  </h2>
+                  <div className="bg-background-alt p-4 rounded-lg border border-ui-border">
+                    <p className="text-text whitespace-pre-line">
+                      {product.description}
                     </p>
                   </div>
                 </div>
-                <div className="flex items-start">
-                  <FiShield className="text-secondary mt-1 mr-3" />
-                  <div>
-                    <h3 className="font-medium text-text-dark">
-                      Quality Guarantee
-                    </h3>
-                    <p className="text-sm text-text-muted">
-                      Returns accepted within 24 hours of delivery
-                    </p>
+              )}
+
+              {/* Divider */}
+              <div className="border-t border-ui-border my-6"></div>
+
+              {/* Size Selection */}
+              {Object.keys(product.sizeQuantities || {}).length > 0 && (
+                <div className="mb-6">
+                  <h2 className="text-lg font-medium text-text-dark mb-3">
+                    Select Size
+                  </h2>
+                  <div className="flex flex-wrap gap-2">
+                    {Object.entries(product.sizeQuantities).map(
+                      ([size, qty]) => (
+                        <button
+                          key={size}
+                          onClick={() => handleSizeSelect(size)}
+                          disabled={qty <= 0}
+                          className={`
+                          h-10 min-w-[2.5rem] px-3 rounded-md border transition-all
+                          ${
+                            selectedSize === size
+                              ? "border-secondary bg-secondary bg-opacity-10 text-secondary font-medium shadow-sm"
+                              : qty > 0
+                              ? "border-ui-border bg-background-alt text-text hover:border-secondary hover:shadow-sm"
+                              : "border-ui-border bg-background-alt text-text-muted opacity-50 cursor-not-allowed"
+                          }
+                        `}
+                        >
+                          {size}
+                        </button>
+                      )
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* Quantity Selector */}
+              {isInStock && (
+                <div className="mb-8">
+                  <h2 className="text-lg font-medium text-text-dark mb-3">
+                    Quantity
+                  </h2>
+                  <div className="flex items-center">
+                    <button
+                      onClick={() => handleQuantityChange(-1)}
+                      disabled={quantity <= 1}
+                      className="w-10 h-10 rounded-l-md border border-ui-border bg-background-alt text-text flex items-center justify-center disabled:opacity-50 hover:bg-background transition-colors"
+                    >
+                      -
+                    </button>
+                    <span className="w-12 text-center border-t border-b border-ui-border h-10 flex items-center justify-center">
+                      {quantity}
+                    </span>
+                    <button
+                      onClick={() => handleQuantityChange(1)}
+                      disabled={
+                        !selectedSize ||
+                        quantity >=
+                          (product.sizeQuantities?.[selectedSize] || 0)
+                      }
+                      className="w-10 h-10 rounded-r-md border border-ui-border bg-background-alt text-text flex items-center justify-center disabled:opacity-50 hover:bg-background transition-colors"
+                    >
+                      +
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* Add to Cart Button */}
+              <div className="mb-6">
+                <button
+                  onClick={handleAddToCart}
+                  disabled={!isInStock || !selectedSize}
+                  className="w-full py-3 px-6 bg-secondary text-white rounded-md font-medium hover:bg-secondary-dark transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center shadow-sm"
+                >
+                  <FiShoppingBag className="mr-2" />
+                  {isInStock ? "Add to Cart" : "Out of Stock"}
+                </button>
+              </div>
+
+              {/* Feature Highlights */}
+              <div className="border-t border-ui-border pt-6">
+                <div className="space-y-4">
+                  <div className="flex items-start bg-secondary bg-opacity-5 p-3 rounded-lg">
+                    <div className="bg-secondary bg-opacity-10 p-2 rounded-full text-secondary mr-3">
+                      <FiTruck size={18} />
+                    </div>
+                    <div>
+                      <h3 className="font-medium text-text-dark">
+                        30-Minute Delivery
+                      </h3>
+                      <p className="text-sm text-text-muted">
+                        Get it delivered in just 30 minutes in Hyderabad
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex items-start bg-secondary bg-opacity-5 p-3 rounded-lg">
+                    <div className="bg-secondary bg-opacity-10 p-2 rounded-full text-secondary mr-3">
+                      <FiShield size={18} />
+                    </div>
+                    <div>
+                      <h3 className="font-medium text-text-dark">
+                        Quality Guarantee
+                      </h3>
+                      <p className="text-sm text-text-muted">
+                        Returns accepted within 24 hours of delivery
+                      </p>
+                    </div>
                   </div>
                 </div>
               </div>

@@ -5,8 +5,8 @@ import { useRouter } from "next/navigation";
 import { useAuth } from "@/app/context/AuthContext";
 import Image from "next/image";
 import { toast } from "react-hot-toast";
-import LoadingButton from "@/app/components/LoadingButton";
-import { FiUpload, FiX } from "react-icons/fi";
+import Link from "next/link";
+import { FiUpload, FiX, FiChevronRight } from "react-icons/fi";
 
 const SIZES = ["XS", "S", "M", "L", "XL"];
 const CATEGORIES = [
@@ -220,207 +220,308 @@ export default function AddProduct() {
   };
 
   return (
-    <div className="max-w-2xl mx-auto p-6">
-      <div className="bg-background-card rounded-lg shadow-sm p-6">
-        <h1 className="text-2xl font-semibold mb-6 text-primary">
-          Add New Product
-        </h1>
-
-        <form onSubmit={handleSubmit} className="space-y-6">
-          {/* Product Name */}
-          <div>
-            <label className="block text-sm font-medium text-text mb-2">
-              Product Name
-            </label>
-            <input
-              type="text"
-              name="name"
-              value={formData.name}
-              onChange={handleInputChange}
-              className="w-full p-3 border border-ui-border rounded-md focus:outline-none focus:ring-1 focus:ring-primary bg-input"
-              required
-            />
+    <div className="bg-background min-h-screen">
+      {/* Breadcrumb */}
+      <div className="bg-background-alt border-b border-ui-border">
+        <div className="max-w-7xl mx-auto px-4 py-3 sm:px-6 lg:px-8">
+          <div className="flex items-center text-sm text-text-muted">
+            <Link href="/seller/dashboard" className="hover:text-primary">
+              Dashboard
+            </Link>
+            <FiChevronRight className="mx-2" />
+            <Link href="/seller/products" className="hover:text-primary">
+              Products
+            </Link>
+            <FiChevronRight className="mx-2" />
+            <span className="text-text-dark">Add Product</span>
           </div>
+        </div>
+      </div>
 
-          {/* Category and Subcategory Selection */}
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-text mb-2">
-                Category
-              </label>
-              <select
-                name="category"
-                value={formData.category}
-                onChange={handleCategoryChange}
-                className="w-full p-3 border border-ui-border rounded-md focus:outline-none focus:ring-1 focus:ring-primary bg-input"
-                required
+      <div className="max-w-4xl mx-auto p-6">
+        {/* Back Button */}
+        <div className="mb-6">
+          <button
+            onClick={() => router.push("/seller/products")}
+            className="inline-flex items-center text-secondary hover:text-secondary-dark transition-colors"
+          >
+            <svg
+              className="w-5 h-5 mr-2"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+              xmlns="http://www.w3.org/2000/svg"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M10 19l-7-7m0 0l7-7m-7 7h18"
+              />
+            </svg>
+            Back to Products
+          </button>
+        </div>
+
+        <div className="bg-background-card rounded-lg shadow-md p-6 border border-ui-border">
+          <h1 className="text-2xl font-bold text-text-dark mb-6 flex items-center">
+            <span className="bg-secondary bg-opacity-10 text-secondary p-2 rounded-full mr-3">
+              <svg
+                className="w-6 h-6"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+                xmlns="http://www.w3.org/2000/svg"
               >
-                <option value="">Select Category</option>
-                {CATEGORIES.map((category) => (
-                  <option key={category.name} value={category.name}>
-                    {category.name}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-text mb-2">
-                Subcategory
-              </label>
-              <select
-                name="subcategory"
-                value={formData.subcategory}
-                onChange={handleInputChange}
-                className="w-full p-3 border border-ui-border rounded-md focus:outline-none focus:ring-1 focus:ring-primary bg-input"
-                required
-                disabled={!formData.category}
-              >
-                <option value="">Select Subcategory</option>
-                {availableSubcategories.map((subcategory) => (
-                  <option key={subcategory} value={subcategory}>
-                    {subcategory}
-                  </option>
-                ))}
-              </select>
-            </div>
-          </div>
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M12 6v6m0 0v6m0-6h6m-6 0H6"
+                />
+              </svg>
+            </span>
+            Add New Product
+          </h1>
 
-          {/* Quantity by Size */}
-          <div>
-            <label className="block text-sm font-medium text-text mb-2">
-              Quantity
-            </label>
-            <div className="grid grid-cols-5 gap-4">
-              {SIZES.map((size) => (
-                <div key={size} className="text-center">
-                  <div className="mb-2 inline-block p-2 border border-ui-border rounded-lg bg-background-alt">
-                    {size}
-                  </div>
-                  <input
-                    type="text"
-                    value={formData.sizeQuantities[size]}
-                    onChange={(e) =>
-                      handleSizeQuantityChange(size, e.target.value)
-                    }
-                    className="w-full p-2 border border-ui-border rounded-md text-center focus:outline-none focus:ring-1 focus:ring-primary bg-input"
-                    placeholder="0"
-                  />
-                </div>
-              ))}
-            </div>
-          </div>
-
-          {/* Price */}
-          <div className="grid grid-cols-2 gap-4">
+          <form onSubmit={handleSubmit} className="space-y-6">
+            {/* Product Name */}
             <div>
-              <label className="block text-sm font-medium text-text mb-2">
-                MRP Price
+              <label className="block text-sm font-medium text-text-dark mb-2">
+                Product Name
               </label>
               <input
                 type="text"
-                name="mrpPrice"
-                value={formData.mrpPrice}
+                name="name"
+                value={formData.name}
                 onChange={handleInputChange}
-                className="w-full p-3 border border-ui-border rounded-md focus:outline-none focus:ring-1 focus:ring-primary bg-input"
+                className="w-full p-3 border border-ui-border rounded-md bg-background focus:ring-2 focus:ring-secondary focus:border-secondary focus:outline-none transition-colors"
                 required
-                placeholder="0.00"
               />
             </div>
-            <div>
-              <label className="block text-sm font-medium text-text mb-2">
-                Selling Price
-              </label>
-              <input
-                type="text"
-                name="sellingPrice"
-                value={formData.sellingPrice}
-                onChange={handleInputChange}
-                className="w-full p-3 border border-ui-border rounded-md focus:outline-none focus:ring-1 focus:ring-primary bg-input"
-                required
-                placeholder="0.00"
-              />
-            </div>
-          </div>
 
-          {/* Image Upload */}
-          <div>
-            <label className="block text-sm font-medium text-text mb-2">
-              Add Photos
-            </label>
-            <div className="mt-1 flex justify-center px-6 pt-5 pb-6 border-2 border-ui-border border-dashed rounded-md bg-background-alt">
-              <div className="space-y-1 text-center">
-                <FiUpload className="mx-auto h-12 w-12 text-text-muted" />
-                <div className="flex text-sm text-text-muted">
-                  <label
-                    htmlFor="file-upload"
-                    className="relative cursor-pointer bg-background-alt rounded-md font-medium text-secondary hover:text-secondary-dark focus-within:outline-none focus-within:ring-2 focus-within:ring-offset-2 focus-within:ring-secondary"
-                  >
-                    <span>Upload files</span>
+            {/* Category and Subcategory Selection */}
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-text-dark mb-2">
+                  Category
+                </label>
+                <select
+                  name="category"
+                  value={formData.category}
+                  onChange={handleCategoryChange}
+                  className="w-full p-3 border border-ui-border rounded-md bg-background focus:ring-2 focus:ring-secondary focus:border-secondary focus:outline-none transition-colors"
+                  required
+                >
+                  <option value="">Select Category</option>
+                  {CATEGORIES.map((category) => (
+                    <option key={category.name} value={category.name}>
+                      {category.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-text-dark mb-2">
+                  Subcategory
+                </label>
+                <select
+                  name="subcategory"
+                  value={formData.subcategory}
+                  onChange={handleInputChange}
+                  className="w-full p-3 border border-ui-border rounded-md bg-background focus:ring-2 focus:ring-secondary focus:border-secondary focus:outline-none transition-colors disabled:bg-background-alt disabled:opacity-70"
+                  required
+                  disabled={!formData.category}
+                >
+                  <option value="">Select Subcategory</option>
+                  {availableSubcategories.map((subcategory) => (
+                    <option key={subcategory} value={subcategory}>
+                      {subcategory}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            {/* Description */}
+            <div>
+              <label className="block text-sm font-medium text-text-dark mb-2">
+                Product Description{" "}
+                <span className="text-text-muted text-xs">(optional)</span>
+              </label>
+              <textarea
+                name="description"
+                value={formData.description}
+                onChange={handleInputChange}
+                rows={4}
+                className="w-full p-3 border border-ui-border rounded-md bg-background focus:ring-2 focus:ring-secondary focus:border-secondary focus:outline-none transition-colors"
+              />
+            </div>
+
+            {/* Quantity by Size */}
+            <div className="bg-background-alt p-4 rounded-lg border border-ui-border">
+              <label className="block text-sm font-medium text-text-dark mb-3">
+                Quantity by Size
+              </label>
+              <div className="grid grid-cols-5 gap-4">
+                {SIZES.map((size) => (
+                  <div key={size} className="text-center">
+                    <div className="mb-2 inline-block p-2 border border-ui-border bg-background rounded-lg font-medium text-secondary">
+                      {size}
+                    </div>
                     <input
-                      id="file-upload"
-                      name="file-upload"
-                      type="file"
-                      multiple
-                      className="sr-only"
-                      onChange={handleFileChange}
-                      accept="image/*"
+                      type="text"
+                      value={formData.sizeQuantities[size]}
+                      onChange={(e) =>
+                        handleSizeQuantityChange(size, e.target.value)
+                      }
+                      className="w-full p-2 border border-ui-border rounded-md text-center bg-background focus:ring-2 focus:ring-secondary focus:border-secondary focus:outline-none transition-colors"
+                      placeholder="0"
                     />
-                  </label>
-                  <p className="pl-1">or drag and drop</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Price */}
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-text-dark mb-2">
+                  MRP Price (₹)
+                </label>
+                <input
+                  type="text"
+                  name="mrpPrice"
+                  value={formData.mrpPrice}
+                  onChange={handleInputChange}
+                  className="w-full p-3 border border-ui-border rounded-md bg-background focus:ring-2 focus:ring-secondary focus:border-secondary focus:outline-none transition-colors"
+                  required
+                  placeholder="0.00"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-text-dark mb-2">
+                  Selling Price (₹)
+                </label>
+                <input
+                  type="text"
+                  name="sellingPrice"
+                  value={formData.sellingPrice}
+                  onChange={handleInputChange}
+                  className="w-full p-3 border border-ui-border rounded-md bg-background focus:ring-2 focus:ring-secondary focus:border-secondary focus:outline-none transition-colors"
+                  required
+                  placeholder="0.00"
+                />
+                {formData.mrpPrice &&
+                  formData.sellingPrice &&
+                  parseFloat(formData.mrpPrice) >
+                    parseFloat(formData.sellingPrice) && (
+                    <div className="mt-2 text-sm text-accent font-medium">
+                      Discount:{" "}
+                      {Math.round(
+                        ((parseFloat(formData.mrpPrice) -
+                          parseFloat(formData.sellingPrice)) /
+                          parseFloat(formData.mrpPrice)) *
+                          100
+                      )}
+                      %
+                    </div>
+                  )}
+              </div>
+            </div>
+
+            {/* Image Upload */}
+            <div className="border border-ui-border border-dashed rounded-lg bg-background-alt">
+              <label className="block text-sm font-medium text-text-dark p-4 pb-0">
+                Add Photos
+              </label>
+              <div className="flex justify-center px-6 pt-4 pb-6">
+                <div className="space-y-1 text-center">
+                  <FiUpload className="mx-auto h-12 w-12 text-text-muted" />
+                  <div className="flex text-sm text-text-muted">
+                    <label
+                      htmlFor="file-upload"
+                      className="relative cursor-pointer bg-background rounded-md font-medium text-secondary hover:text-secondary-dark focus-within:outline-none focus-within:ring-2 focus-within:ring-offset-2 focus-within:ring-secondary transition-colors"
+                    >
+                      <span>Upload files</span>
+                      <input
+                        id="file-upload"
+                        name="file-upload"
+                        type="file"
+                        multiple
+                        className="sr-only"
+                        onChange={handleFileChange}
+                        accept="image/*"
+                      />
+                    </label>
+                    <p className="pl-1">or drag and drop</p>
+                  </div>
+                  <p className="text-xs text-text-muted">
+                    PNG, JPG, GIF up to 10MB
+                  </p>
                 </div>
-                <p className="text-xs text-text-muted">
-                  PNG, JPG, GIF up to 10MB
-                </p>
               </div>
             </div>
 
             {/* Image Previews */}
             {previewImages.length > 0 && (
-              <div className="mt-4 grid grid-cols-3 gap-4">
-                {previewImages.map((preview, index) => (
-                  <div key={index} className="relative">
-                    <div className="relative h-24 w-full overflow-hidden rounded-md">
-                      <Image
-                        src={preview}
-                        alt={`Preview ${index + 1}`}
-                        fill
-                        style={{ objectFit: "cover" }}
-                      />
+              <div className="bg-background-alt p-4 rounded-lg border border-ui-border">
+                <label className="block text-sm font-medium text-text-dark mb-3">
+                  Selected Images
+                </label>
+                <div className="grid grid-cols-3 gap-4">
+                  {previewImages.map((preview, index) => (
+                    <div key={index} className="relative">
+                      <div className="relative h-24 w-full overflow-hidden rounded-lg border border-ui-border bg-background-alt shadow-sm transition-transform hover:scale-105">
+                        <Image
+                          src={preview}
+                          alt={`Preview ${index + 1}`}
+                          fill
+                          className="object-cover"
+                        />
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => removePreviewImage(index)}
+                        className="absolute -top-2 -right-2 bg-error text-white rounded-full p-1 shadow-sm hover:bg-opacity-90 transition-colors"
+                      >
+                        <FiX className="h-4 w-4" />
+                      </button>
                     </div>
-                    <button
-                      type="button"
-                      onClick={() => removePreviewImage(index)}
-                      className="absolute -top-2 -right-2 bg-error text-white rounded-full p-1"
-                    >
-                      <FiX className="h-4 w-4" />
-                    </button>
-                  </div>
-                ))}
+                  ))}
+                </div>
               </div>
             )}
-          </div>
 
-          {error && <p className="text-error text-sm">{error}</p>}
+            {error && (
+              <div className="bg-error bg-opacity-10 text-error px-4 py-3 rounded-md">
+                {error}
+              </div>
+            )}
 
-          <div className="flex justify-end space-x-4">
-            <button
-              type="button"
-              onClick={() => router.back()}
-              className="px-4 py-2 text-text border border-ui-border rounded-md hover:bg-background-alt transition-colors"
-            >
-              Cancel
-            </button>
-            <LoadingButton
-              type="submit"
-              variant="primary"
-              isLoading={loading || uploading}
-              loadingText={uploading ? "Uploading..." : "Adding..."}
-              disabled={loading || uploading}
-            >
-              Add Product
-            </LoadingButton>
-          </div>
-        </form>
+            {/* Form Buttons */}
+            <div className="flex justify-end space-x-4 pt-4 border-t border-ui-border">
+              <button
+                type="button"
+                onClick={() => router.push("/seller/products")}
+                className="px-5 py-2.5 text-text-dark border border-ui-border rounded-md hover:bg-background-alt transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                disabled={loading || uploading}
+                className="px-5 py-2.5 bg-secondary text-white rounded-md hover:bg-secondary-dark transition-colors disabled:opacity-70 shadow-sm"
+              >
+                {loading || uploading
+                  ? uploading
+                    ? "Uploading..."
+                    : "Adding..."
+                  : "Add Product"}
+              </button>
+            </div>
+          </form>
+        </div>
       </div>
     </div>
   );
