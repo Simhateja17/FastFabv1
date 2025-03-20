@@ -7,8 +7,6 @@ import { toast } from "react-hot-toast";
 
 import LoadingSpinner from "@/app/components/LoadingSpinner";
 
-
-
 export default function SellerOnboarding() {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
@@ -67,14 +65,13 @@ export default function SellerOnboarding() {
     e.preventDefault();
     setLoading(true);
 
-
     try {
       if (!seller || !seller.id) {
         throw new Error("Authentication required. Please sign in again.");
       }
 
       const result = await updateSellerDetails(seller.id, formData);
-      console.log('Update profile response:', result);
+      console.log("Update profile response:", result);
 
       if (result.success) {
         toast.success("Profile updated successfully!");
@@ -95,7 +92,7 @@ export default function SellerOnboarding() {
         router.push("/seller/dashboard");
       } else {
         const errorMessage = result.error || "Failed to update profile";
-        console.error('Profile update failed:', errorMessage);
+        console.error("Profile update failed:", errorMessage);
         toast.error(errorMessage);
       }
     } catch (error) {
@@ -214,7 +211,7 @@ export default function SellerOnboarding() {
 
           <div>
             <label className="block text-sm font-medium text-text mb-2">
-              GST Number (Optional)
+              GST Number (Must)
             </label>
             <input
               type="text"

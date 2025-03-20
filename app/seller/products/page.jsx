@@ -159,149 +159,296 @@ function ProductsListContent() {
             </div>
           </div>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {products.map((product) => (
-              <div
-                key={product.id}
-                className="bg-background-card rounded-lg shadow-md border border-ui-border overflow-hidden hover:shadow-lg transition-shadow"
-              >
-                <div className="aspect-square relative">
-                  {product.images && product.images[0] ? (
-                    <Image
-                      src={product.images[0]}
-                      alt={product.name}
-                      fill
-                      className="object-cover"
-                    />
-                  ) : (
-                    <div className="w-full h-full bg-background-alt flex items-center justify-center">
-                      <FiImage className="w-12 h-12 text-white" />
-                    </div>
-                  )}
-                  {product.mrpPrice > product.sellingPrice && (
-                    <div className="absolute top-2 left-2 bg-accent text-white text-xs font-bold px-2 py-1 rounded-full">
-                      {Math.round(
-                        ((product.mrpPrice - product.sellingPrice) /
-                          product.mrpPrice) *
-                          100
-                      )}
-                      % OFF
-                    </div>
-                  )}
-                </div>
-
-                <div className="p-4">
-                  <h3 className="text-lg font-medium text-text-dark truncate">
-                    {product.name}
-                  </h3>
-                  <div className="mt-1 flex items-center">
-                    <span className="text-xs bg-primary bg-opacity-10 text-white rounded-full px-2 py-0.5 mr-1">
-                      {product.category}
-                    </span>
-                    <span className="text-xs bg-background-alt text-text-muted rounded-full px-2 py-0.5">
-                      {product.subcategory}
-                    </span>
-                  </div>
-                  <div className="mt-3 flex items-center justify-between">
-                    <div>
-                      <p className="text-md font-bold text-primary">
-                        ₹{product.sellingPrice}
-                      </p>
-                      {product.mrpPrice > product.sellingPrice && (
-                        <p className="text-xs text-text-muted line-through">
-                          ₹{product.mrpPrice}
-                        </p>
+          <>
+            {/* Mobile view (card style) - Only visible on small screens */}
+            <div className="grid grid-cols-1 gap-4 md:hidden">
+              {products.map((product) => (
+                <div
+                  key={product.id}
+                  className="bg-background-card rounded-lg shadow-sm border border-ui-border overflow-hidden"
+                >
+                  <div className="flex">
+                    <div className="w-24 h-24 relative">
+                      {product.images && product.images[0] ? (
+                        <Image
+                          src={product.images[0]}
+                          alt={product.name}
+                          fill
+                          className="object-cover"
+                        />
+                      ) : (
+                        <div className="w-full h-full bg-background-alt flex items-center justify-center">
+                          <FiImage className="w-6 h-6 text-white" />
+                        </div>
                       )}
                     </div>
-                    <div className="flex space-x-2">
-                      <button
-                        onClick={() =>
-                          router.push(`/seller/products/edit/${product.id}`)
-                        }
-                        className="p-2 bg-secondary bg-opacity-10 text-secondary rounded-full hover:bg-opacity-20 transition-colors flex items-center justify-center"
-                        title="Edit Product"
-                      >
-                        <FiEdit2 className="w-4 h-4 text-white" />
-                      </button>
-                      <button
-                        onClick={() => handleDelete(product.id)}
-                        className="p-2 bg-error bg-opacity-10 text-error rounded-full hover:bg-opacity-20 transition-colors flex items-center justify-center"
-                        title="Delete Product"
-                      >
-                        <FiTrash2 className="w-4 h-4 text-white" />
-                      </button>
-                    </div>
-                  </div>
-
-                  {/* Available sizes summary */}
-                  {product.sizeQuantities && (
-                    <div className="mt-3 pt-3 border-t border-ui-border">
-                      <p className="text-xs text-text-muted mb-1">
-                        Available Sizes:
-                      </p>
-                      <div className="flex flex-wrap gap-1">
-                        {Object.entries(product.sizeQuantities)
-                          .filter(([_, qty]) => qty > 0)
-                          .map(([size]) => (
-                            <span
-                              key={size}
-                              className="text-xs bg-background-alt text-text-dark px-2 py-0.5 rounded"
-                            >
-                              {size}
-                            </span>
-                          ))}
-                        {Object.values(product.sizeQuantities || {}).every(
-                          (qty) => qty === 0
-                        ) && (
-                          <span className="text-xs text-error">
-                            Out of stock
+                    <div className="flex-1 p-3">
+                      <h3 className="text-md font-medium text-text-dark truncate">
+                        {product.name}
+                      </h3>
+                      <div className="flex items-center text-sm text-text-muted mt-1">
+                        <span className="font-medium text-primary">
+                          ₹{product.sellingPrice}
+                        </span>
+                        {product.mrpPrice > product.sellingPrice && (
+                          <span className="text-xs text-text-muted line-through ml-2">
+                            ₹{product.mrpPrice}
                           </span>
                         )}
                       </div>
+                      <div className="flex mt-2 space-x-2">
+                        <button
+                          onClick={() =>
+                            router.push(`/seller/products/edit/${product.id}`)
+                          }
+                          className="px-2 py-1 text-xs bg-secondary text-white rounded hover:bg-secondary-dark transition-colors flex items-center"
+                        >
+                          <FiEdit2 className="mr-1 w-3 h-3" />
+                          Edit
+                        </button>
+                        <button
+                          onClick={() => handleDelete(product.id)}
+                          className="px-2 py-1 text-xs bg-error text-white rounded hover:bg-error-dark transition-colors flex items-center"
+                        >
+                          <FiTrash2 className="mr-1 w-3 h-3" />
+                          Delete
+                        </button>
+                      </div>
                     </div>
-                  )}
+                  </div>
+                </div>
+              ))}
+            </div>
 
-                  {/* Available colors */}
-                  {product.colorInventories &&
-                    product.colorInventories.length > 0 && (
-                      <div className="mt-3 pt-3 border-t border-ui-border">
-                        <p className="text-xs text-text-muted mb-1">
-                          Available Colors:
-                        </p>
-                        <div className="flex flex-wrap gap-2">
-                          {product.colorInventories.map((colorInv) => {
-                            // Check if this color has any inventory
-                            const hasInventory = Object.values(
-                              colorInv.inventory || {}
-                            ).some((qty) => qty > 0);
-                            if (!hasInventory) return null;
+            {/* Desktop view (table style) - Only visible on medium screens and above */}
+            <div className="hidden md:block overflow-x-auto">
+              <table className="min-w-full divide-y divide-ui-border">
+                <thead className="bg-background-alt">
+                  <tr>
+                    <th
+                      scope="col"
+                      className="px-4 py-3 text-left text-xs font-medium text-text-muted uppercase tracking-wider w-16"
+                    >
+                      Image
+                    </th>
+                    <th
+                      scope="col"
+                      className="px-4 py-3 text-left text-xs font-medium text-text-muted uppercase tracking-wider"
+                    >
+                      Product
+                    </th>
+                    <th
+                      scope="col"
+                      className="px-4 py-3 text-left text-xs font-medium text-text-muted uppercase tracking-wider"
+                    >
+                      Category
+                    </th>
+                    <th
+                      scope="col"
+                      className="px-4 py-3 text-left text-xs font-medium text-text-muted uppercase tracking-wider"
+                    >
+                      Price
+                    </th>
+                    <th
+                      scope="col"
+                      className="px-4 py-3 text-left text-xs font-medium text-text-muted uppercase tracking-wider"
+                    >
+                      Variants
+                    </th>
+                    <th
+                      scope="col"
+                      className="px-4 py-3 text-left text-xs font-medium text-text-muted uppercase tracking-wider"
+                    >
+                      Inventory
+                    </th>
+                    <th
+                      scope="col"
+                      className="px-4 py-3 text-right text-xs font-medium text-text-muted uppercase tracking-wider"
+                    >
+                      Actions
+                    </th>
+                  </tr>
+                </thead>
+                <tbody className="bg-background-card divide-y divide-ui-border">
+                  {products.map((product) => {
+                    // Calculate total inventory across all sizes and colors
+                    let totalInventory = 0;
 
-                            return (
-                              <div
-                                key={colorInv.color}
-                                className="relative group"
-                                title={colorInv.color}
-                              >
+                    if (
+                      product.colorInventories &&
+                      product.colorInventories.length > 0
+                    ) {
+                      // Sum up all color inventories
+                      product.colorInventories.forEach((colorInv) => {
+                        Object.values(colorInv.inventory || {}).forEach(
+                          (qty) => {
+                            totalInventory += parseInt(qty) || 0;
+                          }
+                        );
+                      });
+                    } else if (product.sizeQuantities) {
+                      // Sum up size quantities
+                      totalInventory = Object.values(
+                        product.sizeQuantities
+                      ).reduce((sum, qty) => sum + parseInt(qty), 0);
+                    }
+
+                    // Get available colors
+                    const availableColors = (
+                      product.colorInventories || []
+                    ).filter((colorInv) =>
+                      Object.values(colorInv.inventory || {}).some(
+                        (qty) => parseInt(qty) > 0
+                      )
+                    );
+
+                    // Get available sizes
+                    const availableSizes = Object.entries(
+                      product.sizeQuantities || {}
+                    )
+                      .filter(([_, qty]) => parseInt(qty) > 0)
+                      .map(([size]) => size);
+
+                    return (
+                      <tr key={product.id} className="hover:bg-background-alt">
+                        <td className="px-4 py-4 whitespace-nowrap">
+                          <div className="h-12 w-12 relative rounded-md overflow-hidden">
+                            {product.images && product.images[0] ? (
+                              <Image
+                                src={product.images[0]}
+                                alt={product.name}
+                                fill
+                                className="object-cover"
+                              />
+                            ) : (
+                              <div className="w-full h-full bg-background-alt flex items-center justify-center">
+                                <FiImage className="w-4 h-4 text-white" />
+                              </div>
+                            )}
+                          </div>
+                        </td>
+                        <td className="px-4 py-4">
+                          <div className="text-sm font-medium text-text-dark">
+                            {product.name}
+                          </div>
+                          <div className="text-xs text-text-muted">
+                            ID: {product.id.substring(0, 8)}...
+                          </div>
+                        </td>
+                        <td className="px-4 py-4">
+                          <div className="text-xs bg-primary bg-opacity-10 text-white rounded-full px-2 py-0.5 inline-block">
+                            {product.category}
+                          </div>
+                          {product.subcategory && (
+                            <div className="text-xs bg-background-alt text-text-muted rounded-full px-2 py-0.5 inline-block mt-1">
+                              {product.subcategory}
+                            </div>
+                          )}
+                        </td>
+                        <td className="px-4 py-4">
+                          <div className="text-sm font-medium text-primary">
+                            ₹{product.sellingPrice}
+                          </div>
+                          {product.mrpPrice > product.sellingPrice && (
+                            <div className="text-xs text-text-muted line-through">
+                              ₹{product.mrpPrice}
+                              <span className="text-accent ml-1 no-underline">
+                                {Math.round(
+                                  ((product.mrpPrice - product.sellingPrice) /
+                                    product.mrpPrice) *
+                                    100
+                                )}
+                                % OFF
+                              </span>
+                            </div>
+                          )}
+                        </td>
+                        <td className="px-4 py-4">
+                          {/* Colors */}
+                          {availableColors.length > 0 && (
+                            <div className="flex flex-wrap gap-1 mb-1">
+                              {availableColors.map((colorInv, index) => (
                                 <div
-                                  className="w-6 h-6 rounded-full border border-ui-border shadow-sm"
+                                  key={colorInv.color}
+                                  className="w-4 h-4 rounded-full border border-ui-border"
                                   style={{
                                     backgroundColor:
                                       colorInv.colorCode || "#000000",
                                   }}
+                                  title={colorInv.color}
                                 ></div>
-                                <span className="absolute -top-8 left-1/2 -translate-x-1/2 whitespace-nowrap text-xs bg-text-dark text-white px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
-                                  {colorInv.color}
+                              ))}
+                              {availableColors.length > 5 && (
+                                <span className="text-xs text-text-muted">
+                                  +{availableColors.length - 5} more
                                 </span>
-                              </div>
-                            );
-                          })}
-                        </div>
-                      </div>
-                    )}
-                </div>
-              </div>
-            ))}
-          </div>
+                              )}
+                            </div>
+                          )}
+
+                          {/* Sizes */}
+                          {availableSizes.length > 0 && (
+                            <div className="flex flex-wrap gap-1">
+                              {availableSizes.slice(0, 5).map((size) => (
+                                <span
+                                  key={size}
+                                  className="text-xs bg-background-alt text-text-dark px-1.5 py-0.5 rounded"
+                                >
+                                  {size}
+                                </span>
+                              ))}
+                              {availableSizes.length > 5 && (
+                                <span className="text-xs text-text-muted">
+                                  +{availableSizes.length - 5} more
+                                </span>
+                              )}
+                            </div>
+                          )}
+                        </td>
+                        <td className="px-4 py-4">
+                          <div
+                            className={`text-sm font-medium ${
+                              totalInventory > 10
+                                ? "text-success"
+                                : totalInventory > 0
+                                ? "text-warning"
+                                : "text-error"
+                            }`}
+                          >
+                            {totalInventory > 0
+                              ? `${totalInventory} units`
+                              : "Out of stock"}
+                          </div>
+                        </td>
+                        <td className="px-4 py-4 text-right">
+                          <div className="flex justify-end space-x-2">
+                            <button
+                              onClick={() =>
+                                router.push(
+                                  `/seller/products/edit/${product.id}`
+                                )
+                              }
+                              className="p-2 bg-secondary bg-opacity-10 text-secondary rounded-md hover:bg-opacity-20 transition-colors"
+                              title="Edit Product"
+                            >
+                              <FiEdit2 className="w-4 h-4 text-white" />
+                            </button>
+                            <button
+                              onClick={() => handleDelete(product.id)}
+                              className="p-2 bg-error bg-opacity-10 text-error rounded-md hover:bg-opacity-20 transition-colors"
+                              title="Delete Product"
+                            >
+                              <FiTrash2 className="w-4 h-4 text-white" />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </>
         )}
       </div>
     </div>
