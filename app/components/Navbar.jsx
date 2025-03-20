@@ -254,51 +254,56 @@ const Navbar = () => {
             >
               Contact Us
             </Link>
-            <Link
-              href="/cart"
-              className="block pl-3 pr-4 py-2 text-base font-medium text-text-muted hover:text-text-dark hover:bg-background-alt"
-            >
-              Cart
-            </Link>
 
-            {/* User Authentication Links for Mobile */}
-            {user || !seller ? (
-              <>
-                <Link
-                  href="/profile"
-                  className="block pl-3 pr-4 py-2 text-base font-medium text-text-muted hover:text-text-dark hover:bg-background-alt"
-                >
-                  My Profile
-                </Link>
-                <Link
-                  href="/orders"
-                  className="block pl-3 pr-4 py-2 text-base font-medium text-text-muted hover:text-text-dark hover:bg-background-alt"
-                >
-                  My Orders
-                </Link>
-                <button
-                  onClick={handleUserLogout}
-                  className="block w-full text-left pl-3 pr-4 py-2 text-base font-medium text-text-muted hover:text-text-dark hover:bg-background-alt"
-                >
-                  User Logout
-                </button>
-              </>
-            ) : (
-              <>
-                <Link
-                  href="/signin"
-                  className="block pl-3 pr-4 py-2 text-base font-medium text-text-muted hover:text-text-dark hover:bg-background-alt"
-                >
-                  Login
-                </Link>
-                <Link
-                  href="/signup"
-                  className="block pl-3 pr-4 py-2 text-base font-medium text-text-muted hover:text-text-dark hover:bg-background-alt"
-                >
-                  Sign Up
-                </Link>
-              </>
+            {/* Only show cart link when not logged in as seller */}
+            {!seller && (
+              <Link
+                href="/cart"
+                className="block pl-3 pr-4 py-2 text-base font-medium text-text-muted hover:text-text-dark hover:bg-background-alt"
+              >
+                Cart
+              </Link>
             )}
+
+            {/* User Authentication Links for Mobile - only when seller is not logged in */}
+            {!seller &&
+              (user ? (
+                <>
+                  <Link
+                    href="/profile"
+                    className="block pl-3 pr-4 py-2 text-base font-medium text-text-muted hover:text-text-dark hover:bg-background-alt"
+                  >
+                    My Profile
+                  </Link>
+                  <Link
+                    href="/orders"
+                    className="block pl-3 pr-4 py-2 text-base font-medium text-text-muted hover:text-text-dark hover:bg-background-alt"
+                  >
+                    My Orders
+                  </Link>
+                  <button
+                    onClick={handleUserLogout}
+                    className="block w-full text-left pl-3 pr-4 py-2 text-base font-medium text-text-muted hover:text-text-dark hover:bg-background-alt"
+                  >
+                    Logout
+                  </button>
+                </>
+              ) : (
+                <>
+                  <Link
+                    href="/signin"
+                    className="block pl-3 pr-4 py-2 text-base font-medium text-text-muted hover:text-text-dark hover:bg-background-alt"
+                  >
+                    Login
+                  </Link>
+                  <Link
+                    href="/signup"
+                    className="block pl-3 pr-4 py-2 text-base font-medium text-text-muted hover:text-text-dark hover:bg-background-alt"
+                  >
+                    Sign Up
+                  </Link>
+                </>
+              ))}
 
             {/* Seller Authentication Links for Mobile */}
             {seller ? (
@@ -319,7 +324,7 @@ const Navbar = () => {
                   onClick={handleSellerLogout}
                   className="block w-full text-left pl-3 pr-4 py-2 text-base font-medium text-text-muted hover:text-text-dark hover:bg-background-alt"
                 >
-                  Seller Logout
+                  Logout
                 </button>
               </>
             ) : (
