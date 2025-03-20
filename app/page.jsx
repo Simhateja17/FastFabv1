@@ -21,16 +21,21 @@ export default function Home() {
     async function fetchProducts() {
       try {
         setLoading(true);
+        console.log("Fetching from:", PUBLIC_ENDPOINTS.ACTIVE_PRODUCTS);
+
         const res = await fetch(PUBLIC_ENDPOINTS.ACTIVE_PRODUCTS, {
           cache: "no-store",
           next: { revalidate: 300 }, // Revalidate every 5 minutes
         });
+
+        console.log("Response status:", res.status);
 
         if (!res.ok) {
           throw new Error(`Failed to fetch products: ${res.status}`);
         }
 
         const data = await res.json();
+        console.log("Products fetched:", data.length);
         setProducts(data);
         setFilteredProducts(data);
 

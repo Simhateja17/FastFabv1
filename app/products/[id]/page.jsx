@@ -43,7 +43,7 @@ export default function ProductDetails({ params }) {
         // Fetch color inventories for this product
         try {
           const colorRes = await fetch(
-            `${process.env.NEXT_PUBLIC_API_URL}/public/products/${params.id}/colors`
+            PUBLIC_ENDPOINTS.PRODUCT_COLORS(params.id)
           );
           if (colorRes.ok) {
             const colorData = await colorRes.json();
@@ -399,7 +399,7 @@ export default function ProductDetails({ params }) {
 
                   {/* Color Inventory Display */}
                   {selectedColor && (
-                    <div className="bg-background-alt p-3 rounded-lg border border-ui-border">
+                    <div className="bg-primary p-3 rounded-lg ">
                       <h3 className="text-sm font-medium text-white mb-2">
                         {selectedColor} Inventory:
                       </h3>
@@ -417,10 +417,10 @@ export default function ProductDetails({ params }) {
                                 key={`${selectedColor}-${size}`}
                                 className="bg-background px-2 py-1 rounded flex items-center"
                               >
-                                <span className="text-xs font-medium text-white">
+                                <span className="text-xs font-medium text-primary">
                                   {size}:
                                 </span>
-                                <span className="text-xs ml-1 text-white">
+                                <span className="text-xs ml-1 text-secondary">
                                   {qty} available
                                 </span>
                               </div>

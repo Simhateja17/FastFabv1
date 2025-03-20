@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import ProductCard from "@/app/components/ProductCard";
 import LoadingSpinner from "@/app/components/LoadingSpinner";
+import { PUBLIC_ENDPOINTS } from "@/app/config";
 
 export default function ProductsPage() {
   const [products, setProducts] = useState([]);
@@ -24,11 +25,11 @@ export default function ProductsPage() {
       setError(null);
       const queryParams = new URLSearchParams(filters).toString();
       const response = await fetch(
-        `${process.env.NEXT_PUBLIC_API_URL}/api/products?${queryParams}`
+        `${PUBLIC_ENDPOINTS.PRODUCTS}?${queryParams}`
       );
 
       if (!response.ok) {
-        throw new Error("Failed to fetch products");
+        throw new Error(`Failed to fetch products: ${response.status}`);
       }
 
       const data = await response.json();

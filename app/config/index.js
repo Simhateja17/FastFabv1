@@ -28,6 +28,7 @@ export const PUBLIC_ENDPOINTS = {
   PRODUCTS: `${API_URL}/public/products`,
   ACTIVE_PRODUCTS: `${API_URL}/public/products/active`,
   PRODUCT_DETAIL: (id) => `${API_URL}/public/products/${id}`,
+  PRODUCT_COLORS: (id) => `${API_URL}/public/products/${id}/colors`,
 };
 
 // Token constants
