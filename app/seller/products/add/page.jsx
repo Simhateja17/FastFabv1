@@ -577,7 +577,7 @@ export default function AddProduct() {
           {/* Description */}
           <div>
             <label className="block text-sm font-medium text-text-dark mb-2">
-              Description
+              Description (optional)
             </label>
             <textarea
               name="description"
