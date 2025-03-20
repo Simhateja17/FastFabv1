@@ -40,7 +40,34 @@ function ProductsListContent() {
       }
 
       const data = await response.json();
-      setProducts(data);
+
+      // Fetch color inventories for each product
+      const productsWithColors = await Promise.all(
+        data.map(async (product) => {
+          try {
+            const colorResponse = await authFetch(
+              `${process.env.NEXT_PUBLIC_API_URL}/api/products/${product.id}/colors`
+            );
+
+            if (colorResponse.ok) {
+              const colorData = await colorResponse.json();
+              return {
+                ...product,
+                colorInventories: colorData.colorInventories || [],
+              };
+            }
+            return product;
+          } catch (error) {
+            console.error(
+              `Error fetching colors for product ${product.id}:`,
+              error
+            );
+            return product;
+          }
+        })
+      );
+
+      setProducts(productsWithColors);
     } catch (error) {
       toast.error("Error fetching products: " + error.message);
     } finally {
@@ -233,6 +260,44 @@ function ProductsListContent() {
                       </div>
                     </div>
                   )}
+
+                  {/* Available colors */}
+                  {product.colorInventories &&
+                    product.colorInventories.length > 0 && (
+                      <div className="mt-3 pt-3 border-t border-ui-border">
+                        <p className="text-xs text-text-muted mb-1">
+                          Available Colors:
+                        </p>
+                        <div className="flex flex-wrap gap-2">
+                          {product.colorInventories.map((colorInv) => {
+                            // Check if this color has any inventory
+                            const hasInventory = Object.values(
+                              colorInv.inventory || {}
+                            ).some((qty) => qty > 0);
+                            if (!hasInventory) return null;
+
+                            return (
+                              <div
+                                key={colorInv.color}
+                                className="relative group"
+                                title={colorInv.color}
+                              >
+                                <div
+                                  className="w-6 h-6 rounded-full border border-ui-border shadow-sm"
+                                  style={{
+                                    backgroundColor:
+                                      colorInv.colorCode || "#000000",
+                                  }}
+                                ></div>
+                                <span className="absolute -top-8 left-1/2 -translate-x-1/2 whitespace-nowrap text-xs bg-text-dark text-white px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
+                                  {colorInv.color}
+                                </span>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
                 </div>
               </div>
             ))}

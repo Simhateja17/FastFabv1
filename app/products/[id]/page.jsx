@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
-import { PRODUCT_ENDPOINTS } from "@/app/config";
+import { PRODUCT_ENDPOINTS, PUBLIC_ENDPOINTS } from "@/app/config";
 import LoadingSpinner from "@/app/components/LoadingSpinner";
 import {
   FiChevronRight,
@@ -23,13 +23,15 @@ export default function ProductDetails({ params }) {
   const [error, setError] = useState(null);
   const [selectedImage, setSelectedImage] = useState(0);
   const [selectedSize, setSelectedSize] = useState("");
+  const [selectedColor, setSelectedColor] = useState("");
+  const [colorInventories, setColorInventories] = useState([]);
   const [quantity, setQuantity] = useState(1);
 
   useEffect(() => {
     async function fetchProduct() {
       try {
         setLoading(true);
-        const res = await fetch(PRODUCT_ENDPOINTS.DETAIL(params.id));
+        const res = await fetch(PUBLIC_ENDPOINTS.PRODUCT_DETAIL(params.id));
 
         if (!res.ok) {
           throw new Error(`Failed to fetch product: ${res.status}`);
@@ -37,6 +39,34 @@ export default function ProductDetails({ params }) {
 
         const data = await res.json();
         setProduct(data);
+
+        // Fetch color inventories for this product
+        try {
+          const colorRes = await fetch(
+            `${process.env.NEXT_PUBLIC_API_URL}/public/products/${params.id}/colors`
+          );
+          if (colorRes.ok) {
+            const colorData = await colorRes.json();
+            setColorInventories(colorData.colorInventories || []);
+
+            // Set first available color as default
+            if (
+              colorData.colorInventories &&
+              colorData.colorInventories.length > 0
+            ) {
+              const availableColors = colorData.colorInventories.filter(
+                (color) =>
+                  Object.values(color.inventory || {}).some((qty) => qty > 0)
+              );
+
+              if (availableColors.length > 0) {
+                setSelectedColor(availableColors[0].color);
+              }
+            }
+          }
+        } catch (colorError) {
+          console.error("Error fetching color inventories:", colorError);
+        }
 
         // Set first available size as default selected
         if (data.sizeQuantities) {
@@ -65,6 +95,10 @@ export default function ProductDetails({ params }) {
     setSelectedSize(size);
   };
 
+  const handleColorSelect = (color) => {
+    setSelectedColor(color);
+  };
+
   const handleQuantityChange = (amount) => {
     const newQuantity = quantity + amount;
 
@@ -85,8 +119,17 @@ export default function ProductDetails({ params }) {
       return;
     }
 
+    if (colorInventories.length > 0 && !selectedColor) {
+      alert("Please select a color");
+      return;
+    }
+
     // Add to cart logic would go here
-    alert(`Added ${quantity} of size ${selectedSize} to cart`);
+    alert(
+      `Added ${quantity} of size ${selectedSize}${
+        selectedColor ? `, color ${selectedColor}` : ""
+      } to cart`
+    );
   };
 
   const calculateDiscountPercentage = () => {
@@ -164,19 +207,19 @@ export default function ProductDetails({ params }) {
       <div className="bg-background-alt border-b border-ui-border">
         <div className="max-w-7xl mx-auto px-4 py-3 sm:px-6 lg:px-8">
           <div className="flex items-center text-sm text-text-muted">
-            <Link href="/" className="hover:text-primary">
+            <Link href="/" className="text-primary">
               Home
             </Link>
-            <FiChevronRight className="mx-2" />
+            <FiChevronRight className="mx-2 text-primary" />
             <Link
               href={`/products/category/${
                 product.category?.toLowerCase() || "all"
               }`}
-              className="hover:text-primary"
+              className="text-primary"
             >
               {product.category || "Products"}
             </Link>
-            <FiChevronRight className="mx-2" />
+            <FiChevronRight className="mx-2 text-primary" />
             <span className="text-text-dark truncate max-w-[150px]">
               {product.name}
             </span>
@@ -210,7 +253,7 @@ export default function ProductDetails({ params }) {
                 />
               ) : (
                 <div className="w-full h-full bg-background-alt flex items-center justify-center">
-                  <FiShoppingBag className="w-16 h-16 text-text-muted" />
+                  <FiShoppingBag className="w-16 h-16 text-secondary" />
                 </div>
               )}
 
@@ -252,7 +295,7 @@ export default function ProductDetails({ params }) {
             <div className="bg-background-card rounded-lg border border-ui-border p-6 shadow-sm">
               {/* Category */}
               <div className="flex items-center mb-2">
-                <span className="text-sm bg-primary bg-opacity-10 text-primary rounded-full px-3 py-1">
+                <span className="text-sm bg-primary bg-opacity-10 text-white  rounded-full px-3 py-1">
                   {product.category}
                   {product.subcategory && ` • ${product.subcategory}`}
                 </span>
@@ -265,7 +308,7 @@ export default function ProductDetails({ params }) {
 
               {/* Pricing */}
               <div className="flex items-baseline mb-6">
-                <span className="text-2xl font-bold text-primary mr-2">
+                <span className="text-2xl font-bold text-secondary   mr-2">
                   ₹{product.sellingPrice}
                 </span>
                 {product.mrpPrice > product.sellingPrice && (
@@ -284,13 +327,13 @@ export default function ProductDetails({ params }) {
               <div className="mb-6">
                 {isInStock ? (
                   <div className="flex items-center text-success bg-success bg-opacity-10 px-3 py-2 rounded-md inline-block">
-                    <FiCheck className="mr-2" />
-                    <span className="font-medium">In Stock</span>
+                    <FiCheck className="mr-2 text-white" />
+                    <span className="font-medium text-white">In Stock</span>
                   </div>
                 ) : (
                   <div className="flex items-center text-error bg-error bg-opacity-10 px-3 py-2 rounded-md inline-block">
-                    <FiInfo className="mr-2" />
-                    <span className="font-medium">Out of Stock</span>
+                    <FiInfo className="mr-2 text-white" />
+                    <span className="font-medium text-white">Out of Stock</span>
                   </div>
                 )}
               </div>
@@ -312,13 +355,101 @@ export default function ProductDetails({ params }) {
               {/* Divider */}
               <div className="border-t border-ui-border my-6"></div>
 
+              {/* Color Selection */}
+              {colorInventories.length > 0 && (
+                <div className="mb-6">
+                  <h2 className="text-lg font-medium text-text-dark mb-3">
+                    Select Color
+                  </h2>
+                  <div className="flex flex-wrap gap-3 mb-4">
+                    {colorInventories.map((colorInv) => {
+                      // Check if this color has any inventory
+                      const hasInventory = Object.values(
+                        colorInv.inventory || {}
+                      ).some((qty) => qty > 0);
+                      if (!hasInventory) return null;
+
+                      return (
+                        <button
+                          key={colorInv.color}
+                          onClick={() => handleColorSelect(colorInv.color)}
+                          disabled={!hasInventory}
+                          className={`
+                            flex flex-col items-center p-2 rounded-md border transition-all
+                            ${
+                              selectedColor === colorInv.color
+                                ? "border-secondary bg-secondary bg-opacity-10 shadow-sm"
+                                : "border-ui-border bg-background-alt hover:border-secondary hover:shadow-sm"
+                            }
+                          `}
+                        >
+                          <div
+                            className="w-8 h-8 rounded-full border border-ui-border shadow-sm mb-1"
+                            style={{
+                              backgroundColor: colorInv.colorCode || "#000000",
+                            }}
+                          ></div>
+                          <span className="text-xs text-white">
+                            {colorInv.color}
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+
+                  {/* Color Inventory Display */}
+                  {selectedColor && (
+                    <div className="bg-background-alt p-3 rounded-lg border border-ui-border">
+                      <h3 className="text-sm font-medium text-white mb-2">
+                        {selectedColor} Inventory:
+                      </h3>
+                      <div className="flex flex-wrap gap-2">
+                        {colorInventories.find((c) => c.color === selectedColor)
+                          ?.inventory &&
+                          Object.entries(
+                            colorInventories.find(
+                              (c) => c.color === selectedColor
+                            ).inventory
+                          )
+                            .filter(([_, qty]) => qty > 0)
+                            .map(([size, qty]) => (
+                              <div
+                                key={`${selectedColor}-${size}`}
+                                className="bg-background px-2 py-1 rounded flex items-center"
+                              >
+                                <span className="text-xs font-medium text-white">
+                                  {size}:
+                                </span>
+                                <span className="text-xs ml-1 text-white">
+                                  {qty} available
+                                </span>
+                              </div>
+                            ))}
+                        {!colorInventories.find(
+                          (c) => c.color === selectedColor
+                        )?.inventory ||
+                        Object.values(
+                          colorInventories.find(
+                            (c) => c.color === selectedColor
+                          )?.inventory || {}
+                        ).every((qty) => qty === 0) ? (
+                          <span className="text-xs text-error">
+                            Out of stock
+                          </span>
+                        ) : null}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+
               {/* Size Selection */}
               {Object.keys(product.sizeQuantities || {}).length > 0 && (
                 <div className="mb-6">
                   <h2 className="text-lg font-medium text-text-dark mb-3">
                     Select Size
                   </h2>
-                  <div className="flex flex-wrap gap-2">
+                  <div className="flex flex-wrap gap-2 ">
                     {Object.entries(product.sizeQuantities).map(
                       ([size, qty]) => (
                         <button
@@ -326,7 +457,7 @@ export default function ProductDetails({ params }) {
                           onClick={() => handleSizeSelect(size)}
                           disabled={qty <= 0}
                           className={`
-                          h-10 min-w-[2.5rem] px-3 rounded-md border transition-all
+                          h-10 min-w-[2.5rem] focus:text-white px-3 rounded-md border transition-all
                           ${
                             selectedSize === size
                               ? "border-secondary bg-secondary bg-opacity-10 text-secondary font-medium shadow-sm"
@@ -393,26 +524,26 @@ export default function ProductDetails({ params }) {
                 <div className="space-y-4">
                   <div className="flex items-start bg-secondary bg-opacity-5 p-3 rounded-lg">
                     <div className="bg-secondary bg-opacity-10 p-2 rounded-full text-secondary mr-3">
-                      <FiTruck size={18} />
+                      <FiTruck size={18} className="text-white" />
                     </div>
                     <div>
                       <h3 className="font-medium text-text-dark">
                         30-Minute Delivery
                       </h3>
-                      <p className="text-sm text-text-muted">
+                      <p className="text-sm text-text-dark">
                         Get it delivered in just 30 minutes in Hyderabad
                       </p>
                     </div>
                   </div>
                   <div className="flex items-start bg-secondary bg-opacity-5 p-3 rounded-lg">
                     <div className="bg-secondary bg-opacity-10 p-2 rounded-full text-secondary mr-3">
-                      <FiShield size={18} />
+                      <FiShield size={18} className="text-white" />
                     </div>
                     <div>
                       <h3 className="font-medium text-text-dark">
                         Quality Guarantee
                       </h3>
-                      <p className="text-sm text-text-muted">
+                      <p className="text-sm text-text-dark">
                         Returns accepted within 24 hours of delivery
                       </p>
                     </div>
