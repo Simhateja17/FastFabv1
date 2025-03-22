@@ -77,7 +77,7 @@ function AdminLayout({ children }) {
       <aside
         className={`bg-background-card shadow-md transition-all duration-300 ${
           isSidebarOpen ? "w-60" : "w-16"
-        } h-screen flex flex-col`}
+        } h-screen flex flex-col fixed left-0 top-0 z-10`}
       >
         {/* Logo and toggle */}
         <div className="p-4 flex items-center justify-between border-b border-ui-border">
@@ -92,6 +92,7 @@ function AdminLayout({ children }) {
           <button
             onClick={() => setIsSidebarOpen(!isSidebarOpen)}
             className="p-1.5 rounded-lg bg-background hover:bg-background-alt text-text"
+            title={isSidebarOpen ? "Collapse sidebar" : "Expand sidebar"}
           >
             {isSidebarOpen ? (
               <svg
@@ -328,7 +329,28 @@ function AdminLayout({ children }) {
       </aside>
 
       {/* Main content */}
-      <main className="flex-1 p-6 overflow-auto">{children}</main>
+      <main
+        className={`flex-1 overflow-x-hidden overflow-y-auto transition-all duration-300 ${
+          isSidebarOpen ? "ml-60" : "ml-16"
+        }`}
+      >
+        {/* Header */}
+        <header className="bg-background-card shadow-sm sticky top-0 z-10">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
+            <div className="flex items-center justify-between">
+              <h1 className="text-xl font-semibold text-text">
+                {pathname.split("/").pop()?.charAt(0).toUpperCase() +
+                  pathname.split("/").pop()?.slice(1) || "Dashboard"}
+              </h1>
+            </div>
+          </div>
+        </header>
+
+        {/* Page content */}
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+          {children}
+        </div>
+      </main>
     </div>
   );
 }
