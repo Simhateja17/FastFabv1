@@ -87,7 +87,7 @@ export default function AdminDashboardPage() {
             </svg>
           }
           color="bg-blue-500"
-          link="/admin/superadmin/sellers"
+          link="/superadmin/sellers"
         />
         <StatsCard
           title="Total Products"
@@ -109,7 +109,7 @@ export default function AdminDashboardPage() {
             </svg>
           }
           color="bg-purple-500"
-          link="/admin/superadmin/products"
+          link="/superadmin/products"
         />
         <StatsCard
           title="Active Products"
@@ -131,7 +131,7 @@ export default function AdminDashboardPage() {
             </svg>
           }
           color="bg-green-500"
-          link="/admin/superadmin/products"
+          link="/superadmin/products"
         />
       </div>
 
@@ -142,7 +142,7 @@ export default function AdminDashboardPage() {
           <div className="flex justify-between items-center mb-4">
             <h2 className="text-lg font-semibold text-text">Recent Sellers</h2>
             <Link
-              href="/admin/superadmin/sellers"
+              href="/superadmin/sellers"
               className="text-sm text-primary hover:text-primary-dark"
             >
               View All
@@ -172,7 +172,7 @@ export default function AdminDashboardPage() {
                     <tr key={seller.id}>
                       <td className="px-4 py-2 whitespace-nowrap text-sm text-text">
                         <Link
-                          href={`/admin/superadmin/sellers/${seller.id}`}
+                          href={`/superadmin/sellers/${seller.id}`}
                           className="text-primary hover:text-primary-dark"
                         >
                           {seller.shopName || "N/A"}
@@ -209,7 +209,7 @@ export default function AdminDashboardPage() {
           <div className="flex justify-between items-center mb-4">
             <h2 className="text-lg font-semibold text-text">Recent Products</h2>
             <Link
-              href="/admin/superadmin/products"
+              href="/superadmin/products"
               className="text-sm text-primary hover:text-primary-dark"
             >
               View All
@@ -239,21 +239,23 @@ export default function AdminDashboardPage() {
                     <tr key={product.id}>
                       <td className="px-4 py-2 whitespace-nowrap text-sm text-text">
                         <Link
-                          href={`/admin/superadmin/products/${product.id}`}
+                          href={`/superadmin/products/${product.id}`}
                           className="text-primary hover:text-primary-dark"
                         >
                           {product.name}
                         </Link>
                       </td>
                       <td className="px-4 py-2 whitespace-nowrap text-sm text-text">
-                        ₹{product.sellingPrice.toFixed(2)}
+                        ₹{(product.sellingPrice || 0).toFixed(2)}
                       </td>
                       <td className="px-4 py-2 whitespace-nowrap text-sm text-text">
                         <Link
-                          href={`/admin/superadmin/sellers/${product.seller.id}`}
+                          href={`/superadmin/sellers/${
+                            product.seller?.id || "unknown"
+                          }`}
                           className="text-primary hover:text-primary-dark"
                         >
-                          {product.seller.shopName || "Unknown"}
+                          {product.seller?.shopName || "Unknown"}
                         </Link>
                       </td>
                       <td className="px-4 py-2 whitespace-nowrap text-sm">

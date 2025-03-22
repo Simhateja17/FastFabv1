@@ -83,7 +83,7 @@ function AdminLayout({ children }) {
         <div className="p-4 flex items-center justify-between border-b border-ui-border">
           {isSidebarOpen && (
             <Link
-              href="/admin/superadmin/dashboard"
+              href="/superadmin/dashboard"
               className="text-xl font-bold text-primary"
             >
               FastFab
@@ -130,7 +130,7 @@ function AdminLayout({ children }) {
         {/* Navigation */}
         <nav className="flex-grow p-4 space-y-2 overflow-y-auto">
           <NavItem
-            href="/admin/superadmin/dashboard"
+            href="/superadmin/dashboard"
             icon={
               <svg
                 xmlns="http://www.w3.org/2000/svg"
@@ -152,7 +152,7 @@ function AdminLayout({ children }) {
             isSidebarOpen={isSidebarOpen}
           />
           <NavItem
-            href="/admin/superadmin/sellers"
+            href="/superadmin/sellers"
             icon={
               <svg
                 xmlns="http://www.w3.org/2000/svg"
@@ -174,7 +174,7 @@ function AdminLayout({ children }) {
             isSidebarOpen={isSidebarOpen}
           />
           <NavItem
-            href="/admin/superadmin/products"
+            href="/superadmin/products"
             icon={
               <svg
                 xmlns="http://www.w3.org/2000/svg"
@@ -196,7 +196,7 @@ function AdminLayout({ children }) {
             isSidebarOpen={isSidebarOpen}
           />
           <NavItem
-            href="/admin/superadmin/orders"
+            href="/superadmin/orders"
             icon={
               <svg
                 xmlns="http://www.w3.org/2000/svg"
@@ -209,7 +209,7 @@ function AdminLayout({ children }) {
                   strokeLinecap="round"
                   strokeLinejoin="round"
                   strokeWidth={2}
-                  d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01"
+                  d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"
                 />
               </svg>
             }
@@ -218,7 +218,7 @@ function AdminLayout({ children }) {
             isSidebarOpen={isSidebarOpen}
           />
           <NavItem
-            href="/admin/superadmin/users"
+            href="/superadmin/users"
             icon={
               <svg
                 xmlns="http://www.w3.org/2000/svg"
@@ -240,7 +240,7 @@ function AdminLayout({ children }) {
             isSidebarOpen={isSidebarOpen}
           />
           <NavItem
-            href="/admin/superadmin/settings"
+            href="/superadmin/settings"
             icon={
               <svg
                 xmlns="http://www.w3.org/2000/svg"

@@ -29,7 +29,9 @@ const Navbar = () => {
   // Check authentication status on component mount
   useEffect(() => {
     const verifyAuth = async () => {
-      await checkSellerAuth();
+      if (typeof checkSellerAuth === "function") {
+        await checkSellerAuth();
+      }
     };
     verifyAuth();
   }, [checkSellerAuth]);
