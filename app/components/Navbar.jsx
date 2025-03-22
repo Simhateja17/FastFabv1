@@ -208,12 +208,20 @@ const Navbar = () => {
                       </button>
                     </>
                   ) : (
-                    <Link
-                      href="/seller/signin"
-                      className="block px-4 py-2 text-sm text-text hover:bg-background-alt"
-                    >
-                      Seller Login
-                    </Link>
+                    <>
+                      <Link
+                        href="/seller/signin"
+                        className="block px-4 py-2 text-sm text-text hover:bg-background-alt"
+                      >
+                        Seller Login
+                      </Link>
+                      <Link
+                        href="/admin-login"
+                        className="block px-4 py-2 text-sm text-text hover:bg-background-alt"
+                      >
+                        Admin Login
+                      </Link>
+                    </>
                   )}
                 </div>
               )}
@@ -328,12 +336,20 @@ const Navbar = () => {
                 </button>
               </>
             ) : (
-              <Link
-                href="/seller/signin"
-                className="block pl-3 pr-4 py-2 text-base font-medium text-text-muted hover:text-text-dark hover:bg-background-alt"
-              >
-                Seller Login
-              </Link>
+              <>
+                <Link
+                  href="/seller/signin"
+                  className="block pl-3 pr-4 py-2 text-base font-medium text-text-muted hover:text-text-dark hover:bg-background-alt"
+                >
+                  Seller Login
+                </Link>
+                <Link
+                  href="/admin-login"
+                  className="block pl-3 pr-4 py-2 text-base font-medium text-text-muted hover:text-text-dark hover:bg-background-alt"
+                >
+                  Admin Login
+                </Link>
+              </>
             )}
           </div>
         </div>
