@@ -1,18 +1,9 @@
 "use client";
 
 import { createContext, useContext, useState, useEffect } from "react";
-import { API_URL } from "@/app/config";
+import { API_URL, USER_ENDPOINTS } from "@/app/config";
 
 const UserAuthContext = createContext();
-
-// User API endpoints
-const USER_AUTH_ENDPOINTS = {
-  SEND_OTP: `${API_URL}/user/send-otp`,
-  VERIFY_OTP: `${API_URL}/user/verify-otp`,
-  REFRESH_TOKEN: `${API_URL}/user/refresh-token`,
-  LOGOUT: `${API_URL}/user/logout`,
-  PROFILE: `${API_URL}/user/profile`,
-};
 
 // Token management functions
 const setUserTokens = (accessToken, refreshToken) => {
@@ -48,7 +39,7 @@ export function UserAuthProvider({ children }) {
         throw new Error("No refresh token available");
       }
 
-      const response = await fetch(USER_AUTH_ENDPOINTS.REFRESH_TOKEN, {
+      const response = await fetch(USER_ENDPOINTS.REFRESH_TOKEN, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -135,7 +126,7 @@ export function UserAuthProvider({ children }) {
         }
 
         // Try to get user profile with current token
-        const response = await fetch(USER_AUTH_ENDPOINTS.PROFILE, {
+        const response = await fetch(USER_ENDPOINTS.PROFILE, {
           headers: {
             Authorization: `Bearer ${accessToken}`,
           },
@@ -168,48 +159,22 @@ export function UserAuthProvider({ children }) {
     initializeAuth();
   }, []);
 
-  // Send OTP to phone number
-  const sendOTP = async (phone) => {
+  // Login user with email and password
+  const login = async (email, password) => {
     try {
       setLoading(true);
-      const response = await fetch(USER_AUTH_ENDPOINTS.SEND_OTP, {
+      const response = await fetch(USER_ENDPOINTS.LOGIN, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ phone }),
+        body: JSON.stringify({ email, password }),
       });
 
       const data = await response.json();
 
       if (!response.ok) {
-        throw new Error(data.message || "Failed to send OTP");
-      }
-
-      return { success: true, message: data.message };
-    } catch (error) {
-      return { success: false, error: error.message };
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // Verify OTP and login/register user
-  const verifyOTP = async (phone, otp) => {
-    try {
-      setLoading(true);
-      const response = await fetch(USER_AUTH_ENDPOINTS.VERIFY_OTP, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ phone, otp }),
-      });
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.message || "Failed to verify OTP");
+        throw new Error(data.message || "Login failed");
       }
 
       // Store tokens
@@ -221,7 +186,40 @@ export function UserAuthProvider({ children }) {
       // Save user data to localStorage for persistence
       localStorage.setItem("userData", JSON.stringify(data.user));
 
-      return { success: true, user: data.user, isNewUser: data.isNewUser };
+      return { success: true, user: data.user };
+    } catch (error) {
+      return { success: false, error: error.message };
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Register new user
+  const register = async (userData) => {
+    try {
+      setLoading(true);
+      const response = await fetch(USER_ENDPOINTS.REGISTER, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(userData),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.message || "Registration failed");
+      }
+
+      // Store tokens if automatically logged in
+      if (data.accessToken && data.refreshToken) {
+        setUserTokens(data.accessToken, data.refreshToken);
+        setUser(data.user);
+        localStorage.setItem("userData", JSON.stringify(data.user));
+      }
+
+      return { success: true, user: data.user };
     } catch (error) {
       return { success: false, error: error.message };
     } finally {
@@ -235,8 +233,8 @@ export function UserAuthProvider({ children }) {
       const { refreshToken } = getUserTokens();
 
       if (refreshToken) {
-        // Call logout API if available
-        await fetch(USER_AUTH_ENDPOINTS.LOGOUT, {
+        // Call logout API
+        await fetch(USER_ENDPOINTS.LOGOUT, {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
@@ -257,24 +255,21 @@ export function UserAuthProvider({ children }) {
   // Update user profile
   const updateUserProfile = async (userData) => {
     try {
-      const response = await userAuthFetch(USER_AUTH_ENDPOINTS.PROFILE, {
+      const response = await userAuthFetch(USER_ENDPOINTS.UPDATE_PROFILE, {
         method: "PUT",
         body: JSON.stringify(userData),
       });
 
-      const data = await response.json();
-
       if (!response.ok) {
-        throw new Error(data.message || "Failed to update profile");
+        const errorData = await response.json();
+        throw new Error(errorData.message || "Failed to update profile");
       }
 
-      // Update user state
-      setUser(data.user);
+      const updatedUser = await response.json();
+      setUser(updatedUser);
+      localStorage.setItem("userData", JSON.stringify(updatedUser));
 
-      // Update localStorage
-      localStorage.setItem("userData", JSON.stringify(data.user));
-
-      return { success: true, user: data.user };
+      return { success: true, user: updatedUser };
     } catch (error) {
       return { success: false, error: error.message };
     }
@@ -283,8 +278,8 @@ export function UserAuthProvider({ children }) {
   const value = {
     user,
     loading,
-    sendOTP,
-    verifyOTP,
+    login,
+    register,
     logout,
     updateUserProfile,
     userAuthFetch,

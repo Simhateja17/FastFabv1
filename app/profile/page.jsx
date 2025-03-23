@@ -19,8 +19,7 @@ export default function UserProfile() {
   const [formData, setFormData] = useState({
     name: "",
     email: "",
-    gender: "",
-    dateOfBirth: "",
+    phone: "",
   });
 
   useEffect(() => {
@@ -36,10 +35,7 @@ export default function UserProfile() {
       setFormData({
         name: user.name || "",
         email: user.email || "",
-        gender: user.gender || "",
-        dateOfBirth: user.dateOfBirth
-          ? new Date(user.dateOfBirth).toISOString().split("T")[0]
-          : "",
+        phone: user.phone || "",
       });
     }
   }, [user, authLoading, router]);
@@ -61,8 +57,13 @@ export default function UserProfile() {
       return;
     }
 
-    if (formData.email && !/^\S+@\S+\.\S+$/.test(formData.email)) {
+    if (!/^\S+@\S+\.\S+$/.test(formData.email)) {
       toast.error("Please enter a valid email address");
+      return;
+    }
+
+    if (!/^\d{10}$/.test(formData.phone)) {
+      toast.error("Please enter a valid 10-digit phone number");
       return;
     }
 
@@ -119,7 +120,7 @@ export default function UserProfile() {
             ) : (
               <button
                 onClick={() => setIsEditing(true)}
-                className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 transition-colors"
+                className="px-4 py-2 bg-secondary text-white rounded-md hover:bg-secondary-dark transition-colors"
               >
                 Edit Profile
               </button>
@@ -144,7 +145,7 @@ export default function UserProfile() {
                 name="name"
                 value={formData.name}
                 onChange={handleInputChange}
-                className="w-full p-3 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full p-3 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-secondary"
                 required
               />
             </div>
@@ -158,38 +159,22 @@ export default function UserProfile() {
                 name="email"
                 value={formData.email}
                 onChange={handleInputChange}
-                className="w-full p-3 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full p-3 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-secondary"
+                required
               />
             </div>
 
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
-                Gender
-              </label>
-              <select
-                name="gender"
-                value={formData.gender}
-                onChange={handleInputChange}
-                className="w-full p-3 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-              >
-                <option value="">Select gender</option>
-                <option value="male">Male</option>
-                <option value="female">Female</option>
-                <option value="other">Other</option>
-                <option value="prefer_not_to_say">Prefer not to say</option>
-              </select>
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Date of Birth
+                Phone Number
               </label>
               <input
-                type="date"
-                name="dateOfBirth"
-                value={formData.dateOfBirth}
+                type="tel"
+                name="phone"
+                value={formData.phone}
                 onChange={handleInputChange}
-                className="w-full p-3 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full p-3 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-secondary"
+                required
               />
             </div>
 
@@ -197,7 +182,7 @@ export default function UserProfile() {
               <button
                 type="submit"
                 disabled={loading}
-                className="bg-blue-500 text-white px-6 py-3 rounded-md hover:bg-blue-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                className="bg-secondary text-white px-6 py-3 rounded-md hover:bg-secondary-dark transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {loading ? "Saving..." : "Save Changes"}
               </button>
@@ -205,13 +190,6 @@ export default function UserProfile() {
           </form>
         ) : (
           <div className="space-y-6">
-            <div>
-              <h2 className="text-sm font-medium text-gray-500">
-                Phone Number
-              </h2>
-              <p className="mt-1 text-lg">{user.phone}</p>
-            </div>
-
             <div>
               <h2 className="text-sm font-medium text-gray-500">Full Name</h2>
               <p className="mt-1 text-lg">{user.name || "Not set"}</p>
@@ -225,24 +203,10 @@ export default function UserProfile() {
             </div>
 
             <div>
-              <h2 className="text-sm font-medium text-gray-500">Gender</h2>
-              <p className="mt-1 text-lg">
-                {user.gender
-                  ? user.gender.charAt(0).toUpperCase() +
-                    user.gender.slice(1).replace("_", " ")
-                  : "Not set"}
-              </p>
-            </div>
-
-            <div>
               <h2 className="text-sm font-medium text-gray-500">
-                Date of Birth
+                Phone Number
               </h2>
-              <p className="mt-1 text-lg">
-                {user.dateOfBirth
-                  ? new Date(user.dateOfBirth).toLocaleDateString()
-                  : "Not set"}
-              </p>
+              <p className="mt-1 text-lg">{user.phone || "Not set"}</p>
             </div>
 
             <div>
@@ -252,8 +216,57 @@ export default function UserProfile() {
               <p className="mt-1 text-lg">
                 {user.createdAt
                   ? new Date(user.createdAt).toLocaleDateString()
-                  : "Unknown"}
+                  : "Not available"}
               </p>
+            </div>
+
+            <hr className="my-6 border-gray-200" />
+
+            <div>
+              <h2 className="text-lg font-semibold text-gray-900 mb-4">
+                Quick Links
+              </h2>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <Link
+                  href="/orders"
+                  className="block p-4 bg-gray-50 rounded-lg border border-gray-100 hover:bg-gray-100 transition-colors"
+                >
+                  <h3 className="font-medium">My Orders</h3>
+                  <p className="text-sm text-gray-500 mt-1">
+                    View and track your orders
+                  </p>
+                </Link>
+
+                <Link
+                  href="/address"
+                  className="block p-4 bg-gray-50 rounded-lg border border-gray-100 hover:bg-gray-100 transition-colors"
+                >
+                  <h3 className="font-medium">My Addresses</h3>
+                  <p className="text-sm text-gray-500 mt-1">
+                    Manage your delivery addresses
+                  </p>
+                </Link>
+
+                <Link
+                  href="/wishlist"
+                  className="block p-4 bg-gray-50 rounded-lg border border-gray-100 hover:bg-gray-100 transition-colors"
+                >
+                  <h3 className="font-medium">My Wishlist</h3>
+                  <p className="text-sm text-gray-500 mt-1">
+                    View your saved items
+                  </p>
+                </Link>
+
+                <button
+                  onClick={handleLogout}
+                  className="block p-4 bg-gray-50 rounded-lg border border-gray-100 hover:bg-gray-100 transition-colors text-left w-full"
+                >
+                  <h3 className="font-medium text-red-600">Logout</h3>
+                  <p className="text-sm text-gray-500 mt-1">
+                    Sign out from your account
+                  </p>
+                </button>
+              </div>
             </div>
           </div>
         )}

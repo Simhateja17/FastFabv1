@@ -12,6 +12,22 @@ export const AUTH_ENDPOINTS = {
   UPDATE_DETAILS: (sellerId) => `${API_URL}/auth/${sellerId}/details`,
 };
 
+// User endpoints
+export const USER_ENDPOINTS = {
+  LOGIN: `${API_URL}/user/login`,
+  REGISTER: `${API_URL}/user/register`,
+  REFRESH_TOKEN: `${API_URL}/user/refresh-token`,
+  LOGOUT: `${API_URL}/user/logout`,
+  PROFILE: `${API_URL}/user/profile`,
+  UPDATE_PROFILE: `${API_URL}/user/profile`,
+  ADDRESSES: `${API_URL}/address`,
+  ADDRESS_DETAIL: (id) => `${API_URL}/address/${id}`,
+  ORDERS: `${API_URL}/orders`,
+  ORDER_DETAIL: (id) => `${API_URL}/orders/${id}`,
+  CART: `${API_URL}/cart`,
+  CART_ITEMS: `${API_URL}/cart/items`,
+};
+
 // Product endpoints
 export const PRODUCT_ENDPOINTS = {
   LIST: `${API_URL}/api/products`,

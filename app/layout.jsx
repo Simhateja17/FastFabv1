@@ -3,6 +3,7 @@ import Navbar from "./components/Navbar";
 import Footer from "./components/Footer";
 import { Providers } from "./providers";
 import { Inter } from "next/font/google";
+import { Analytics } from "@vercel/analytics/react";
 
 // Load Inter font
 const inter = Inter({
@@ -28,6 +29,7 @@ export default function RootLayout({ children }) {
           <main className="flex-grow">{children}</main>
           <Footer />
         </Providers>
+        <Analytics />
       </body>
     </html>
   );
