@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
 import Link from "next/link";
@@ -9,12 +9,23 @@ import { useUserAuth } from "@/app/context/UserAuthContext";
 
 export default function SignIn() {
   const router = useRouter();
-  const { login, loading: authLoading } = useUserAuth();
+  const { login, loading: authLoading, user } = useUserAuth();
   const [formData, setFormData] = useState({
     email: "",
     password: "",
   });
   const [loading, setLoading] = useState(false);
+
+  console.log("SignIn component rendered - Auth state:", { user, authLoading });
+
+  // Check if user is already logged in
+  useEffect(() => {
+    console.log("SignIn useEffect - Checking if user is logged in:", user);
+    if (user) {
+      console.log("User already logged in, redirecting to home");
+      router.push("/");
+    }
+  }, [user, router]);
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
@@ -26,36 +37,46 @@ export default function SignIn() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    console.log("Login form submitted for:", formData.email);
 
     // Validate email
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) {
+      console.log("Email validation failed");
       toast.error("Please enter a valid email address");
       return;
     }
 
     // Validate password
     if (formData.password.length < 6) {
+      console.log("Password validation failed");
       toast.error("Password must be at least 6 characters");
       return;
     }
 
     setLoading(true);
+    console.log("Starting login process...");
 
     try {
+      console.log("Calling login function with email:", formData.email);
       const result = await login(formData.email, formData.password);
+      console.log("Login result:", result);
 
       if (result.success) {
+        console.log("Login successful, user:", result.user);
         toast.success("Sign in successful!");
-        router.push("/"); // Redirect to home page after successful sign in
+        console.log("Redirecting to home page...");
+        router.push("/");
       } else {
+        console.error("Login failed:", result.error);
         toast.error(
           result.error || "Login failed. Please check your credentials."
         );
       }
     } catch (error) {
+      console.error("Unexpected error during login:", error);
       toast.error("An unexpected error occurred. Please try again.");
-      console.error("Error during login:", error);
     } finally {
+      console.log("Login process completed");
       setLoading(false);
     }
   };

@@ -3,12 +3,357 @@
 import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { FiMenu, FiX, FiLogOut, FiUser, FiShoppingBag } from "react-icons/fi";
+import {
+  FiMenu,
+  FiX,
+  FiLogOut,
+  FiUser,
+  FiShoppingBag,
+  FiMapPin,
+  FiPackage,
+  FiSettings,
+  FiHeart,
+} from "react-icons/fi";
 import { BsCart, BsPerson } from "react-icons/bs";
 import { useAuth } from "../context/AuthContext";
 import { useUserAuth } from "../context/UserAuthContext";
 import Image from "next/image";
 
+// User Avatar Component
+const UserAvatar = ({ user }) => (
+  <div className="w-8 h-8 rounded-full bg-primary text-white flex items-center justify-center">
+    {user?.name ? user.name.charAt(0).toUpperCase() : <BsPerson />}
+  </div>
+);
+
+// Cart Icon Component
+const CartIcon = ({ user }) => (
+  <Link href="/cart" className="relative text-text-muted hover:text-text-dark">
+    <BsCart className="w-6 h-6" />
+    {user && (
+      <span className="absolute -top-2 -right-2 bg-primary text-white text-xs rounded-full w-5 h-5 flex items-center justify-center">
+        0
+      </span>
+    )}
+  </Link>
+);
+
+// User Dropdown Component
+const UserDropdown = ({
+  user,
+  isOpen,
+  setIsOpen,
+  onLogout,
+  userDropdownRef,
+}) => (
+  <div className="relative" ref={userDropdownRef}>
+    <button
+      onClick={() => setIsOpen(!isOpen)}
+      className="flex items-center space-x-1 text-text hover:text-primary"
+    >
+      <UserAvatar user={user} />
+      <span className="hidden md:inline ml-2">{user?.name || "Account"}</span>
+    </button>
+
+    {isOpen && (
+      <div className="absolute right-0 mt-2 w-56 bg-background-card rounded-md shadow-lg py-1 z-10 border border-gray-100">
+        <div className="px-4 py-3 border-b border-gray-100">
+          <p className="text-sm font-medium text-gray-900">
+            {user?.name || "User"}
+          </p>
+          <p className="text-xs text-gray-500 truncate">{user?.email || ""}</p>
+        </div>
+
+        <Link
+          href="/profile"
+          className=" px-4 py-2 text-sm text-text hover:bg-background-alt flex items-center"
+          onClick={() => setIsOpen(false)}
+        >
+          <FiUser className="mr-2 text-gray-500" />
+          My Profile
+        </Link>
+
+        <Link
+          href="/orders"
+          className=" px-4 py-2 text-sm text-text hover:bg-background-alt flex items-center"
+          onClick={() => setIsOpen(false)}
+        >
+          <FiPackage className="mr-2 text-gray-500" />
+          My Orders
+        </Link>
+
+        <Link
+          href="/address"
+          className=" px-4 py-2 text-sm text-text hover:bg-background-alt flex items-center"
+          onClick={() => setIsOpen(false)}
+        >
+          <FiMapPin className="mr-2 text-gray-500" />
+          My Addresses
+        </Link>
+
+        <Link
+          href="/wishlist"
+          className=" px-4 py-2 text-sm text-text hover:bg-background-alt flex items-center"
+          onClick={() => setIsOpen(false)}
+        >
+          <FiHeart className="mr-2 text-gray-500" />
+          Wishlist
+        </Link>
+
+        <Link
+          href="/settings"
+          className=" px-4 py-2 text-sm text-text hover:bg-background-alt flex items-center"
+          onClick={() => setIsOpen(false)}
+        >
+          <FiSettings className="mr-2 text-gray-500" />
+          Settings
+        </Link>
+
+        <div className="border-t border-gray-100 mt-1"></div>
+
+        <button
+          onClick={onLogout}
+          className="w-full text-left px-4 py-2 text-sm text-text hover:bg-background-alt flex items-center text-red-600"
+        >
+          <FiLogOut className="mr-2" />
+          Logout
+        </button>
+      </div>
+    )}
+  </div>
+);
+
+// Login/Signup Links Component
+const AuthLinks = () => (
+  <div className="flex items-center space-x-4">
+    <Link href="/signin" className="text-text hover:text-primary">
+      Login
+    </Link>
+    <Link
+      href="/signup"
+      className="hidden md:block bg-primary text-white px-4 py-2 rounded-md hover:bg-primary-dark"
+    >
+      Sign Up
+    </Link>
+  </div>
+);
+
+// Seller Dropdown Component
+const SellerDropdown = ({
+  seller,
+  isOpen,
+  setIsOpen,
+  onLogout,
+  sellerDropdownRef,
+}) => (
+  <div className="relative" ref={sellerDropdownRef}>
+    <button
+      onClick={() => setIsOpen(!isOpen)}
+      className="text-text-muted hover:text-text-dark focus:outline-none"
+    >
+      <BsPerson className="w-6 h-6" />
+    </button>
+
+    {isOpen && (
+      <div className="absolute right-0 mt-2 w-48 bg-background-card rounded-md shadow-lg py-1 z-10 border border-ui-border">
+        {seller ? (
+          <>
+            <Link
+              href="/seller/profile"
+              className="px-4 py-2 text-sm text-text hover:bg-background-alt flex items-center"
+            >
+              <FiUser className="mr-2" />
+              My Profile
+            </Link>
+            <Link
+              href="/seller/products"
+              className="px-4 py-2 text-sm text-text hover:bg-background-alt flex items-center"
+            >
+              <FiUser className="mr-2" />
+              My Products
+            </Link>
+            <button
+              onClick={onLogout}
+              className="w-full text-left px-4 py-2 text-sm text-text hover:bg-background-alt flex items-center"
+            >
+              <FiLogOut className="mr-2" />
+              Logout
+            </button>
+          </>
+        ) : (
+          <>
+            <Link
+              href="/seller/signin"
+              className="block px-4 py-2 text-sm text-text hover:bg-background-alt"
+            >
+              Seller Login
+            </Link>
+            <Link
+              href="/admin-login"
+              className="block px-4 py-2 text-sm text-text hover:bg-background-alt"
+            >
+              Admin Login
+            </Link>
+          </>
+        )}
+      </div>
+    )}
+  </div>
+);
+
+// Mobile Menu Component
+const MobileMenu = ({ isOpen, seller, user, onUserLogout, onSellerLogout }) => {
+  const router = useRouter();
+
+  if (!isOpen) return null;
+
+  return (
+    <div className="md:hidden border-t border-ui-border">
+      <div className="pt-2 pb-3 space-y-1">
+        <Link
+          href="/products"
+          className="block pl-3 pr-4 py-2 text-base font-medium text-text-muted hover:text-text-dark hover:bg-background-alt"
+        >
+          Products
+        </Link>
+
+        {!seller && (
+          <Link
+            href="/seller/signup"
+            className="block pl-3 pr-4 py-2 text-base font-medium text-secondary hover:bg-background-alt"
+          >
+            Become a Seller
+          </Link>
+        )}
+
+        <Link
+          href="/contact-us"
+          className="block pl-3 pr-4 py-2 text-base font-medium text-text-muted hover:text-text-dark hover:bg-background-alt"
+        >
+          Contact Us
+        </Link>
+
+        {/* User Authentication Links for Mobile */}
+        {!seller && !user && (
+          <>
+            <Link
+              href="/signin"
+              className="block pl-3 pr-4 py-2 text-base font-medium text-text-muted hover:text-text-dark hover:bg-background-alt"
+            >
+              Login
+            </Link>
+            <Link
+              href="/signup"
+              className="block pl-3 pr-4 py-2 text-base font-medium text-text-muted hover:text-text-dark hover:bg-background-alt"
+            >
+              Sign Up
+            </Link>
+          </>
+        )}
+
+        {/* User Profile Links - only when user is logged in */}
+        {!seller && user && (
+          <>
+            <div className="border-t border-gray-200 pt-4 my-2"></div>
+            <div className="px-4 py-2 flex items-center">
+              <div className="w-8 h-8 rounded-full bg-primary text-white flex items-center justify-center mr-3">
+                {user.name ? user.name.charAt(0).toUpperCase() : <BsPerson />}
+              </div>
+              <div>
+                <div className="font-medium">{user.name || "User"}</div>
+                <div className="text-xs text-gray-500">{user.email || ""}</div>
+              </div>
+            </div>
+            <Link
+              href="/profile"
+              className="pl-3 pr-4 py-2 text-base font-medium text-text-muted hover:text-text-dark hover:bg-background-alt flex items-center"
+            >
+              <FiUser className="mr-2" />
+              My Profile
+            </Link>
+            <Link
+              href="/orders"
+              className="pl-3 pr-4 py-2 text-base font-medium text-text-muted hover:text-text-dark hover:bg-background-alt flex items-center"
+            >
+              <FiPackage className="mr-2" />
+              My Orders
+            </Link>
+            <Link
+              href="/address"
+              className="pl-3 pr-4 py-2 text-base font-medium text-text-muted hover:text-text-dark hover:bg-background-alt flex items-center"
+            >
+              <FiMapPin className="mr-2" />
+              My Addresses
+            </Link>
+            <Link
+              href="/wishlist"
+              className="pl-3 pr-4 py-2 text-base font-medium text-text-muted hover:text-text-dark hover:bg-background-alt flex items-center"
+            >
+              <FiHeart className="mr-2" />
+              Wishlist
+            </Link>
+            <Link
+              href="/settings"
+              className="pl-3 pr-4 py-2 text-base font-medium text-text-muted hover:text-text-dark hover:bg-background-alt flex items-center"
+            >
+              <FiSettings className="mr-2" />
+              Settings
+            </Link>
+            <div className="border-t border-gray-200 my-2"></div>
+            <button
+              onClick={onUserLogout}
+              className="w-full text-left pl-3 pr-4 py-2 text-base font-medium text-red-500 hover:bg-background-alt flex items-center"
+            >
+              <FiLogOut className="mr-2" />
+              Logout
+            </button>
+          </>
+        )}
+
+        {/* Seller Authentication Links for Mobile */}
+        {seller ? (
+          <>
+            <Link
+              href="/seller/profile"
+              className="block pl-3 pr-4 py-2 text-base font-medium text-text-muted hover:text-text-dark hover:bg-background-alt"
+            >
+              Seller Profile
+            </Link>
+            <Link
+              href="/seller/products"
+              className="block pl-3 pr-4 py-2 text-base font-medium text-text-muted hover:text-text-dark hover:bg-background-alt"
+            >
+              My Products
+            </Link>
+            <button
+              onClick={onSellerLogout}
+              className="w-full text-left pl-3 pr-4 py-2 text-base font-medium text-text-muted hover:text-text-dark hover:bg-background-alt"
+            >
+              Logout
+            </button>
+          </>
+        ) : (
+          <>
+            <Link
+              href="/seller/signin"
+              className="block pl-3 pr-4 py-2 text-base font-medium text-text-muted hover:text-text-dark hover:bg-background-alt"
+            >
+              Seller Login
+            </Link>
+            <Link
+              href="/admin-login"
+              className="block pl-3 pr-4 py-2 text-base font-medium text-text-muted hover:text-text-dark hover:bg-background-alt"
+            >
+              Admin Login
+            </Link>
+          </>
+        )}
+      </div>
+    </div>
+  );
+};
+
+// Main Navbar Component
 const Navbar = () => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isSellerDropdownOpen, setIsSellerDropdownOpen] = useState(false);
@@ -20,9 +365,13 @@ const Navbar = () => {
     logout: sellerLogout,
     checkAuth: checkSellerAuth,
   } = useAuth();
-  const { user, logout: userLogout } = useUserAuth();
+  const { user, logout: userLogout, authStateChange } = useUserAuth();
   const sellerDropdownRef = useRef(null);
   const userDropdownRef = useRef(null);
+
+  console.log("Navbar rendered - User state:", user);
+  console.log("Auth state change counter:", authStateChange);
+  console.log("Current pathname:", pathname);
 
   const redirect = seller ? `/seller/dashboard` : "/";
 
@@ -34,7 +383,19 @@ const Navbar = () => {
       }
     };
     verifyAuth();
-  }, [checkSellerAuth]);
+
+    console.log("Navbar useEffect - User auth state:", user);
+
+    // Reset dropdown states when user auth changes
+    if (user) {
+      console.log("User authenticated, updating navbar state");
+    } else {
+      console.log("User not authenticated or logged out");
+    }
+
+    // Close any open mobile menu when auth state changes
+    setIsMenuOpen(false);
+  }, [checkSellerAuth, user]); // Include user in dependencies
 
   // Close dropdowns when clicking outside
   useEffect(() => {
@@ -66,6 +427,7 @@ const Navbar = () => {
   };
 
   const handleUserLogout = () => {
+    console.log("User logout called");
     userLogout();
     setIsUserDropdownOpen(false);
     router.push("/");
@@ -77,61 +439,6 @@ const Navbar = () => {
       title: path.charAt(0).toUpperCase() + path.slice(1),
       href: `/${paths.slice(0, index + 1).join("/")}`,
     }));
-  };
-
-  const renderUserAuthLinks = () => {
-    if (user) {
-      return (
-        <div className="relative" ref={userDropdownRef}>
-          <button
-            onClick={() => setIsUserDropdownOpen(!isUserDropdownOpen)}
-            className="flex items-center space-x-1 text-text hover:text-primary"
-          >
-            <BsPerson className="text-xl" />
-            <span className="hidden md:inline">{user.name || "Account"}</span>
-          </button>
-
-          {isUserDropdownOpen && (
-            <div className="absolute right-0 mt-2 w-48 bg-background-card rounded-md shadow-lg py-1 z-10">
-              <Link
-                href="/profile"
-                className="block px-4 py-2 text-sm text-text hover:bg-background-alt"
-                onClick={() => setIsUserDropdownOpen(false)}
-              >
-                My Profile
-              </Link>
-              <Link
-                href="/orders"
-                className="block px-4 py-2 text-sm text-text hover:bg-background-alt"
-                onClick={() => setIsUserDropdownOpen(false)}
-              >
-                My Orders
-              </Link>
-              <button
-                onClick={handleUserLogout}
-                className="block w-full text-left px-4 py-2 text-sm text-text hover:bg-background-alt"
-              >
-                Logout
-              </button>
-            </div>
-          )}
-        </div>
-      );
-    }
-
-    return (
-      <div className="flex items-center space-x-4">
-        <Link href="/signin" className="text-text hover:text-primary">
-          Login
-        </Link>
-        <Link
-          href="/signup"
-          className="hidden md:block bg-primary text-white px-4 py-2 rounded-md hover:bg-primary-dark"
-        >
-          Sign Up
-        </Link>
-      </div>
-    );
   };
 
   return (
@@ -151,6 +458,13 @@ const Navbar = () => {
 
           {/* Desktop Navigation */}
           <div className="hidden md:flex md:items-center md:space-x-6">
+            <Link
+              href="/products"
+              className="text-text-muted hover:text-text-dark"
+            >
+              Products
+            </Link>
+
             {!seller && (
               <Link
                 href="/seller/signup"
@@ -167,195 +481,79 @@ const Navbar = () => {
               Contact Us
             </Link>
 
-            {/* User Authentication Links */}
-            {!seller && renderUserAuthLinks()}
-            <Link href="/cart" className="text-text-muted hover:text-text-dark">
-              <BsCart className="w-6 h-6" />
-            </Link>
+            {/* Cart - Show cart count if user is logged in */}
+            {!seller && <CartIcon user={user} />}
+
+            {/* User Authentication - Either show profile or login/signup */}
+            {!seller &&
+              (user ? (
+                <UserDropdown
+                  user={user}
+                  isOpen={isUserDropdownOpen}
+                  setIsOpen={setIsUserDropdownOpen}
+                  onLogout={handleUserLogout}
+                  userDropdownRef={userDropdownRef}
+                />
+              ) : (
+                <AuthLinks />
+              ))}
 
             {/* Seller Profile with Dropdown */}
-            <div className="relative" ref={sellerDropdownRef}>
-              <button
-                onClick={() => setIsSellerDropdownOpen(!isSellerDropdownOpen)}
-                className="text-text-muted hover:text-text-dark focus:outline-none"
-              >
-                <BsPerson className="w-6 h-6" />
-              </button>
-
-              {/* Dropdown Menu */}
-              {isSellerDropdownOpen && (
-                <div className="absolute right-0 mt-2 w-48 bg-background-card rounded-md shadow-lg py-1 z-10 border border-ui-border">
-                  {seller ? (
-                    <>
-                      <Link
-                        href="/seller/profile"
-                        className="px-4 py-2 text-sm text-text hover:bg-background-alt flex items-center"
-                      >
-                        <FiUser className="mr-2" />
-                        My Profile
-                      </Link>
-                      <Link
-                        href="/seller/products"
-                        className=" px-4 py-2 text-sm text-text hover:bg-background-alt flex items-center"
-                      >
-                        <FiUser className="mr-2" />
-                        My Products
-                      </Link>
-                      <button
-                        onClick={handleSellerLogout}
-                        className=" w-full text-left px-4 py-2 text-sm text-text hover:bg-background-alt flex items-center"
-                      >
-                        <FiLogOut className="mr-2" />
-                        Logout
-                      </button>
-                    </>
-                  ) : (
-                    <>
-                      <Link
-                        href="/seller/signin"
-                        className="block px-4 py-2 text-sm text-text hover:bg-background-alt"
-                      >
-                        Seller Login
-                      </Link>
-                      <Link
-                        href="/admin-login"
-                        className="block px-4 py-2 text-sm text-text hover:bg-background-alt"
-                      >
-                        Admin Login
-                      </Link>
-                    </>
-                  )}
-                </div>
-              )}
-            </div>
+            <SellerDropdown
+              seller={seller}
+              isOpen={isSellerDropdownOpen}
+              setIsOpen={setIsSellerDropdownOpen}
+              onLogout={handleSellerLogout}
+              sellerDropdownRef={sellerDropdownRef}
+            />
           </div>
 
-          {/* Mobile Navigation */}
-
-          {/* Menu Button - Only visible on mobile */}
-          <button
-            onClick={() => setIsMenuOpen(!isMenuOpen)}
-            className="sm:hidden text-text-muted hover:text-text-dark focus:outline-none"
-          >
-            {isMenuOpen ? (
-              <FiX className="w-6 h-6" />
-            ) : (
-              <FiMenu className="w-6 h-6" />
+          {/* Mobile Navigation Menu Button */}
+          <div className="flex items-center md:hidden">
+            {/* Show cart icon in mobile view */}
+            {!seller && (
+              <Link
+                href="/cart"
+                className="relative text-text-muted hover:text-text-dark mr-4"
+              >
+                <BsCart className="w-6 h-6" />
+                {user && (
+                  <span className="absolute -top-2 -right-2 bg-primary text-white text-xs rounded-full w-5 h-5 flex items-center justify-center">
+                    0
+                  </span>
+                )}
+              </Link>
             )}
-          </button>
+
+            {/* User profile icon in mobile view */}
+            {!seller && user && (
+              <div className="mr-4" onClick={() => router.push("/profile")}>
+                <UserAvatar user={user} />
+              </div>
+            )}
+
+            <button
+              onClick={() => setIsMenuOpen(!isMenuOpen)}
+              className="text-text-muted hover:text-text-dark focus:outline-none"
+            >
+              {isMenuOpen ? (
+                <FiX className="w-6 h-6" />
+              ) : (
+                <FiMenu className="w-6 h-6" />
+              )}
+            </button>
+          </div>
         </div>
       </div>
 
       {/* Mobile Menu */}
-      {isMenuOpen && (
-        <div className="sm:hidden border-t border-ui-border">
-          <div className="pt-2 pb-3 space-y-1">
-            {!seller && (
-              <Link
-                href="/seller/signup"
-                className="block pl-3 pr-4 py-2 text-base font-medium text-secondary hover:bg-background-alt"
-              >
-                Become a Seller
-              </Link>
-            )}
-            <Link
-              href="/contact-us"
-              className="block pl-3 pr-4 py-2 text-base font-medium text-text-muted hover:text-text-dark hover:bg-background-alt"
-            >
-              Contact Us
-            </Link>
-
-            {/* Only show cart link when not logged in as seller */}
-            {!seller && (
-              <Link
-                href="/cart"
-                className="block pl-3 pr-4 py-2 text-base font-medium text-text-muted hover:text-text-dark hover:bg-background-alt"
-              >
-                Cart
-              </Link>
-            )}
-
-            {/* User Authentication Links for Mobile - only when seller is not logged in */}
-            {!seller &&
-              (user ? (
-                <>
-                  <Link
-                    href="/profile"
-                    className="block pl-3 pr-4 py-2 text-base font-medium text-text-muted hover:text-text-dark hover:bg-background-alt"
-                  >
-                    My Profile
-                  </Link>
-                  <Link
-                    href="/orders"
-                    className="block pl-3 pr-4 py-2 text-base font-medium text-text-muted hover:text-text-dark hover:bg-background-alt"
-                  >
-                    My Orders
-                  </Link>
-                  <button
-                    onClick={handleUserLogout}
-                    className="block w-full text-left pl-3 pr-4 py-2 text-base font-medium text-text-muted hover:text-text-dark hover:bg-background-alt"
-                  >
-                    Logout
-                  </button>
-                </>
-              ) : (
-                <>
-                  <Link
-                    href="/signin"
-                    className="block pl-3 pr-4 py-2 text-base font-medium text-text-muted hover:text-text-dark hover:bg-background-alt"
-                  >
-                    Login
-                  </Link>
-                  <Link
-                    href="/signup"
-                    className="block pl-3 pr-4 py-2 text-base font-medium text-text-muted hover:text-text-dark hover:bg-background-alt"
-                  >
-                    Sign Up
-                  </Link>
-                </>
-              ))}
-
-            {/* Seller Authentication Links for Mobile */}
-            {seller ? (
-              <>
-                <Link
-                  href="/seller/profile"
-                  className="block pl-3 pr-4 py-2 text-base font-medium text-text-muted hover:text-text-dark hover:bg-background-alt"
-                >
-                  Seller Profile
-                </Link>
-                <Link
-                  href="/seller/products"
-                  className="block pl-3 pr-4 py-2 text-base font-medium text-text-muted hover:text-text-dark hover:bg-background-alt"
-                >
-                  My Products
-                </Link>
-                <button
-                  onClick={handleSellerLogout}
-                  className="block w-full text-left pl-3 pr-4 py-2 text-base font-medium text-text-muted hover:text-text-dark hover:bg-background-alt"
-                >
-                  Logout
-                </button>
-              </>
-            ) : (
-              <>
-                <Link
-                  href="/seller/signin"
-                  className="block pl-3 pr-4 py-2 text-base font-medium text-text-muted hover:text-text-dark hover:bg-background-alt"
-                >
-                  Seller Login
-                </Link>
-                <Link
-                  href="/admin-login"
-                  className="block pl-3 pr-4 py-2 text-base font-medium text-text-muted hover:text-text-dark hover:bg-background-alt"
-                >
-                  Admin Login
-                </Link>
-              </>
-            )}
-          </div>
-        </div>
-      )}
+      <MobileMenu
+        isOpen={isMenuOpen}
+        seller={seller}
+        user={user}
+        onUserLogout={handleUserLogout}
+        onSellerLogout={handleSellerLogout}
+      />
     </nav>
   );
 };

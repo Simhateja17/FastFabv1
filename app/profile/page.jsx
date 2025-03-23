@@ -23,21 +23,62 @@ export default function UserProfile() {
   });
 
   useEffect(() => {
-    // If user is not logged in, redirect to signin
-    if (!authLoading && !user) {
-      toast.error("Please sign in to view your profile");
-      router.push("/signin");
-      return;
-    }
+    const checkAuth = async () => {
+      if (authLoading) return; // Skip if auth context is still loading
 
-    // Pre-fill form with existing user data if available
-    if (user) {
-      setFormData({
-        name: user.name || "",
-        email: user.email || "",
-        phone: user.phone || "",
-      });
-    }
+      console.log("Profile page - Checking auth:", !!user);
+
+      try {
+        // If no user in context, check localStorage as fallback
+        if (!user) {
+          const savedUserData = localStorage.getItem("userData");
+          const accessToken = localStorage.getItem("userAccessToken");
+          const refreshToken = localStorage.getItem("userRefreshToken");
+
+          console.log("Profile page - Auth fallbacks:", {
+            savedUserData: !!savedUserData,
+            accessToken: !!accessToken,
+            refreshToken: !!refreshToken,
+          });
+
+          // If we have no authentication data at all, redirect to login
+          if (!savedUserData && !accessToken && !refreshToken) {
+            toast.error("Please sign in to view your profile");
+            router.push("/login");
+            return;
+          }
+
+          // Try to use the saved data to pre-fill form
+          if (savedUserData) {
+            try {
+              const userData = JSON.parse(savedUserData);
+              setFormData({
+                name: userData.name || "",
+                email: userData.email || "",
+                phone: userData.phone || "",
+                ...formData,
+              });
+            } catch (e) {
+              console.error("Error parsing saved user data:", e);
+            }
+          }
+        } else {
+          // If we have user from context, use it to pre-fill form
+          setFormData({
+            name: user.name || "",
+            email: user.email || "",
+            phone: user.phone || "",
+            ...formData,
+          });
+        }
+      } catch (error) {
+        console.error("Authentication check error:", error);
+        toast.error("Authentication error. Please sign in again.");
+        router.push("/login");
+      }
+    };
+
+    checkAuth();
   }, [user, authLoading, router]);
 
   const handleInputChange = (e) => {

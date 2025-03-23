@@ -26,6 +26,8 @@ export const USER_ENDPOINTS = {
   ORDER_DETAIL: (id) => `${API_URL}/orders/${id}`,
   CART: `${API_URL}/cart`,
   CART_ITEMS: `${API_URL}/cart/items`,
+  WISHLIST: `${API_URL}/wishlist`,
+  WISHLIST_ITEM: (id) => `${API_URL}/wishlist/${id}`,
 };
 
 // Product endpoints
