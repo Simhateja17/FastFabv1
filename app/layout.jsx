@@ -17,7 +17,7 @@ export const metadata = {
     icon: "./logo.svg",
   },
   title: "Fast & Fab",
-  description: "Seller registration and management platform",
+  description: "Seller re gistration and management platform",
 };
 
 export default function RootLayout({ children }) {
