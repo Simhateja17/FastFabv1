@@ -130,7 +130,7 @@ export default function SignUp() {
       }
 
       // Regular registration
-      const response = await fetch(`${USER_ENDPOINTS.REGISTER}`, {
+      const response = await fetch(USER_ENDPOINTS.REGISTER, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -182,7 +182,7 @@ export default function SignUp() {
     setOtpLoading(true);
 
     try {
-      const response = await fetch(`${USER_ENDPOINTS.PHONE_AUTH_START}`, {
+      const response = await fetch(USER_ENDPOINTS.PHONE_AUTH_START, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -226,7 +226,7 @@ export default function SignUp() {
     setOtpLoading(true);
 
     try {
-      const response = await fetch(`${USER_ENDPOINTS.PHONE_AUTH_VERIFY}`, {
+      const response = await fetch(USER_ENDPOINTS.PHONE_AUTH_VERIFY, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -458,7 +458,7 @@ export default function SignUp() {
               <button
                 type="submit"
                 disabled={loading || otpLoading}
-                className="w-full bg-secondary text-primary py-3 rounded-md hover:bg-secondary-dark transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                className="w-full bg-secondary text-white py-3 rounded-md hover:bg-secondary-dark transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {loading || otpLoading
                   ? usePhoneAuth
@@ -531,7 +531,7 @@ export default function SignUp() {
                 <button
                   type="submit"
                   disabled={otpLoading}
-                  className="w-full bg-secondary text-primary py-3 rounded-md hover:bg-secondary-dark transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="w-full bg-secondary text-white py-3 rounded-md hover:bg-secondary-dark transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   {otpLoading ? "Verifying..." : "Verify OTP & Create Account"}
                 </button>

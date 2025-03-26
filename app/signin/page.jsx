@@ -76,7 +76,7 @@ export default function SignIn() {
     console.log("Attempting login with email:", email);
 
     try {
-      const response = await fetch(`${USER_ENDPOINTS.LOGIN}`, {
+      const response = await fetch(USER_ENDPOINTS.LOGIN, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -135,7 +135,7 @@ export default function SignIn() {
     setOtpLoading(true);
 
     try {
-      const response = await fetch(`${USER_ENDPOINTS.PHONE_AUTH_START}`, {
+      const response = await fetch(USER_ENDPOINTS.PHONE_AUTH_START, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -174,7 +174,7 @@ export default function SignIn() {
     setOtpLoading(true);
 
     try {
-      const response = await fetch(`${USER_ENDPOINTS.PHONE_AUTH_VERIFY}`, {
+      const response = await fetch(USER_ENDPOINTS.PHONE_AUTH_VERIFY, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -359,7 +359,7 @@ export default function SignIn() {
               <button
                 type="submit"
                 disabled={loading}
-                className="w-full bg-secondary text-primary py-3 rounded-md hover:bg-secondary-dark transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                className="w-full bg-secondary text-white py-3 rounded-md hover:bg-secondary-dark transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {loading ? "Signing in..." : "Sign in"}
               </button>
@@ -401,7 +401,7 @@ export default function SignIn() {
                   <button
                     type="submit"
                     disabled={otpLoading}
-                    className="w-full bg-secondary text-primary py-3 rounded-md hover:bg-secondary-dark transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="w-full bg-secondary text-white py-3 rounded-md hover:bg-secondary-dark transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     {otpLoading ? "Sending OTP..." : "Send OTP to WhatsApp"}
                   </button>
@@ -456,7 +456,7 @@ export default function SignIn() {
                     <button
                       type="submit"
                       disabled={otpLoading}
-                      className="w-full bg-secondary text-primary py-3 rounded-md hover:bg-secondary-dark transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                      className="w-full bg-secondary text-white py-3 rounded-md hover:bg-secondary-dark transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                       {otpLoading ? "Verifying..." : "Verify OTP"}
                     </button>

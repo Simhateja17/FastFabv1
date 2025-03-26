@@ -28,6 +28,9 @@ export const USER_ENDPOINTS = {
   CART_ITEMS: `${API_URL}/cart/items`,
   WISHLIST: `${API_URL}/wishlist`,
   WISHLIST_ITEM: (id) => `${API_URL}/wishlist/${id}`,
+  // WhatsApp OTP Authentication
+  PHONE_AUTH_START: `${API_URL}/whatsapp-otp/send`,
+  PHONE_AUTH_VERIFY: `${API_URL}/whatsapp-otp/verify`,
 };
 
 // Product endpoints
