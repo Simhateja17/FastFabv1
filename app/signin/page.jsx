@@ -124,10 +124,10 @@ export default function SignIn() {
   const handleSendOtp = async (e) => {
     if (e) e.preventDefault();
 
-    // Validate phone number
-    if (!phone.match(/^\+[1-9]\d{1,14}$/)) {
+    // Validate phone number (only check for 10 digits)
+    if (!phone.match(/^\d{10}$/) && !phone.match(/^\+[1-9]\d{1,14}$/)) {
       toast.error(
-        "Please enter a valid phone number in E.164 format (e.g., +919876543210)"
+        "Please enter a valid 10-digit phone number"
       );
       return;
     }
@@ -376,7 +376,7 @@ export default function SignIn() {
                       htmlFor="phone"
                       className="block text-sm font-medium text-text-dark mb-1"
                     >
-                      Phone Number (E.164 format)
+                      Phone Number
                     </label>
                     <div className="relative">
                       <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
@@ -389,12 +389,11 @@ export default function SignIn() {
                         value={phone}
                         onChange={handlePhoneChange}
                         className="w-full pl-10 px-4 py-3 border border-ui-border rounded-md focus:outline-none focus:ring-2 focus:ring-secondary bg-input"
-                        placeholder="+919876543210"
+                        placeholder="9876543210"
                       />
                     </div>
                     <p className="mt-1 text-xs text-text-muted">
-                      Enter your phone number with country code (e.g.,
-                      +919876543210)
+                      Enter your 10-digit phone number
                     </p>
                   </div>
 
