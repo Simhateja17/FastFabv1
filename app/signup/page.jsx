@@ -17,7 +17,13 @@ import { USER_ENDPOINTS } from "@/app/config";
 
 export default function SignUp() {
   const router = useRouter();
-  const { user, loading: authLoading } = useUserAuth();
+  const {
+    user,
+    loading: authLoading,
+    sendWhatsAppOTP,
+    verifyWhatsAppOTP,
+    registerWithPhone,
+  } = useUserAuth();
   const [formData, setFormData] = useState({
     name: "",
     email: "",
@@ -101,7 +107,14 @@ export default function SignUp() {
       return;
     }
 
-    if (!usePhoneAuth) {
+    if (usePhoneAuth) {
+      if (!formData.phone.match(/^\+[1-9]\d{8,14}$/)) {
+        toast.error(
+          "Please enter a valid phone number with country code (e.g., +916309599582)"
+        );
+        return;
+      }
+    } else {
       if (formData.password.length < 6) {
         toast.error("Password must be at least 6 characters");
         return;
@@ -109,13 +122,6 @@ export default function SignUp() {
 
       if (formData.password !== formData.confirmPassword) {
         toast.error("Passwords do not match");
-        return;
-      }
-    } else {
-      if (!formData.phone.match(/^\+[1-9]\d{1,14}$/)) {
-        toast.error(
-          "Please enter a valid phone number in E.164 format (e.g., +919876543210)"
-        );
         return;
       }
     }
@@ -172,9 +178,10 @@ export default function SignUp() {
   const handleSendOtp = async (e) => {
     if (e) e.preventDefault();
 
-    if (!formData.phone.match(/^\+[1-9]\d{1,14}$/)) {
+    // Validate phone format (must include country code)
+    if (!formData.phone.match(/^\+[1-9]\d{8,14}$/)) {
       toast.error(
-        "Please enter a valid phone number in E.164 format (e.g., +919876543210)"
+        "Please enter a valid phone number with country code (e.g., +916309599582)"
       );
       return;
     }
@@ -182,35 +189,40 @@ export default function SignUp() {
     setOtpLoading(true);
 
     try {
-      const response = await fetch(USER_ENDPOINTS.PHONE_AUTH_START, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          phone: formData.phone,
-          name: formData.name,
-          email: formData.email,
-        }),
-      });
+      // Use the WhatsApp OTP service from context
+      const result = await sendWhatsAppOTP(formData.phone);
+      console.log("WhatsApp OTP result:", result);
 
-      const result = await response.json();
-
-      if (response.ok) {
+      if (result.success) {
         setOtpSent(true);
-        setExpiresAt(new Date(result.expiresAt));
-        toast.success("OTP sent to your WhatsApp. Valid for 10 minutes.");
+        setExpiresAt(result.expiresAt);
+        
+        // Check if it's a partial success (OTP generated but delivery issue)
+        if (result.warning) {
+          toast.success(result.message, { 
+            icon: '⚠️',
+            duration: 6000 // Show warning for longer
+          });
+        } else {
+          toast.success("OTP sent to your WhatsApp number");
+        }
       } else {
-        toast.error(result.message || "Failed to send OTP. Please try again.");
+        console.error("Failed to send OTP:", result);
+        
+        // Display specific error message based on the error code
+        if (result.code === "P1001" || result.code === "P1002") {
+          toast.error("Unable to connect to the database. Please try again later.");
+        } else if (result.code === "P2002") {
+          toast.error("A validation error occurred. Please check your input.");
+        } else {
+          toast.error(result.message || "Failed to send OTP. Please try again.");
+        }
       }
     } catch (error) {
       console.error("Error sending OTP:", error);
-      toast.error(
-        "Failed to send OTP. Please check your connection and try again."
-      );
+      toast.error("Failed to send OTP. Please try again.");
     } finally {
       setOtpLoading(false);
-      setLoading(false);
     }
   };
 
@@ -218,7 +230,7 @@ export default function SignUp() {
   const handleVerifyOtp = async (e) => {
     e.preventDefault();
 
-    if (!otpCode || otpCode.length !== 6) {
+    if (!otpCode || otpCode.length !== 6 || !/^\d+$/.test(otpCode)) {
       toast.error("Please enter a valid 6-digit OTP");
       return;
     }
@@ -226,40 +238,35 @@ export default function SignUp() {
     setOtpLoading(true);
 
     try {
-      const response = await fetch(USER_ENDPOINTS.PHONE_AUTH_VERIFY, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          phone: formData.phone,
-          otpCode,
-          name: formData.name,
-          email: formData.email,
-        }),
-      });
+      // Use the WhatsApp OTP verification service from context
+      const result = await verifyWhatsAppOTP(formData.phone, otpCode);
 
-      const result = await response.json();
+      if (result.success) {
+        if (result.isNewUser) {
+          // New user - complete registration with phone verified
+          const registerResult = await registerWithPhone({
+            name: formData.name,
+            email: formData.email,
+            phone: formData.phone,
+          });
 
-      if (response.ok) {
-        // Store user data and tokens
-        localStorage.setItem("userData", JSON.stringify(result.data.user));
-        localStorage.setItem("userAccessToken", result.data.tokens.accessToken);
-        localStorage.setItem(
-          "userRefreshToken",
-          result.data.tokens.refreshToken
-        );
-
-        toast.success("Registration successful!");
-        router.push("/");
+          if (registerResult.success) {
+            toast.success("Account created and verified successfully!");
+            router.push("/");
+          } else {
+            toast.error(registerResult.message || "Registration failed. Please try again.");
+          }
+        } else {
+          // Existing user - already logged in by verifyWhatsAppOTP
+          toast.success("Logged in successfully!");
+          router.push("/");
+        }
       } else {
-        toast.error(result.message || "Verification failed. Please try again.");
+        toast.error(result.message || "OTP verification failed. Please try again.");
       }
     } catch (error) {
       console.error("Error verifying OTP:", error);
-      toast.error(
-        "Verification failed. Please check your connection and try again."
-      );
+      toast.error("OTP verification failed. Please try again.");
     } finally {
       setOtpLoading(false);
     }
@@ -348,33 +355,34 @@ export default function SignUp() {
               </div>
 
               {usePhoneAuth ? (
-                <div>
-                  <label
-                    htmlFor="phone"
-                    className="block text-sm font-medium text-text-dark mb-1"
-                  >
-                    Phone Number (E.164 format)
-                  </label>
-                  <div className="relative">
-                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                      <FiPhone className="text-text-muted" />
+                !otpSent ? (
+                  <div>
+                    <label
+                      htmlFor="phone"
+                      className="block text-sm font-medium text-text-dark mb-1"
+                    >
+                      Phone Number
+                    </label>
+                    <div className="relative">
+                      <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                        <FiPhone className="text-text-muted" />
+                      </div>
+                      <input
+                        id="phone"
+                        name="phone"
+                        type="tel"
+                        required
+                        value={formData.phone}
+                        onChange={handleInputChange}
+                        className="w-full pl-10 px-4 py-3 border border-ui-border rounded-md focus:outline-none focus:ring-2 focus:ring-secondary bg-input"
+                        placeholder="+916309599582"
+                      />
                     </div>
-                    <input
-                      id="phone"
-                      name="phone"
-                      type="text"
-                      required={usePhoneAuth}
-                      value={formData.phone}
-                      onChange={handleInputChange}
-                      className="w-full pl-10 px-4 py-3 border border-ui-border rounded-md focus:outline-none focus:ring-2 focus:ring-secondary bg-input"
-                      placeholder="+919876543210"
-                    />
+                    <p className="mt-1 text-xs text-text-muted">
+                      Enter full number with country code (e.g., +916309599582 for India)
+                    </p>
                   </div>
-                  <p className="mt-1 text-xs text-text-muted">
-                    Enter your phone number with country code (e.g.,
-                    +919876543210)
-                  </p>
-                </div>
+                ) : null
               ) : (
                 <>
                   <div>
