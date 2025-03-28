@@ -14,12 +14,13 @@ export const AUTH_ENDPOINTS = {
 
 // User endpoints
 export const USER_ENDPOINTS = {
-  LOGIN: `${API_URL}/user/login`,
-  REGISTER: `${API_URL}/user/register`,
-  REFRESH_TOKEN: `${API_URL}/user/refresh-token`,
-  LOGOUT: `${API_URL}/user/logout`,
-  PROFILE: `${API_URL}/user/profile`,
-  UPDATE_PROFILE: `${API_URL}/user/profile`,
+  LOGIN: `/api/user/login`,
+  REGISTER: `/api/user/register`,
+  REFRESH_TOKEN: `/api/user/refresh-token`,
+  LOGOUT: `/api/user/logout`,
+  PROFILE: `/api/user/profile`,
+  UPDATE_PROFILE: `/api/user/profile`,
+  GET_USER_BY_PHONE: `/api/user/phone-login`,
   ADDRESSES: `${API_URL}/address`,
   ADDRESS_DETAIL: (id) => `${API_URL}/address/${id}`,
   ORDERS: `${API_URL}/orders`,
