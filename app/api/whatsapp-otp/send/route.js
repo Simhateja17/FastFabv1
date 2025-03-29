@@ -81,8 +81,8 @@ const formatPhoneNumber = (phoneNumber) => {
   const digits = phoneNumber.replace(/\D/g, "");
   
   // If it's already in E.164 format, return as is
-  if (digits.startsWith("91") && digits.length === 12) {
-    return "+" + digits;
+  if (phoneNumber.startsWith("+")) {
+    return phoneNumber;
   }
   
   // If it's already a plus format, return as is
@@ -90,13 +90,18 @@ const formatPhoneNumber = (phoneNumber) => {
     return phoneNumber;
   }
   
-  // If it's a 10-digit number, add +91 prefix
+  // If it's a 10-digit number, add +91 prefix (for India)
   if (digits.length === 10) {
     return "+91" + digits;
   }
   
-  // Otherwise return the original input
-  return phoneNumber;
+  // If it starts with 91 and has 12 digits total, add + prefix
+  if (digits.startsWith("91") && digits.length === 12) {
+    return "+" + digits;
+  }
+  
+  // Otherwise return with + prefix if missing
+  return digits.startsWith("91") ? "+" + digits : "+" + digits;
 };
 
 // Function to generate a random 6-digit OTP
@@ -111,6 +116,17 @@ const SRC_NAME = process.env.GUPSHUP_SRC_NAME;
 const TEMPLATE_ID = process.env.GUPSHUP_TEMPLATE_ID;
 const GUPSHUP_API_URL = process.env.GUPSHUP_API_URL;
 
+// Log additional information about environment setup
+const debugApiSetup = () => {
+  console.log('===== WhatsApp OTP API Debug Info =====');
+  console.log('API Key present:', !!API_KEY);
+  console.log('Source number:', SOURCE_NUMBER);
+  console.log('Source name:', SRC_NAME);
+  console.log('Template ID:', TEMPLATE_ID);
+  console.log('API URL:', GUPSHUP_API_URL);
+  console.log('Database connected:', !!prisma);
+  console.log('===== End Debug Info =====');
+};
 
 /**
  * Store OTP in database - no fallback to memory
@@ -135,6 +151,18 @@ const storeOTP = async (phoneNumber, otpCode, expiresAt) => {
 
 export async function POST(request) {
   try {
+    // Run debug checks
+    debugApiSetup();
+    
+    // Debug environment variables
+    console.log('GUPSHUP ENV VARS:', {
+      API_KEY: API_KEY ? 'Present (hidden)' : 'Missing',
+      SOURCE_NUMBER: SOURCE_NUMBER,
+      SRC_NAME: SRC_NAME,
+      TEMPLATE_ID: TEMPLATE_ID,
+      GUPSHUP_API_URL: GUPSHUP_API_URL
+    });
+    
     const body = await request.json();
     let { phoneNumber } = body;
     
@@ -186,25 +214,39 @@ export async function POST(request) {
 
     // Prepare request to Gupshup API
     try {
-      // Call the Gupshup API
-      const response = await axios({
-        method: 'POST',
-        url: GUPSHUP_API_URL,
-        headers: {
-          'Cache-Control': 'no-cache',
-          'Content-Type': 'application/x-www-form-urlencoded',
-          'Apikey': API_KEY
-        },
-        data: new URLSearchParams({
-          'source': SOURCE_NUMBER,
-          ...(SRC_NAME ? { 'source.name': SRC_NAME } : {}),
-          'destination': destination,
-          'template': JSON.stringify({
-            'id': TEMPLATE_ID,
-            'params': [otpCode]
-          })
-        }).toString()
+      // Prepare the request body as a URLSearchParams object like the working implementation
+      const requestBody = new URLSearchParams();
+      requestBody.append('source', SOURCE_NUMBER);
+      if (SRC_NAME) {
+        requestBody.append('source.name', SRC_NAME);
+      }
+      requestBody.append('destination', destination);
+      const templateData = JSON.stringify({
+        id: TEMPLATE_ID,
+        params: [otpCode]
       });
+      requestBody.append('template', templateData);
+
+      console.log('Sending to Gupshup API with params:', {
+        source: SOURCE_NUMBER,
+        sourceName: SRC_NAME,
+        destination,
+        templateData,
+        apiUrl: GUPSHUP_API_URL
+      });
+
+      // Call the Gupshup API with format matching the working implementation
+      const response = await axios.post(
+        GUPSHUP_API_URL,
+        requestBody,
+        {
+          headers: {
+            'Cache-Control': 'no-cache',
+            'Content-Type': 'application/x-www-form-urlencoded',
+            'Apikey': API_KEY
+          }
+        }
+      );
       
       console.log('Gupshup API response status:', response.status);
 

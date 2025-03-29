@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, use } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
@@ -14,9 +14,15 @@ import {
   FiInfo,
   FiTruck,
   FiShield,
+  FiCreditCard,
 } from "react-icons/fi";
+import { toast } from "react-hot-toast";
 
 export default function ProductDetails({ params }) {
+  // Unwrap params at the beginning of the component
+  const unwrappedParams = use(params);
+  const productId = unwrappedParams.id;
+  
   const router = useRouter();
   const [product, setProduct] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -25,13 +31,13 @@ export default function ProductDetails({ params }) {
   const [selectedSize, setSelectedSize] = useState("");
   const [selectedColor, setSelectedColor] = useState("");
   const [colorInventories, setColorInventories] = useState([]);
-  const [quantity, setQuantity] = useState(1);
+  const [paymentLoading, setPaymentLoading] = useState(false);
 
   useEffect(() => {
     async function fetchProduct() {
       try {
         setLoading(true);
-        const res = await fetch(PUBLIC_ENDPOINTS.PRODUCT_DETAIL(params.id));
+        const res = await fetch(PUBLIC_ENDPOINTS.PRODUCT_DETAIL(productId));
 
         if (!res.ok) {
           throw new Error(`Failed to fetch product: ${res.status}`);
@@ -43,7 +49,7 @@ export default function ProductDetails({ params }) {
         // Fetch color inventories for this product
         try {
           const colorRes = await fetch(
-            PUBLIC_ENDPOINTS.PRODUCT_COLORS(params.id)
+            PUBLIC_ENDPOINTS.PRODUCT_COLORS(productId)
           );
           if (colorRes.ok) {
             const colorData = await colorRes.json();
@@ -86,10 +92,10 @@ export default function ProductDetails({ params }) {
       }
     }
 
-    if (params.id) {
+    if (productId) {
       fetchProduct();
     }
-  }, [params.id]);
+  }, [productId]);
 
   const handleSizeSelect = (size) => {
     setSelectedSize(size);
@@ -99,44 +105,160 @@ export default function ProductDetails({ params }) {
     setSelectedColor(color);
   };
 
-  const handleQuantityChange = (amount) => {
-    const newQuantity = quantity + amount;
-
-    if (newQuantity < 1) return;
-
-    // Limit by available stock
-    if (product && product.sizeQuantities && selectedSize) {
-      const availableStock = product.sizeQuantities[selectedSize] || 0;
-      if (newQuantity > availableStock) return;
-    }
-
-    setQuantity(newQuantity);
-  };
-
-  const handleAddToCart = () => {
-    if (!selectedSize) {
-      alert("Please select a size");
-      return;
-    }
-
-    if (colorInventories.length > 0 && !selectedColor) {
-      alert("Please select a color");
-      return;
-    }
-
-    // Add to cart logic would go here
-    alert(
-      `Added ${quantity} of size ${selectedSize}${
-        selectedColor ? `, color ${selectedColor}` : ""
-      } to cart`
-    );
-  };
-
   const calculateDiscountPercentage = () => {
     if (!product || !product.mrpPrice || !product.sellingPrice) return 0;
     return Math.round(
       ((product.mrpPrice - product.sellingPrice) / product.mrpPrice) * 100
     );
+  };
+
+  // Function to handle the "Buy Now" button click
+  const handleBuyNow = async () => {
+    // Validate selection
+    if (!selectedSize && Object.keys(product.sizeQuantities || {}).length > 0) {
+      toast.error("Please select a size");
+      return;
+    }
+    
+    if (!selectedColor && colorInventories.length > 0) {
+      toast.error("Please select a color");
+      return;
+    }
+    
+    try {
+      setPaymentLoading(true);
+      
+      // Check if user is logged in and get tokens from localStorage
+      const accessToken = localStorage.getItem('accessToken');
+      const userData = localStorage.getItem('user') ? JSON.parse(localStorage.getItem('user')) : null;
+      
+      // Store auth data explicitly before redirect to ensure it persists
+      if (accessToken && userData) {
+        // Re-store the tokens to refresh their lifetime
+        localStorage.setItem('accessToken', accessToken);
+        localStorage.setItem('user', JSON.stringify(userData));
+        
+        console.log('User authentication preserved before payment', { 
+          user: userData?.name || 'Anonymous',
+          isAuthenticated: !!accessToken 
+        });
+      }
+      
+      // Prepare the order data
+      const orderData = {
+        amount: product.sellingPrice,
+        customer_id: userData?.id || `guest_${Date.now()}`,
+        customer_email: userData?.email || "guest@example.com",
+        customer_phone: userData?.phone || "9999999999",
+        product_details: {
+          product_id: productId,
+          name: product.name,
+          price: product.sellingPrice,
+          size: selectedSize,
+          color: selectedColor,
+          quantity: 1
+        },
+        // Include authentication data to preserve it
+        auth: {
+          isAuthenticated: !!accessToken,
+          user_id: userData?.id
+        }
+      };
+      
+      // Call your payment creation API
+      const response = await fetch('/api/create-payment-order', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          // Add authorization header if user is logged in
+          ...(accessToken ? { 'Authorization': `Bearer ${accessToken}` } : {})
+        },
+        body: JSON.stringify(orderData),
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        console.error("Payment API error:", errorData);
+        throw new Error(errorData.details?.error_description || errorData.message || "Failed to create payment");
+      }
+      
+      // Get the payment session from the response
+      const paymentData = await response.json();
+      console.log("Payment session created:", paymentData);
+      
+      // Use window.location to redirect to Cashfree's hosted payment page
+      if (paymentData.payment_link) {
+        // If we have a direct payment link, use that instead
+        console.log("Redirecting to payment link:", paymentData.payment_link);
+        window.location.href = paymentData.payment_link;
+      } else if (paymentData.payment_session_id) {
+        // Store payment session info along with auth state
+        localStorage.setItem('payment_session', JSON.stringify({
+          session_id: paymentData.payment_session_id,
+          order_id: paymentData.order_id,
+          auth: {
+            isAuthenticated: !!accessToken,
+            user_id: userData?.id
+          }
+        }));
+        
+        // Before redirecting, ensure Cashfree SDK is loaded
+        const loadCashfreeSDK = async () => {
+          return new Promise((resolve) => {
+            if (window.Cashfree) {
+              return resolve(window.Cashfree);
+            }
+            
+            // Load Cashfree SDK dynamically
+            const script = document.createElement('script');
+            script.src = 'https://sdk.cashfree.com/js/v3/cashfree.js';
+            script.onload = () => resolve(window.Cashfree);
+            document.body.appendChild(script);
+          });
+        };
+        
+        // Load SDK and initiate payment directly
+        toast.success("Payment initiated! Preparing payment gateway...");
+        const Cashfree = await loadCashfreeSDK();
+        
+        try {
+          const cashfree = new Cashfree({
+            mode: 'production' // Force production mode explicitly
+          });
+          
+          cashfree.checkout({
+            paymentSessionId: paymentData.payment_session_id,
+            redirectTarget: '_self', // Open in the same window
+            onSuccess: (data) => {
+              console.log('Payment success', data);
+              // Redirect will happen automatically to return_url
+            },
+            onFailure: (data) => {
+              console.log('Payment failed', data);
+              // Redirect will happen automatically to return_url
+            },
+            onClose: () => {
+              // Handle user closing the payment popup
+              console.log('Payment window closed');
+              setPaymentLoading(false);
+            },
+          });
+        } catch (sdkError) {
+          console.error("Cashfree SDK error:", sdkError);
+          
+          // Fallback - redirect to checkout page if SDK fails
+          console.log("Falling back to checkout page redirect");
+          window.location.href = `/checkout?session_id=${paymentData.payment_session_id}&order_id=${paymentData.order_id}`;
+        }
+      } else {
+        throw new Error("Payment initialization failed - missing session ID");
+      }
+    } catch (error) {
+      console.error("Payment error:", error);
+      toast.error(error.message || "Payment initialization failed");
+    } finally {
+      setPaymentLoading(false);
+    }
   };
 
   if (loading) {
@@ -475,52 +597,36 @@ export default function ProductDetails({ params }) {
                 </div>
               )}
 
-              {/* Quantity Selector */}
-              {isInStock && (
-                <div className="mb-8">
-                  <h2 className="text-lg font-medium text-text-dark mb-3">
-                    Quantity
-                  </h2>
-                  <div className="flex items-center">
-                    <button
-                      onClick={() => handleQuantityChange(-1)}
-                      disabled={quantity <= 1}
-                      className="w-10 h-10 rounded-l-md border border-ui-border bg-background-alt text-text flex items-center justify-center disabled:opacity-50 hover:bg-background transition-colors"
-                    >
-                      -
-                    </button>
-                    <span className="w-12 text-center border-t border-b border-ui-border h-10 flex items-center justify-center">
-                      {quantity}
-                    </span>
-                    <button
-                      onClick={() => handleQuantityChange(1)}
-                      disabled={
-                        !selectedSize ||
-                        quantity >=
-                          (product.sizeQuantities?.[selectedSize] || 0)
-                      }
-                      className="w-10 h-10 rounded-r-md border border-ui-border bg-background-alt text-text flex items-center justify-center disabled:opacity-50 hover:bg-background transition-colors"
-                    >
-                      +
-                    </button>
-                  </div>
-                </div>
-              )}
-
-              {/* Add to Cart Button */}
+              {/* Buy Now Button */}
               <div className="mb-6">
                 <button
-                  onClick={handleAddToCart}
-                  disabled={!isInStock || !selectedSize}
-                  className="w-full py-3 px-6 bg-secondary text-white rounded-md font-medium hover:bg-secondary-dark transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center shadow-sm"
+                  onClick={handleBuyNow}
+                  disabled={!isInStock || paymentLoading}
+                  className={`w-full flex items-center justify-center bg-primary hover:bg-primary-dark text-white py-3 px-4 rounded-md transition-all ${
+                    !isInStock || paymentLoading ? "opacity-50 cursor-not-allowed" : ""
+                  }`}
                 >
-                  <FiShoppingBag className="mr-2" />
-                  {isInStock ? "Add to Cart" : "Out of Stock"}
+                  {paymentLoading ? (
+                    <>
+                      <div className="animate-spin mr-2 h-4 w-4 border-2 border-white border-t-transparent rounded-full"></div>
+                      Processing...
+                    </>
+                  ) : (
+                    <>
+                      <FiCreditCard className="mr-2" />
+                      Buy Now
+                    </>
+                  )}
                 </button>
+                {!isInStock && (
+                  <p className="text-error text-sm mt-2 text-center">
+                    This product is currently out of stock
+                  </p>
+                )}
               </div>
 
               {/* Feature Highlights */}
-              <div className="border-t border-ui-border pt-6">
+              <div className="border-t border-ui-border pt-6 mt-6">
                 <div className="space-y-4">
                   <div className="flex items-start bg-secondary bg-opacity-5 p-3 rounded-lg">
                     <div className="bg-secondary bg-opacity-10 p-2 rounded-full text-secondary mr-3">

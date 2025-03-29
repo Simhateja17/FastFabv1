@@ -81,22 +81,17 @@ const formatPhoneNumber = (phoneNumber) => {
   const digits = phoneNumber.replace(/\D/g, "");
   
   // If it's already in E.164 format, return as is
-  if (digits.startsWith("91") && digits.length === 12) {
-    return "+" + digits;
-  }
-  
-  // If it's already a plus format, return as is
   if (phoneNumber.startsWith("+")) {
     return phoneNumber;
   }
   
-  // If it's a 10-digit number, add +91 prefix
+  // If it's a 10-digit number, add +91 prefix (assuming India)
   if (digits.length === 10) {
     return "+91" + digits;
   }
   
-  // Otherwise return the original input
-  return phoneNumber;
+  // Otherwise return the original input with + prefix if missing
+  return digits.startsWith("91") ? "+" + digits : "+" + digits;
 };
 
 /**
@@ -142,6 +137,9 @@ const verifyOTP = async (phoneNumber, otpCode) => {
     orderBy: { createdAt: 'desc' },
   });
   
+  // Add detailed debug logging
+  debugVerify(phoneNumber, otpCode, otp);
+  
   if (!otp) {
     console.log('No valid OTP found for this phone number');
     return { success: false, message: 'No valid OTP found' };
@@ -184,10 +182,31 @@ const checkUserExists = async (phoneNumber) => {
   return { exists: false };
 };
 
+// Log additional information about verification
+const debugVerify = (phoneNumber, otpCode, otp) => {
+  console.log('===== WhatsApp OTP Verification Debug Info =====');
+  console.log('Phone number:', phoneNumber);
+  console.log('OTP code entered:', otpCode);
+  console.log('OTP found in database:', otp ? 'Yes' : 'No');
+  if (otp) {
+    console.log('OTP details:', {
+      id: otp.id,
+      code: otp.otpCode,
+      expired: new Date() > otp.expiresAt,
+      expiresAt: otp.expiresAt,
+      verified: otp.verified,
+      createdAt: otp.createdAt
+    });
+  }
+  console.log('===== End Debug Info =====');
+};
+
 export async function POST(request) {
   try {
     const body = await request.json();
     let { phoneNumber, otpCode } = body;
+    
+    console.log('OTP verification request received:', { phoneNumber, otpLength: otpCode?.length });
     
     // Format the phone number (add +91 prefix if it's a 10-digit number)
     phoneNumber = formatPhoneNumber(phoneNumber);
@@ -195,12 +214,14 @@ export async function POST(request) {
     // Validate phone number and OTP
     if (!phoneNumber || !phoneNumber.match(/^\+[1-9]\d{1,14}$/)) {
       return NextResponse.json({
+        success: false,
         message: 'Invalid phone number. Please provide a valid 10-digit phone number.'
       }, { status: 400 });
     }
 
     if (!otpCode || otpCode.length !== 6 || !/^\d+$/.test(otpCode)) {
       return NextResponse.json({
+        success: false,
         message: 'Invalid OTP. Please provide a valid 6-digit OTP.'
       }, { status: 400 });
     }
@@ -211,23 +232,58 @@ export async function POST(request) {
     
     if (!verificationResult.success) {
       return NextResponse.json({
-        message: verificationResult.message
+        success: false,
+        message: verificationResult.message,
+        verified: false
       }, { status: 400 });
     }
 
     // Check if a user already exists with this phone number
     const userCheck = await checkUserExists(phoneNumber);
+    const db = await initPrisma();
+    
+    let userId = null;
+    
+    // If user doesn't exist, we'll create a new one with just the phone number
+    // The actual name will be set during the registration process
+    if (!userCheck.exists) {
+      console.log('User does not exist, marking as new user');
+      // We don't create the user here - this will be done in the registration endpoint
+    } else {
+      console.log('User exists, retrieving user data');
+      userId = userCheck.userId;
+    }
     
     return NextResponse.json({
+      success: true,
       message: 'OTP verified successfully',
       isNewUser: !userCheck.exists,
-      userId: userCheck.userId || null
+      userId: userId,
+      verified: true,
+      status: 'success'
     }, { status: 200 });
   } catch (error) {
     console.error('Error verifying OTP:', error);
     
+    // Provide more specific error messages based on error types
+    let message = 'Failed to verify OTP. Please try again.';
+    let statusCode = 500;
+    
+    // Handle Prisma database errors
+    if (error.code && error.code.startsWith('P')) {
+      if (error.code === 'P2002') {
+        message = 'A user with this phone number already exists.';
+        statusCode = 400;
+      } else if (error.code.startsWith('P1')) {
+        message = 'Database connection error. Please try again later.';
+        statusCode = 503;
+      }
+    }
+    
     return NextResponse.json({
-      message: 'Failed to verify OTP. Please try again later.'
-    }, { status: 500 });
+      success: false,
+      message,
+      error: error.message
+    }, { status: statusCode });
   }
 } 

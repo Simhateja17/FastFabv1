@@ -7,7 +7,7 @@ import { USER_ENDPOINTS } from "@/app/config";
 import { toast } from "react-hot-toast";
 import Link from "next/link";
 import Image from "next/image";
-import { FiHeart, FiTrash2, FiShoppingCart } from "react-icons/fi";
+import { FiHeart, FiTrash2, FiExternalLink } from "react-icons/fi";
 
 export default function Wishlist() {
   const router = useRouter();
@@ -130,30 +130,8 @@ export default function Wishlist() {
     }
   };
 
-  const addToCart = async (productId) => {
-    try {
-      // Mock implementation - replace with real API call when backend is ready
-      toast.success("Item would be added to cart");
-
-      // Uncomment when backend is implemented
-      /*
-      const response = await userAuthFetch(USER_ENDPOINTS.CART_ITEMS, {
-        method: "POST",
-        body: JSON.stringify({ productId, quantity: 1 }),
-      });
-
-      if (!response.ok) {
-        throw new Error("Failed to add item to cart");
-      }
-
-      toast.success("Item added to cart");
-      // Optionally remove from wishlist after adding to cart
-      // removeFromWishlist(itemId);
-      */
-    } catch (error) {
-      console.error("Error adding to cart:", error);
-      toast.error("Failed to add item to cart. Please try again.");
-    }
+  const viewProductDetails = (productId) => {
+    router.push(`/products/${productId}`);
   };
 
   if (authLoading) {
@@ -228,11 +206,11 @@ export default function Wishlist() {
 
                   <div className="flex space-x-2">
                     <button
-                      onClick={() => addToCart(item.productId)}
+                      onClick={() => viewProductDetails(item.productId)}
                       className="flex-1 flex items-center justify-center bg-secondary text-white py-2 px-4 rounded hover:bg-secondary-dark transition-colors"
                     >
-                      <FiShoppingCart className="mr-2" />
-                      Add to Cart
+                      <FiExternalLink className="mr-2" />
+                      View Details
                     </button>
                     <button
                       onClick={() => removeFromWishlist(item.id)}
