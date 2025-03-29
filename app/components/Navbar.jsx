@@ -14,7 +14,7 @@ import {
   FiSettings,
   FiHeart,
 } from "react-icons/fi";
-import { BsCart, BsPerson } from "react-icons/bs";
+import { BsPerson } from "react-icons/bs";
 import { useAuth } from "../context/AuthContext";
 import { useUserAuth } from "../context/UserAuthContext";
 import Image from "next/image";
@@ -24,18 +24,6 @@ const UserAvatar = ({ user }) => (
   <div className="w-8 h-8 rounded-full bg-primary text-white flex items-center justify-center">
     {user?.name ? user.name.charAt(0).toUpperCase() : <BsPerson />}
   </div>
-);
-
-// Cart Icon Component
-const CartIcon = ({ user }) => (
-  <Link href="/cart" className="relative text-text-muted hover:text-text-dark">
-    <BsCart className="w-6 h-6" />
-    {user && (
-      <span className="absolute -top-2 -right-2 bg-primary text-white text-xs rounded-full w-5 h-5 flex items-center justify-center">
-        0
-      </span>
-    )}
-  </Link>
 );
 
 // User Dropdown Component
@@ -126,14 +114,11 @@ const UserDropdown = ({
 // Login/Signup Links Component
 const AuthLinks = () => (
   <div className="flex items-center space-x-4">
-    <Link href="/signin" className="text-text hover:text-primary">
-      Login
-    </Link>
     <Link
       href="/signup"
-      className="hidden md:block bg-primary text-white px-4 py-2 rounded-md hover:bg-primary-dark"
+      className="bg-primary text-white px-4 py-2 rounded-md hover:bg-primary-dark"
     >
-      Sign Up
+      Login/Signup
     </Link>
   </div>
 );
@@ -237,16 +222,10 @@ const MobileMenu = ({ isOpen, seller, user, onUserLogout, onSellerLogout }) => {
         {!seller && !user && (
           <>
             <Link
-              href="/signin"
-              className="block pl-3 pr-4 py-2 text-base font-medium text-text-muted hover:text-text-dark hover:bg-background-alt"
-            >
-              Login
-            </Link>
-            <Link
               href="/signup"
               className="block pl-3 pr-4 py-2 text-base font-medium text-text-muted hover:text-text-dark hover:bg-background-alt"
             >
-              Sign Up
+              Login/Signup
             </Link>
           </>
         )}
@@ -481,9 +460,6 @@ const Navbar = () => {
               Contact Us
             </Link>
 
-            {/* Cart - Show cart count if user is logged in */}
-            {!seller && <CartIcon user={user} />}
-
             {/* User Authentication - Either show profile or login/signup */}
             {!seller &&
               (user ? (
@@ -510,21 +486,6 @@ const Navbar = () => {
 
           {/* Mobile Navigation Menu Button */}
           <div className="flex items-center md:hidden">
-            {/* Show cart icon in mobile view */}
-            {!seller && (
-              <Link
-                href="/cart"
-                className="relative text-text-muted hover:text-text-dark mr-4"
-              >
-                <BsCart className="w-6 h-6" />
-                {user && (
-                  <span className="absolute -top-2 -right-2 bg-primary text-white text-xs rounded-full w-5 h-5 flex items-center justify-center">
-                    0
-                  </span>
-                )}
-              </Link>
-            )}
-
             {/* User profile icon in mobile view */}
             {!seller && user && (
               <div className="mr-4" onClick={() => router.push("/profile")}>

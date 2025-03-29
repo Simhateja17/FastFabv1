@@ -675,7 +675,11 @@ export function UserAuthProvider({ children }) {
   const registerWithPhone = async (userData) => {
     try {
       setLoading(true);
-      const { name, email, phone } = userData;
+      const { name, phone, email = '' } = userData;
+      
+      if (!name || !phone) {
+        throw new Error('Name and phone are required');
+      }
       
       // Format phone number
       let formattedPhone = phone.trim();

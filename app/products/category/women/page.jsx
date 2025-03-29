@@ -4,14 +4,15 @@ import { useState, useEffect } from "react";
 import ProductCard from "@/app/components/ProductCard";
 import LoadingSpinner from "@/app/components/LoadingSpinner";
 import { PUBLIC_ENDPOINTS } from "@/app/config";
+import { FiShoppingBag } from "react-icons/fi";
 import ProductFilters from "@/app/components/ProductFilters";
 
-export default function ProductsPage() {
+export default function WomenProductsPage() {
   const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [filters, setFilters] = useState({
-    category: "",
+    category: "WOMEN", // Default to WOMEN category
     subcategory: "",
     size: "",
     minPrice: null,
@@ -28,11 +29,9 @@ export default function ProductsPage() {
       setLoading(true);
       setError(null);
       
-      // Create basic query params - we'll apply most filters client-side for consistency
+      // Create basic query params - we'll fetch all women's products and filter client-side
       const queryParams = new URLSearchParams();
-      
-      // If category is selected, add it to the API query
-      if (filters.category) queryParams.append("category", filters.category);
+      queryParams.append("category", filters.category); // Always include WOMEN category
       
       const response = await fetch(
         `${PUBLIC_ENDPOINTS.PRODUCTS}?${queryParams.toString()}`
@@ -44,18 +43,14 @@ export default function ProductsPage() {
 
       let data = await response.json();
       
-      // Apply category filter if needed
-      if (filters.category) {
-        data = data.filter(
-          product => 
-            product.category && 
-            (product.category.toUpperCase() === filters.category.toUpperCase())
-        );
-      }
+      // Ensure we only have WOMEN products
+      let filteredProducts = data.filter(
+        product => product.category === "WOMEN" || product.category === "Women"
+      );
       
       // Apply subcategory filter if selected
       if (filters.subcategory) {
-        data = data.filter(
+        filteredProducts = filteredProducts.filter(
           product => 
             product.subcategory && 
             product.subcategory.toLowerCase() === filters.subcategory.toLowerCase()
@@ -64,7 +59,7 @@ export default function ProductsPage() {
       
       // Apply size filter if selected
       if (filters.size) {
-        data = data.filter(
+        filteredProducts = filteredProducts.filter(
           product => 
             product.sizeQuantities && 
             product.sizeQuantities[filters.size] && 
@@ -72,9 +67,9 @@ export default function ProductsPage() {
         );
       }
       
-      // Apply client-side filtering for price and sorting if needed
+      // Apply client-side filtering for price if needed
       if (filters.minPrice !== null || filters.maxPrice !== null) {
-        data = data.filter(product => {
+        filteredProducts = filteredProducts.filter(product => {
           const price = Number(product.sellingPrice);
           if (filters.minPrice !== null && filters.maxPrice !== null) {
             return price >= filters.minPrice && price <= filters.maxPrice;
@@ -89,7 +84,7 @@ export default function ProductsPage() {
       
       // Apply sorting
       if (filters.sort) {
-        data = [...data].sort((a, b) => {
+        filteredProducts = [...filteredProducts].sort((a, b) => {
           switch (filters.sort) {
             case 'price_asc':
               return Number(a.sellingPrice) - Number(b.sellingPrice);
@@ -106,7 +101,7 @@ export default function ProductsPage() {
         });
       }
       
-      setProducts(data);
+      setProducts(filteredProducts);
     } catch (error) {
       console.error("Failed to fetch products:", error);
       setError(error.message);
@@ -158,12 +153,14 @@ export default function ProductsPage() {
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-      <h1 className="text-2xl md:text-3xl font-bold text-primary mb-6">
-        All Products
-      </h1>
+      <h1 className="text-2xl md:text-3xl font-bold text-primary mb-6">Women's Collection</h1>
       
-      {/* New ProductFilters component */}
-      <ProductFilters filters={filters} setFilters={setFilters} />
+      {/* New ProductFilters component with fixed category */}
+      <ProductFilters 
+        filters={filters} 
+        setFilters={setFilters} 
+        availableCategories={["WOMEN"]} // Only show WOMEN category
+      />
 
       {/* Products Grid */}
       {products.length > 0 ? (
@@ -174,20 +171,7 @@ export default function ProductsPage() {
         </div>
       ) : (
         <div className="text-center py-12 bg-white rounded-lg shadow-sm mt-6">
-          <svg
-            xmlns="http://www.w3.org/2000/svg"
-            fill="none"
-            viewBox="0 0 24 24"
-            strokeWidth={1.5}
-            stroke="currentColor"
-            className="w-12 h-12 mx-auto text-gray-400"
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              d="M20.25 7.5l-.625 10.632a2.25 2.25 0 01-2.247 2.118H6.622a2.25 2.25 0 01-2.247-2.118L3.75 7.5m6 4.125l2.25 2.25m0 0l2.25 2.25M12 13.875l2.25-2.25M12 13.875l-2.25 2.25M3.375 7.5h17.25c.621 0 1.125-.504 1.125-1.125v-1.5c0-.621-.504-1.125-1.125-1.125H3.375c-.621 0-1.125.504-1.125 1.125v1.5c0 .621.504 1.125 1.125 1.125z"
-            />
-          </svg>
+          <FiShoppingBag className="w-12 h-12 mx-auto text-gray-400" />
           <h3 className="mt-4 text-lg font-medium text-gray-900">
             No Products Found
           </h3>
@@ -198,4 +182,4 @@ export default function ProductsPage() {
       )}
     </div>
   );
-}
+} 
