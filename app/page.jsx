@@ -118,20 +118,21 @@ export default function Home() {
               </div>
             </div>
 
-            {/* Category Buttons */}
-            {categories.length > 0 && (
-              <div className="mt-8 flex justify-center gap-4 flex-wrap">
-                {categories.map((category) => (
-                  <Link
-                    key={category}
-                    href={`/products/category/${category.toLowerCase()}`}
-                    className="inline-block bg-secondary text-white px-6 py-2 rounded-md hover:bg-secondary-dark transition-colors"
-                  >
-                    {category}
-                  </Link>
-                ))}
-              </div>
-            )}
+            {/* Main Category Buttons */}
+            <div className="mt-8 flex justify-center gap-6">
+              <Link
+                href="/products/category/men"
+                className="inline-block bg-secondary text-white px-10 py-3 rounded-md hover:bg-secondary-dark transition-colors text-lg font-medium"
+              >
+                Men
+              </Link>
+              <Link
+                href="/products/category/women"
+                className="inline-block bg-secondary text-white px-10 py-3 rounded-md hover:bg-secondary-dark transition-colors text-lg font-medium"
+              >
+                Women
+              </Link>
+            </div>
           </div>
         </div>
       </div>
