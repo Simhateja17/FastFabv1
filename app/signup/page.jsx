@@ -26,13 +26,9 @@ export default function SignUp() {
   } = useUserAuth();
   const [formData, setFormData] = useState({
     name: "",
-    email: "",
-    password: "",
-    confirmPassword: "",
     phone: "",
   });
   const [loading, setLoading] = useState(false);
-  const [usePhoneAuth, setUsePhoneAuth] = useState(false);
 
   // Phone verification states
   const [otpSent, setOtpSent] = useState(false);
@@ -40,6 +36,7 @@ export default function SignUp() {
   const [otpLoading, setOtpLoading] = useState(false);
   const [expiresAt, setExpiresAt] = useState(null);
   const [timeRemaining, setTimeRemaining] = useState("");
+  const [error, setError] = useState("");
 
   // Timer for OTP expiration
   useEffect(() => {
@@ -79,8 +76,14 @@ export default function SignUp() {
     let processedValue = value;
 
     // Special handling for phone number
-    if (name === "phone" && value && !value.startsWith("+")) {
-      processedValue = "+" + value;
+    if (name === "phone") {
+      // Remove non-digit characters except +
+      processedValue = value.replace(/[^\d+]/g, "");
+      
+      // If there's no + at the beginning and it's not empty, add it
+      if (processedValue && !processedValue.startsWith("+")) {
+        processedValue = "+" + processedValue;
+      }
     }
 
     setFormData({
@@ -89,86 +92,35 @@ export default function SignUp() {
     });
   };
 
-  // Handle regular registration with email and password
+  // Handle signup form submission (now only for WhatsApp OTP)
   const handleRegularSignup = async (e) => {
     e.preventDefault();
+    setError("");
 
     // Validations
     if (!formData.name.trim()) {
       toast.error("Please enter your name");
+      setError("Please enter your name");
       return;
     }
 
-    if (
-      !formData.email.trim() ||
-      !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)
-    ) {
-      toast.error("Please enter a valid email address");
+    // Check if phone number is in the correct format (+[country code][number])
+    if (!formData.phone.match(/^\+[1-9]\d{8,14}$/)) {
+      const errorMsg = "Please enter a valid phone number with country code (e.g., +916309599582)";
+      toast.error(errorMsg);
+      setError(errorMsg);
       return;
-    }
-
-    if (usePhoneAuth) {
-      if (!formData.phone.match(/^\+[1-9]\d{8,14}$/)) {
-        toast.error(
-          "Please enter a valid phone number with country code (e.g., +916309599582)"
-        );
-        return;
-      }
-    } else {
-      if (formData.password.length < 6) {
-        toast.error("Password must be at least 6 characters");
-        return;
-      }
-
-      if (formData.password !== formData.confirmPassword) {
-        toast.error("Passwords do not match");
-        return;
-      }
     }
 
     setLoading(true);
-
     try {
-      // If using phone authentication, send OTP first
-      if (usePhoneAuth) {
-        handleSendOtp();
-        return;
-      }
-
-      // Regular registration
-      const response = await fetch(USER_ENDPOINTS.REGISTER, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          name: formData.name,
-          email: formData.email,
-          password: formData.password,
-        }),
-      });
-
-      const result = await response.json();
-
-      if (response.ok) {
-        // Store user data and tokens
-        localStorage.setItem("userData", JSON.stringify(result.data.user));
-        localStorage.setItem("userAccessToken", result.data.tokens.accessToken);
-        localStorage.setItem(
-          "userRefreshToken",
-          result.data.tokens.refreshToken
-        );
-
-        toast.success("Account created successfully!");
-        router.push("/");
-      } else {
-        toast.error(result.message || "Registration failed. Please try again.");
-      }
+      handleSendOtp();
     } catch (error) {
-      console.error("Registration error:", error);
+      console.error("Error initiating WhatsApp authentication:", error);
       toast.error(
-        "Registration failed. Please check your connection and try again."
+        "Failed to initiate WhatsApp authentication. Please try again."
       );
+      setError("Failed to initiate WhatsApp authentication. Please try again.");
     } finally {
       setLoading(false);
     }
@@ -177,12 +129,13 @@ export default function SignUp() {
   // Handle sending OTP via WhatsApp
   const handleSendOtp = async (e) => {
     if (e) e.preventDefault();
+    setError("");
 
     // Validate phone format (must include country code)
     if (!formData.phone.match(/^\+[1-9]\d{8,14}$/)) {
-      toast.error(
-        "Please enter a valid phone number with country code (e.g., +916309599582)"
-      );
+      const errorMsg = "Please enter a valid phone number with country code (e.g., +916309599582)";
+      toast.error(errorMsg);
+      setError(errorMsg);
       return;
     }
 
@@ -211,15 +164,19 @@ export default function SignUp() {
         
         // Display specific error message based on the error code
         if (result.code === "P1001" || result.code === "P1002") {
+          setError("Unable to connect to the database. Please try again later.");
           toast.error("Unable to connect to the database. Please try again later.");
         } else if (result.code === "P2002") {
+          setError("A validation error occurred. Please check your input.");
           toast.error("A validation error occurred. Please check your input.");
         } else {
+          setError(result.message || "Failed to send OTP. Please try again.");
           toast.error(result.message || "Failed to send OTP. Please try again.");
         }
       }
     } catch (error) {
       console.error("Error sending OTP:", error);
+      setError("Failed to send OTP. Please try again.");
       toast.error("Failed to send OTP. Please try again.");
     } finally {
       setOtpLoading(false);
@@ -229,8 +186,10 @@ export default function SignUp() {
   // Handle OTP verification and registration
   const handleVerifyOtp = async (e) => {
     e.preventDefault();
+    setError("");
 
     if (!otpCode || otpCode.length !== 6 || !/^\d+$/.test(otpCode)) {
+      setError("Please enter a valid 6-digit OTP");
       toast.error("Please enter a valid 6-digit OTP");
       return;
     }
@@ -246,14 +205,15 @@ export default function SignUp() {
           // New user - complete registration with phone verified
           const registerResult = await registerWithPhone({
             name: formData.name,
-            email: formData.email,
             phone: formData.phone,
+            isPhoneVerified: true, // Since we verified via OTP
           });
 
           if (registerResult.success) {
             toast.success("Account created and verified successfully!");
             router.push("/");
           } else {
+            setError(registerResult.message || "Registration failed. Please try again.");
             toast.error(registerResult.message || "Registration failed. Please try again.");
           }
         } else {
@@ -262,20 +222,26 @@ export default function SignUp() {
           router.push("/");
         }
       } else {
+        setError(result.message || "OTP verification failed. Please try again.");
         toast.error(result.message || "OTP verification failed. Please try again.");
       }
     } catch (error) {
       console.error("Error verifying OTP:", error);
+      setError("OTP verification failed. Please try again.");
       toast.error("OTP verification failed. Please try again.");
     } finally {
       setOtpLoading(false);
     }
   };
 
-  // Switch between password and phone auth
-  const toggleAuthMethod = () => {
-    setUsePhoneAuth(!usePhoneAuth);
-    setOtpSent(false);
+  // Resend OTP handler
+  const handleResendOtp = () => {
+    // Only allow resend if the timer shows "Expired" or is empty
+    if (timeRemaining === "Expired" || !timeRemaining) {
+      handleSendOtp();
+    } else {
+      toast.error(`Please wait until the current OTP expires (${timeRemaining})`);
+    }
   };
 
   if (authLoading) {
@@ -298,11 +264,20 @@ export default function SignUp() {
             className="mx-auto mb-6"
           />
           <h1 className="text-xl font-medium text-text-dark">
-            Create your account
+            Log in or create an account
           </h1>
+          <p className="text-text-muted mt-2">
+            Enter your phone number to continue
+          </p>
         </div>
 
         <div className="bg-background-card p-8 rounded-lg shadow-sm">
+          {error && (
+            <div className="mb-6 p-3 bg-red-50 border border-red-200 text-red-600 rounded-md text-sm">
+              {error}
+            </div>
+          )}
+          
           {!otpSent ? (
             <form onSubmit={handleRegularSignup} className="space-y-6">
               <div>
@@ -314,259 +289,186 @@ export default function SignUp() {
                 </label>
                 <div className="relative">
                   <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                    <FiUser className="text-text-muted" />
+                    <FiUser className="text-gray-400" />
                   </div>
                   <input
                     id="name"
                     name="name"
                     type="text"
-                    required
                     value={formData.name}
                     onChange={handleInputChange}
-                    className="w-full pl-10 px-4 py-3 border border-ui-border rounded-md focus:outline-none focus:ring-2 focus:ring-secondary bg-input"
-                    placeholder="John Doe"
+                    placeholder="Enter your name"
+                    className="pl-10 w-full p-3 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-primary"
                   />
                 </div>
               </div>
 
               <div>
                 <label
-                  htmlFor="email"
+                  htmlFor="phone"
                   className="block text-sm font-medium text-text-dark mb-1"
                 >
-                  Email
+                  Phone Number (with country code)
                 </label>
                 <div className="relative">
                   <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                    <FiMail className="text-text-muted" />
+                    <FiPhone className="text-gray-400" />
                   </div>
                   <input
-                    id="email"
-                    name="email"
-                    type="email"
-                    autoComplete="email"
-                    required
-                    value={formData.email}
+                    id="phone"
+                    name="phone"
+                    type="tel"
+                    value={formData.phone}
                     onChange={handleInputChange}
-                    className="w-full pl-10 px-4 py-3 border border-ui-border rounded-md focus:outline-none focus:ring-2 focus:ring-secondary bg-input"
-                    placeholder="you@example.com"
+                    placeholder="+91xxxxxxxxxx"
+                    className="pl-10 w-full p-3 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-primary"
                   />
                 </div>
-              </div>
-
-              {usePhoneAuth ? (
-                !otpSent ? (
-                  <div>
-                    <label
-                      htmlFor="phone"
-                      className="block text-sm font-medium text-text-dark mb-1"
-                    >
-                      Phone Number
-                    </label>
-                    <div className="relative">
-                      <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                        <FiPhone className="text-text-muted" />
-                      </div>
-                      <input
-                        id="phone"
-                        name="phone"
-                        type="tel"
-                        required
-                        value={formData.phone}
-                        onChange={handleInputChange}
-                        className="w-full pl-10 px-4 py-3 border border-ui-border rounded-md focus:outline-none focus:ring-2 focus:ring-secondary bg-input"
-                        placeholder="+916309599582"
-                      />
-                    </div>
-                    <p className="mt-1 text-xs text-text-muted">
-                      Enter full number with country code (e.g., +916309599582 for India)
-                    </p>
-                  </div>
-                ) : null
-              ) : (
-                <>
-                  <div>
-                    <label
-                      htmlFor="password"
-                      className="block text-sm font-medium text-text-dark mb-1"
-                    >
-                      Password
-                    </label>
-                    <div className="relative">
-                      <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                        <FiLock className="text-text-muted" />
-                      </div>
-                      <input
-                        id="password"
-                        name="password"
-                        type="password"
-                        autoComplete="new-password"
-                        required={!usePhoneAuth}
-                        value={formData.password}
-                        onChange={handleInputChange}
-                        className="w-full pl-10 px-4 py-3 border border-ui-border rounded-md focus:outline-none focus:ring-2 focus:ring-secondary bg-input"
-                        placeholder="••••••••"
-                      />
-                    </div>
-                  </div>
-
-                  <div>
-                    <label
-                      htmlFor="confirmPassword"
-                      className="block text-sm font-medium text-text-dark mb-1"
-                    >
-                      Confirm Password
-                    </label>
-                    <div className="relative">
-                      <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                        <FiLock className="text-text-muted" />
-                      </div>
-                      <input
-                        id="confirmPassword"
-                        name="confirmPassword"
-                        type="password"
-                        autoComplete="new-password"
-                        required={!usePhoneAuth}
-                        value={formData.confirmPassword}
-                        onChange={handleInputChange}
-                        className="w-full pl-10 px-4 py-3 border border-ui-border rounded-md focus:outline-none focus:ring-2 focus:ring-secondary bg-input"
-                        placeholder="••••••••"
-                      />
-                    </div>
-                  </div>
-                </>
-              )}
-
-              <div className="flex items-center">
-                <input
-                  id="terms"
-                  name="terms"
-                  type="checkbox"
-                  required
-                  className="h-4 w-4 text-secondary focus:ring-secondary border-ui-border rounded"
-                />
-                <label htmlFor="terms" className="ml-2 block text-sm text-text">
-                  I agree to the{" "}
-                  <Link
-                    href="/terms-of-service"
-                    className="text-primary hover:underline"
-                  >
-                    Terms of Service
-                  </Link>{" "}
-                  and{" "}
-                  <Link
-                    href="/privacy-policy"
-                    className="text-primary hover:underline"
-                  >
-                    Privacy Policy
-                  </Link>
-                </label>
+                <p className="mt-1 text-xs text-gray-500">
+                  WhatsApp OTP will be sent to this number
+                </p>
               </div>
 
               <button
                 type="submit"
-                disabled={loading || otpLoading}
-                className="w-full bg-secondary text-white py-3 rounded-md hover:bg-secondary-dark transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                disabled={loading}
+                className={`w-full flex justify-center py-3 px-4 border border-transparent rounded-md shadow-sm text-white bg-primary hover:bg-primary focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary ${
+                  loading ? "opacity-70 cursor-not-allowed" : ""
+                }`}
               >
-                {loading || otpLoading
-                  ? usePhoneAuth
-                    ? "Sending OTP..."
-                    : "Creating Account..."
-                  : usePhoneAuth
-                  ? "Send OTP to WhatsApp"
-                  : "Create Account"}
+                {loading ? (
+                  <>
+                    <svg
+                      className="animate-spin -ml-1 mr-3 h-5 w-5 text-white"
+                      viewBox="0 0 24 24"
+                    >
+                      <circle
+                        className="opacity-25"
+                        cx="12"
+                        cy="12"
+                        r="10"
+                        stroke="currentColor"
+                        strokeWidth="4"
+                      ></circle>
+                      <path
+                        className="opacity-75"
+                        fill="currentColor"
+                        d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                      ></path>
+                    </svg>
+                    Sending OTP...
+                  </>
+                ) : (
+                  "Get OTP on WhatsApp"
+                )}
               </button>
-
-              <div className="text-center mt-4">
-                <button
-                  type="button"
-                  onClick={toggleAuthMethod}
-                  className="text-sm text-primary hover:underline"
-                >
-                  {usePhoneAuth
-                    ? "Sign up with email and password instead"
-                    : "Sign up with WhatsApp verification instead"}
-                </button>
-              </div>
             </form>
           ) : (
             <form onSubmit={handleVerifyOtp} className="space-y-6">
               <div>
                 <div className="flex justify-between items-center mb-1">
                   <label
-                    htmlFor="otpCode"
+                    htmlFor="otp"
                     className="block text-sm font-medium text-text-dark"
                   >
                     Enter OTP from WhatsApp
                   </label>
-                  {expiresAt && (
+                  {timeRemaining && (
                     <span
-                      className={`text-sm ${
+                      className={`text-xs font-medium ${
                         timeRemaining === "Expired"
-                          ? "text-error font-bold"
-                          : "text-text-muted"
+                          ? "text-red-500"
+                          : "text-green-600"
                       }`}
                     >
                       {timeRemaining === "Expired"
-                        ? "Expired"
+                        ? "OTP Expired"
                         : `Expires in: ${timeRemaining}`}
                     </span>
                   )}
                 </div>
                 <div className="relative">
                   <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                    <FiMessageCircle className="text-text-muted" />
+                    <FiMessageCircle className="text-gray-400" />
                   </div>
                   <input
-                    id="otpCode"
-                    name="otpCode"
+                    id="otp"
+                    name="otp"
                     type="text"
                     inputMode="numeric"
+                    pattern="[0-9]*"
                     maxLength={6}
                     value={otpCode}
-                    onChange={(e) =>
-                      setOtpCode(
-                        e.target.value.replace(/\D/g, "").substring(0, 6)
-                      )
-                    }
-                    className="w-full pl-10 px-4 py-3 border border-ui-border rounded-md focus:outline-none focus:ring-2 focus:ring-secondary bg-input text-center tracking-widest"
+                    onChange={(e) => {
+                      // Only allow digits
+                      const value = e.target.value.replace(/\D/g, "");
+                      setOtpCode(value);
+                    }}
                     placeholder="6-digit OTP"
+                    className="pl-10 w-full p-3 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-primary"
                   />
+                </div>
+                <div className="mt-2 text-right">
+                  <button
+                    type="button"
+                    onClick={handleResendOtp}
+                    disabled={timeRemaining && timeRemaining !== "Expired"}
+                    className={`text-sm text-primary hover:text-primary-dark ${
+                      timeRemaining && timeRemaining !== "Expired"
+                        ? "opacity-50 cursor-not-allowed"
+                        : ""
+                    }`}
+                  >
+                    Resend OTP
+                  </button>
                 </div>
               </div>
 
-              <div className="space-y-3">
-                <button
-                  type="submit"
-                  disabled={otpLoading}
-                  className="w-full bg-secondary text-white py-3 rounded-md hover:bg-secondary-dark transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  {otpLoading ? "Verifying..." : "Verify OTP & Create Account"}
-                </button>
+              <button
+                type="submit"
+                disabled={otpLoading}
+                className={`w-full flex justify-center py-3 px-4 border border-transparent rounded-md shadow-sm text-white bg-primary hover:bg-primary-dark focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary ${
+                  otpLoading ? "opacity-70 cursor-not-allowed" : ""
+                }`}
+              >
+                {otpLoading ? (
+                  <>
+                    <svg
+                      className="animate-spin -ml-1 mr-3 h-5 w-5 text-white"
+                      viewBox="0 0 24 24"
+                    >
+                      <circle
+                        className="opacity-25"
+                        cx="12"
+                        cy="12"
+                        r="10"
+                        stroke="currentColor"
+                        strokeWidth="4"
+                      ></circle>
+                      <path
+                        className="opacity-75"
+                        fill="currentColor"
+                        d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                      ></path>
+                    </svg>
+                    Verifying...
+                  </>
+                ) : (
+                  "Verify & Continue"
+                )}
+              </button>
 
+              <div className="mt-4">
                 <button
                   type="button"
-                  onClick={() => {
-                    if (timeRemaining === "Expired") {
-                      handleSendOtp();
-                    } else {
-                      setOtpSent(false);
-                    }
-                  }}
-                  className="w-full border border-ui-border text-text py-3 rounded-md hover:bg-background-hover transition-colors"
+                  onClick={() => setOtpSent(false)}
+                  className="text-sm text-primary hover:text-primary-dark"
                 >
-                  {timeRemaining === "Expired" ? "Resend OTP" : "Go Back"}
+                  ← Back to phone entry
                 </button>
               </div>
             </form>
           )}
-
-          <div className="text-center text-sm text-text-muted mt-6">
-            Already have an account?{" "}
-            <Link href="/signin" className="text-primary hover:underline">
-              Sign in
-            </Link>
-          </div>
         </div>
       </div>
     </div>
