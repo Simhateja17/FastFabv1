@@ -6,6 +6,7 @@ import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { PRODUCT_ENDPOINTS, PUBLIC_ENDPOINTS } from "@/app/config";
 import LoadingSpinner from "@/app/components/LoadingSpinner";
+import { useUserAuth } from "@/app/context/UserAuthContext";
 import {
   FiChevronRight,
   FiShoppingBag,
@@ -31,6 +32,7 @@ export default function ProductDetails({ params }) {
   const [selectedSize, setSelectedSize] = useState("");
   const [selectedColor, setSelectedColor] = useState("");
   const [colorInventories, setColorInventories] = useState([]);
+  const { user, loading: authLoading } = useUserAuth();
   const [paymentLoading, setPaymentLoading] = useState(false);
 
   useEffect(() => {
@@ -114,7 +116,19 @@ export default function ProductDetails({ params }) {
 
   // Function to handle the "Buy Now" button click
   const handleBuyNow = async () => {
-    // Validate selection
+    // Check if user is logged in
+    if (authLoading) {
+      toast("Checking authentication...");
+      return; // Don't proceed if auth state is still loading
+    }
+    
+    if (!user) {
+      toast.error("Please log in or sign up to buy this product.");
+      router.push('/signup'); // Redirect to signup page
+      return;
+    }
+    
+    // Existing validations
     if (!selectedSize && Object.keys(product.sizeQuantities || {}).length > 0) {
       toast.error("Please select a size");
       return;
@@ -128,28 +142,12 @@ export default function ProductDetails({ params }) {
     try {
       setPaymentLoading(true);
       
-      // Check if user is logged in and get tokens from localStorage
-      const accessToken = localStorage.getItem('accessToken');
-      const userData = localStorage.getItem('user') ? JSON.parse(localStorage.getItem('user')) : null;
-      
-      // Store auth data explicitly before redirect to ensure it persists
-      if (accessToken && userData) {
-        // Re-store the tokens to refresh their lifetime
-        localStorage.setItem('accessToken', accessToken);
-        localStorage.setItem('user', JSON.stringify(userData));
-        
-        console.log('User authentication preserved before payment', { 
-          user: userData?.name || 'Anonymous',
-          isAuthenticated: !!accessToken 
-        });
-      }
-      
-      // Prepare the order data
+      // Prepare the order data - Now include user details if available
       const orderData = {
         amount: product.sellingPrice,
-        customer_id: userData?.id || `guest_${Date.now()}`,
-        customer_email: userData?.email || "guest@example.com",
-        customer_phone: userData?.phone || "9999999999",
+        customer_id: user.id, // Use logged-in user's ID
+        customer_email: user.email || `guest_${user.id}@example.com`, // Use user's email or generate one
+        customer_phone: user.phone, // Use user's phone
         product_details: {
           product_id: productId,
           name: product.name,
@@ -157,11 +155,6 @@ export default function ProductDetails({ params }) {
           size: selectedSize,
           color: selectedColor,
           quantity: 1
-        },
-        // Include authentication data to preserve it
-        auth: {
-          isAuthenticated: !!accessToken,
-          user_id: userData?.id
         }
       };
       
@@ -170,89 +163,26 @@ export default function ProductDetails({ params }) {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          // Add authorization header if user is logged in
-          ...(accessToken ? { 'Authorization': `Bearer ${accessToken}` } : {})
         },
         body: JSON.stringify(orderData),
       });
       
       if (!response.ok) {
         const errorData = await response.json();
-        console.error("Payment API error:", errorData);
-        throw new Error(errorData.details?.error_description || errorData.message || "Failed to create payment");
+        throw new Error(errorData.message || "Failed to create payment");
       }
       
       // Get the payment session from the response
       const paymentData = await response.json();
-      console.log("Payment session created:", paymentData);
       
-      // Use window.location to redirect to Cashfree's hosted payment page
-      if (paymentData.payment_link) {
-        // If we have a direct payment link, use that instead
-        console.log("Redirecting to payment link:", paymentData.payment_link);
-        window.location.href = paymentData.payment_link;
-      } else if (paymentData.payment_session_id) {
-        // Store payment session info along with auth state
-        localStorage.setItem('payment_session', JSON.stringify({
-          session_id: paymentData.payment_session_id,
-          order_id: paymentData.order_id,
-          auth: {
-            isAuthenticated: !!accessToken,
-            user_id: userData?.id
-          }
-        }));
-        
-        // Before redirecting, ensure Cashfree SDK is loaded
-        const loadCashfreeSDK = async () => {
-          return new Promise((resolve) => {
-            if (window.Cashfree) {
-              return resolve(window.Cashfree);
-            }
-            
-            // Load Cashfree SDK dynamically
-            const script = document.createElement('script');
-            script.src = 'https://sdk.cashfree.com/js/v3/cashfree.js';
-            script.onload = () => resolve(window.Cashfree);
-            document.body.appendChild(script);
-          });
-        };
-        
-        // Load SDK and initiate payment directly
-        toast.success("Payment initiated! Preparing payment gateway...");
-        const Cashfree = await loadCashfreeSDK();
-        
-        try {
-          const cashfree = new Cashfree({
-            mode: 'production' // Force production mode explicitly
-          });
-          
-          cashfree.checkout({
-            paymentSessionId: paymentData.payment_session_id,
-            redirectTarget: '_self', // Open in the same window
-            onSuccess: (data) => {
-              console.log('Payment success', data);
-              // Redirect will happen automatically to return_url
-            },
-            onFailure: (data) => {
-              console.log('Payment failed', data);
-              // Redirect will happen automatically to return_url
-            },
-            onClose: () => {
-              // Handle user closing the payment popup
-              console.log('Payment window closed');
-              setPaymentLoading(false);
-            },
-          });
-        } catch (sdkError) {
-          console.error("Cashfree SDK error:", sdkError);
-          
-          // Fallback - redirect to checkout page if SDK fails
-          console.log("Falling back to checkout page redirect");
-          window.location.href = `/checkout?session_id=${paymentData.payment_session_id}&order_id=${paymentData.order_id}`;
-        }
+      // Use router.push for client-side navigation
+      if (paymentData.payment_session_id) {
+        toast.success("Proceeding to checkout...");
+        router.push(`/checkout?session_id=${paymentData.payment_session_id}&order_id=${paymentData.order_id}`);
       } else {
-        throw new Error("Payment initialization failed - missing session ID");
+        throw new Error("Payment initialization failed: No session ID received");
       }
+      
     } catch (error) {
       console.error("Payment error:", error);
       toast.error(error.message || "Payment initialization failed");
@@ -601,12 +531,17 @@ export default function ProductDetails({ params }) {
               <div className="mb-6">
                 <button
                   onClick={handleBuyNow}
-                  disabled={!isInStock || paymentLoading}
+                  disabled={!isInStock || paymentLoading || authLoading}
                   className={`w-full flex items-center justify-center bg-primary hover:bg-primary-dark text-white py-3 px-4 rounded-md transition-all ${
-                    !isInStock || paymentLoading ? "opacity-50 cursor-not-allowed" : ""
+                    !isInStock || paymentLoading || authLoading ? "opacity-50 cursor-not-allowed" : ""
                   }`}
                 >
-                  {paymentLoading ? (
+                  {authLoading ? (
+                    <>
+                      <div className="animate-spin mr-2 h-4 w-4 border-2 border-white border-t-transparent rounded-full"></div>
+                      Loading...
+                    </>
+                  ) : paymentLoading ? (
                     <>
                       <div className="animate-spin mr-2 h-4 w-4 border-2 border-white border-t-transparent rounded-full"></div>
                       Processing...

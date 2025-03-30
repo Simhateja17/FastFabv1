@@ -1,0 +1,37 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="400" height="300" viewBox="0 0 400 300" fill="none">
+  <!-- Background elements -->
+  <circle cx="200" cy="150" r="120" fill="#F5F7FA" />
+  
+  <!-- Map and radius elements -->
+  <circle cx="200" cy="150" r="80" fill="#E1E8ED" stroke="#D1D9E0" stroke-width="2" stroke-dasharray="4 4" />
+  <circle cx="200" cy="150" r="40" fill="#EBF5FF" stroke="#BFD9F1" stroke-width="2" />
+  
+  <!-- Map pin at center -->
+  <path d="M200 100C187.5 100 175 110 175 130C175 142.5 187.925 156.925 200 170C212.075 156.925 225 142.5 225 130C225 110 212.5 100 200 100Z" fill="#8B6E5A" />
+  <circle cx="200" cy="125" r="8" fill="white" />
+  
+  <!-- Remote store pins -->
+  <path d="M140 180C132.5 180 125 186 125 198C125 205.5 132.963 214.463 140 222C147.038 214.463 155 205.5 155 198C155 186 147.5 180 140 180Z" fill="#D1D9E0" />
+  <circle cx="140" cy="194" r="4" fill="white" />
+  
+  <path d="M260 180C252.5 180 245 186 245 198C245 205.5 252.963 214.463 260 222C267.038 214.463 275 205.5 275 198C275 186 267.5 180 260 180Z" fill="#D1D9E0" />
+  <circle cx="260" cy="194" r="4" fill="white" />
+  
+  <path d="M290 120C282.5 120 275 126 275 138C275 145.5 282.963 154.463 290 162C297.038 154.463 305 145.5 305 138C305 126 297.5 120 290 120Z" fill="#D1D9E0" />
+  <circle cx="290" cy="134" r="4" fill="white" />
+  
+  <path d="M110 120C102.5 120 95 126 95 138C95 145.5 102.963 154.463 110 162C117.038 154.463 125 145.5 125 138C125 126 117.5 120 110 120Z" fill="#D1D9E0" />
+  <circle cx="110" cy="134" r="4" fill="white" />
+  
+  <!-- Search radius indicator -->
+  <path d="M200 70L205 80H195L200 70Z" fill="#8B6E5A" />
+  <path d="M200 230L195 220H205L200 230Z" fill="#8B6E5A" />
+  <path d="M120 150L130 145V155L120 150Z" fill="#8B6E5A" />
+  <path d="M280 150L270 155V145L280 150Z" fill="#8B6E5A" />
+  
+  <!-- Distance lines -->
+  <line x1="140" y1="190" x2="190" y2="150" stroke="#D1D9E0" stroke-width="1" stroke-dasharray="3 3" />
+  <line x1="260" y1="190" x2="210" y2="150" stroke="#D1D9E0" stroke-width="1" stroke-dasharray="3 3" />
+  <line x1="290" y1="130" x2="210" y2="140" stroke="#D1D9E0" stroke-width="1" stroke-dasharray="3 3" />
+  <line x1="110" y1="130" x2="190" y2="140" stroke="#D1D9E0" stroke-width="1" stroke-dasharray="3 3" />
+</svg> 
