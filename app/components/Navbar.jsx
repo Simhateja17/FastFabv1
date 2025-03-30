@@ -367,6 +367,28 @@ const Navbar = () => {
 
   const redirect = seller ? `/seller/dashboard` : "/";
 
+  // Initialize component state including current location from localStorage
+  useEffect(() => {
+    // Try to load saved location
+    try {
+      const savedLocationData = localStorage.getItem("userLocation");
+      if (savedLocationData) {
+        const locationData = JSON.parse(savedLocationData);
+        if (locationData.label) {
+          setCurrentLocation(locationData.label);
+          console.log("Restored saved location:", locationData.label);
+          
+          // Set locationSet flag if not already set
+          if (localStorage.getItem("locationSet") !== "true") {
+            localStorage.setItem("locationSet", "true");
+          }
+        }
+      }
+    } catch (error) {
+      console.error("Error loading saved location:", error);
+    }
+  }, []);
+
   // Check authentication status on component mount
   useEffect(() => {
     const verifyAuth = async () => {
@@ -392,7 +414,8 @@ const Navbar = () => {
   // Open location modal when user logs in or signs up
   useEffect(() => {
     // Check if user just logged in (previousAuthState was null and now user exists)
-    if (!previousAuthState && user) {
+    // AND make sure location hasn't already been set
+    if (!previousAuthState && user && localStorage.getItem("locationSet") !== "true") {
       console.log("User just logged in, showing location modal");
       
       // Short delay to ensure UI has settled
@@ -410,8 +433,11 @@ const Navbar = () => {
   // Also check pathname changes to detect signup/login page redirects
   useEffect(() => {
     // Check if we just arrived from a login or signup page
-    if (user && (pathname === "/" || pathname === "/products") && 
-        (localStorage.getItem("justLoggedIn") === "true")) {
+    // AND make sure we don't show the location modal if the user has already set their location
+    if (user && 
+        (pathname === "/" || pathname === "/products") && 
+        (localStorage.getItem("justLoggedIn") === "true") &&
+        (localStorage.getItem("locationSet") !== "true")) {
       
       console.log("Detected login/signup redirect, showing location modal");
       setIsLocationModalOpen(true);
