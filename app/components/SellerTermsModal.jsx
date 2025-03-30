@@ -64,10 +64,10 @@ export default function SellerTermsModal({ isOpen, onClose, onAccept }) {
             </p>
 
             <p className="mb-4">
-              Welcome to Fast&Fab! These Terms and Conditions ("Terms") govern
-              your use of our platform as a seller. By registering as a seller,
-              you agree to comply with these Terms. Please read them carefully
-              before proceeding.
+              Welcome to Fast&Fab! These Terms and Conditions
+              (&quot;Terms&quot;) govern your use of our platform as a seller.
+              By registering as a seller, you agree to comply with these Terms.
+              Please read them carefully before proceeding.
             </p>
 
             <h3 className="text-lg font-semibold mt-6 mb-2">1. Eligibility</h3>
@@ -112,8 +112,8 @@ export default function SellerTermsModal({ isOpen, onClose, onAccept }) {
               3. Product Listings & Prohibited Items
             </h3>
             <p className="ml-4 mb-2">
-              3.1 All products listed must comply with Fast&Fab's guidelines and
-              policies.
+              3.1 All products listed must comply with Fast&Fab&apos;s
+              guidelines and policies.
             </p>
             <p className="ml-4 mb-2">
               3.2 The following products are strictly prohibited:
@@ -157,7 +157,7 @@ export default function SellerTermsModal({ isOpen, onClose, onAccept }) {
               accurate shipping estimates.
             </p>
             <p className="ml-4 mb-2">
-              5.2 You must honor Fast&Fab's return and refund policies and
+              5.2 You must honor Fast&Fab&apos;s return and refund policies and
               process returns in a timely manner.
             </p>
             <p className="ml-4 mb-2">

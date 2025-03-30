@@ -22,7 +22,7 @@ export default function ProductDetails({ params }) {
   // Unwrap params at the beginning of the component
   const unwrappedParams = use(params);
   const productId = unwrappedParams.id;
-  
+
   const router = useRouter();
   const [product, setProduct] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -119,31 +119,33 @@ export default function ProductDetails({ params }) {
       toast.error("Please select a size");
       return;
     }
-    
+
     if (!selectedColor && colorInventories.length > 0) {
       toast.error("Please select a color");
       return;
     }
-    
+
     try {
       setPaymentLoading(true);
-      
+
       // Check if user is logged in and get tokens from localStorage
-      const accessToken = localStorage.getItem('accessToken');
-      const userData = localStorage.getItem('user') ? JSON.parse(localStorage.getItem('user')) : null;
-      
+      const accessToken = localStorage.getItem("accessToken");
+      const userData = localStorage.getItem("user")
+        ? JSON.parse(localStorage.getItem("user"))
+        : null;
+
       // Store auth data explicitly before redirect to ensure it persists
       if (accessToken && userData) {
         // Re-store the tokens to refresh their lifetime
-        localStorage.setItem('accessToken', accessToken);
-        localStorage.setItem('user', JSON.stringify(userData));
-        
-        console.log('User authentication preserved before payment', { 
-          user: userData?.name || 'Anonymous',
-          isAuthenticated: !!accessToken 
+        localStorage.setItem("accessToken", accessToken);
+        localStorage.setItem("user", JSON.stringify(userData));
+
+        console.log("User authentication preserved before payment", {
+          user: userData?.name || "Anonymous",
+          isAuthenticated: !!accessToken,
         });
       }
-      
+
       // Prepare the order data
       const orderData = {
         amount: product.sellingPrice,
@@ -156,36 +158,40 @@ export default function ProductDetails({ params }) {
           price: product.sellingPrice,
           size: selectedSize,
           color: selectedColor,
-          quantity: 1
+          quantity: 1,
         },
         // Include authentication data to preserve it
         auth: {
           isAuthenticated: !!accessToken,
-          user_id: userData?.id
-        }
+          user_id: userData?.id,
+        },
       };
-      
+
       // Call your payment creation API
-      const response = await fetch('/api/create-payment-order', {
-        method: 'POST',
+      const response = await fetch("/api/create-payment-order", {
+        method: "POST",
         headers: {
-          'Content-Type': 'application/json',
+          "Content-Type": "application/json",
           // Add authorization header if user is logged in
-          ...(accessToken ? { 'Authorization': `Bearer ${accessToken}` } : {})
+          ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
         },
         body: JSON.stringify(orderData),
       });
-      
+
       if (!response.ok) {
         const errorData = await response.json();
         console.error("Payment API error:", errorData);
-        throw new Error(errorData.details?.error_description || errorData.message || "Failed to create payment");
+        throw new Error(
+          errorData.details?.error_description ||
+            errorData.message ||
+            "Failed to create payment"
+        );
       }
-      
+
       // Get the payment session from the response
       const paymentData = await response.json();
       console.log("Payment session created:", paymentData);
-      
+
       // Use window.location to redirect to Cashfree's hosted payment page
       if (paymentData.payment_link) {
         // If we have a direct payment link, use that instead
@@ -193,59 +199,62 @@ export default function ProductDetails({ params }) {
         window.location.href = paymentData.payment_link;
       } else if (paymentData.payment_session_id) {
         // Store payment session info along with auth state
-        localStorage.setItem('payment_session', JSON.stringify({
-          session_id: paymentData.payment_session_id,
-          order_id: paymentData.order_id,
-          auth: {
-            isAuthenticated: !!accessToken,
-            user_id: userData?.id
-          }
-        }));
-        
+        localStorage.setItem(
+          "payment_session",
+          JSON.stringify({
+            session_id: paymentData.payment_session_id,
+            order_id: paymentData.order_id,
+            auth: {
+              isAuthenticated: !!accessToken,
+              user_id: userData?.id,
+            },
+          })
+        );
+
         // Before redirecting, ensure Cashfree SDK is loaded
         const loadCashfreeSDK = async () => {
           return new Promise((resolve) => {
             if (window.Cashfree) {
               return resolve(window.Cashfree);
             }
-            
+
             // Load Cashfree SDK dynamically
-            const script = document.createElement('script');
-            script.src = 'https://sdk.cashfree.com/js/v3/cashfree.js';
+            const script = document.createElement("script");
+            script.src = "https://sdk.cashfree.com/js/v3/cashfree.js";
             script.onload = () => resolve(window.Cashfree);
             document.body.appendChild(script);
           });
         };
-        
+
         // Load SDK and initiate payment directly
         toast.success("Payment initiated! Preparing payment gateway...");
         const Cashfree = await loadCashfreeSDK();
-        
+
         try {
           const cashfree = new Cashfree({
-            mode: 'production' // Force production mode explicitly
+            mode: "production", // Force production mode explicitly
           });
-          
+
           cashfree.checkout({
             paymentSessionId: paymentData.payment_session_id,
-            redirectTarget: '_self', // Open in the same window
+            redirectTarget: "_self", // Open in the same window
             onSuccess: (data) => {
-              console.log('Payment success', data);
+              console.log("Payment success", data);
               // Redirect will happen automatically to return_url
             },
             onFailure: (data) => {
-              console.log('Payment failed', data);
+              console.log("Payment failed", data);
               // Redirect will happen automatically to return_url
             },
             onClose: () => {
               // Handle user closing the payment popup
-              console.log('Payment window closed');
+              console.log("Payment window closed");
               setPaymentLoading(false);
             },
           });
         } catch (sdkError) {
           console.error("Cashfree SDK error:", sdkError);
-          
+
           // Fallback - redirect to checkout page if SDK fails
           console.log("Falling back to checkout page redirect");
           window.location.href = `/checkout?session_id=${paymentData.payment_session_id}&order_id=${paymentData.order_id}`;
@@ -296,7 +305,8 @@ export default function ProductDetails({ params }) {
             Product Not Found
           </h2>
           <p className="text-text-muted mb-6">
-            The product you're looking for doesn't exist or has been removed.
+            The product you&apos;re looking for doesn&apos;t exist or has been
+            removed.
           </p>
           <Link
             href="/"
@@ -603,7 +613,9 @@ export default function ProductDetails({ params }) {
                   onClick={handleBuyNow}
                   disabled={!isInStock || paymentLoading}
                   className={`w-full flex items-center justify-center bg-primary hover:bg-primary-dark text-white py-3 px-4 rounded-md transition-all ${
-                    !isInStock || paymentLoading ? "opacity-50 cursor-not-allowed" : ""
+                    !isInStock || paymentLoading
+                      ? "opacity-50 cursor-not-allowed"
+                      : ""
                   }`}
                 >
                   {paymentLoading ? (

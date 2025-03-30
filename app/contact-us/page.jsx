@@ -45,7 +45,8 @@ export default function ContactUs() {
         <div className="container mx-auto px-4">
           <h1 className="text-3xl font-bold mb-4 text-center">Contact Us</h1>
           <p className="text-lg text-center max-w-2xl mx-auto">
-            We're here to help! Reach out to us with any questions or concerns.
+            We&apos;re here to help! Reach out to us with any questions or
+            concerns.
           </p>
           <p className="text-sm text-center mt-2">
             Last updated on 15-03-2025 19:11:27

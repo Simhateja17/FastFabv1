@@ -453,7 +453,7 @@ export default function AddressList() {
           <div className="text-center py-8">
             <FiHome className="text-4xl text-gray-400 mx-auto mb-4" />
             <p className="text-gray-500 text-lg mb-4">
-              You don't have any saved addresses yet.
+              You don&apos;t have any saved addresses yet.
             </p>
             {!showAddForm && (
               <button
