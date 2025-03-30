@@ -22,17 +22,17 @@ export default function MenProductsPage() {
 
   useEffect(() => {
     fetchProducts();
-  }, [filters]);
+  }, [filters, fetchProducts]);
 
   const fetchProducts = async () => {
     try {
       setLoading(true);
       setError(null);
-      
+
       // Create basic query params - we'll fetch all men's products and filter client-side
       const queryParams = new URLSearchParams();
       queryParams.append("category", filters.category); // Always include MEN category
-      
+
       const response = await fetch(
         `${PUBLIC_ENDPOINTS.PRODUCTS}?${queryParams.toString()}`
       );
@@ -42,34 +42,35 @@ export default function MenProductsPage() {
       }
 
       let data = await response.json();
-      
+
       // Ensure we only have MEN products
       let filteredProducts = data.filter(
-        product => product.category === "MEN" || product.category === "Men"
+        (product) => product.category === "MEN" || product.category === "Men"
       );
-      
+
       // Apply subcategory filter if selected
       if (filters.subcategory) {
         filteredProducts = filteredProducts.filter(
-          product => 
-            product.subcategory && 
-            product.subcategory.toLowerCase() === filters.subcategory.toLowerCase()
+          (product) =>
+            product.subcategory &&
+            product.subcategory.toLowerCase() ===
+              filters.subcategory.toLowerCase()
         );
       }
-      
+
       // Apply size filter if selected
       if (filters.size) {
         filteredProducts = filteredProducts.filter(
-          product => 
-            product.sizeQuantities && 
-            product.sizeQuantities[filters.size] && 
+          (product) =>
+            product.sizeQuantities &&
+            product.sizeQuantities[filters.size] &&
             product.sizeQuantities[filters.size] > 0
         );
       }
-      
+
       // Apply client-side filtering for price if needed
       if (filters.minPrice !== null || filters.maxPrice !== null) {
-        filteredProducts = filteredProducts.filter(product => {
+        filteredProducts = filteredProducts.filter((product) => {
           const price = Number(product.sellingPrice);
           if (filters.minPrice !== null && filters.maxPrice !== null) {
             return price >= filters.minPrice && price <= filters.maxPrice;
@@ -81,18 +82,18 @@ export default function MenProductsPage() {
           return true;
         });
       }
-      
+
       // Apply sorting
       if (filters.sort) {
         filteredProducts = [...filteredProducts].sort((a, b) => {
           switch (filters.sort) {
-            case 'price_asc':
+            case "price_asc":
               return Number(a.sellingPrice) - Number(b.sellingPrice);
-            case 'price_desc':
+            case "price_desc":
               return Number(b.sellingPrice) - Number(a.sellingPrice);
-            case 'newest':
+            case "newest":
               return new Date(b.createdAt || 0) - new Date(a.createdAt || 0);
-            case 'popular':
+            case "popular":
               // If you have popularity metrics like views or sales, use them here
               return 0;
             default:
@@ -100,7 +101,7 @@ export default function MenProductsPage() {
           }
         });
       }
-      
+
       setProducts(filteredProducts);
     } catch (error) {
       console.error("Failed to fetch products:", error);
@@ -153,12 +154,14 @@ export default function MenProductsPage() {
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-      <h1 className="text-2xl md:text-3xl font-bold text-primary mb-6">Men's Collection</h1>
-      
+      <h1 className="text-2xl md:text-3xl font-bold text-primary mb-6">
+        Men&apos;s Collection
+      </h1>
+
       {/* New ProductFilters component with fixed category */}
-      <ProductFilters 
-        filters={filters} 
-        setFilters={setFilters} 
+      <ProductFilters
+        filters={filters}
+        setFilters={setFilters}
         availableCategories={["MEN"]} // Only show MEN category
       />
 
@@ -182,4 +185,4 @@ export default function MenProductsPage() {
       )}
     </div>
   );
-} 
+}
