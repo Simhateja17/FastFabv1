@@ -5,7 +5,6 @@ import { useSearchParams, useRouter } from "next/navigation";
 import Image from "next/image";
 import Link from "next/link";
 import { FiCheckCircle, FiXCircle, FiArrowLeft } from "react-icons/fi";
-import { useUserAuth } from "@/app/context/UserAuthContext";
 
 export default function PaymentStatus() {
   const searchParams = useSearchParams();
@@ -13,48 +12,10 @@ export default function PaymentStatus() {
   const [loading, setLoading] = useState(true);
   const [status, setStatus] = useState(null);
   const [orderDetails, setOrderDetails] = useState(null);
-  const { user, login, authLoading } = useUserAuth();
 
   const orderId = searchParams.get("order_id");
   const paymentId = searchParams.get("cf_payment_id");
   const txStatus = searchParams.get("txStatus");
-
-  useEffect(() => {
-    const syncAuthState = async () => {
-      if (typeof window === 'undefined') return;
-      
-      try {
-        const accessToken = localStorage.getItem('accessToken');
-        const userDataStr = localStorage.getItem('user');
-        
-        if (accessToken && userDataStr) {
-          const userData = JSON.parse(userDataStr);
-          console.log('Ensuring user stays logged in on payment status page:', userData?.name || 'Anonymous user');
-          
-          if (!user && accessToken) {
-            console.log('Forced login to maintain session on payment status page');
-            if (login && typeof login === 'function') {
-              await login({ accessToken, user: userData });
-            }
-          }
-        }
-        
-        const paymentSession = localStorage.getItem('payment_session');
-        if (paymentSession) {
-          const sessionData = JSON.parse(paymentSession);
-          console.log('Found payment session with auth data:', sessionData?.auth);
-          
-          if (sessionData?.auth?.isAuthenticated && !user && !accessToken) {
-            console.log('Attempting to restore auth from payment session');
-          }
-        }
-      } catch (error) {
-        console.error('Error syncing auth state:', error);
-      }
-    };
-    
-    syncAuthState();
-  }, [user, login]);
 
   useEffect(() => {
     async function verifyPayment() {
@@ -66,16 +27,8 @@ export default function PaymentStatus() {
       setLoading(true);
 
       try {
-        const accessToken = localStorage.getItem('accessToken');
-        const headers = {
-          'Content-Type': 'application/json',
-          ...(accessToken ? { 'Authorization': `Bearer ${accessToken}` } : {})
-        };
-        
-        const response = await fetch(
-          `/api/verify-payment?order_id=${orderId}&payment_id=${paymentId || ''}`,
-          { headers }
-        );
+        // Call your API to verify payment status
+        const response = await fetch(`/api/verify-payment?order_id=${orderId}&payment_id=${paymentId || ''}`);
         
         if (!response.ok) {
           throw new Error("Failed to verify payment status");
@@ -83,6 +36,7 @@ export default function PaymentStatus() {
         
         const data = await response.json();
         
+        // Set payment status based on API response
         setStatus(data.payment_status || txStatus || "PENDING");
         setOrderDetails(data.order_details || {
           order_id: orderId,
@@ -91,6 +45,7 @@ export default function PaymentStatus() {
         });
       } catch (error) {
         console.error("Payment verification error:", error);
+        // If the API call fails, fallback to URL params
         setStatus(txStatus || "UNKNOWN");
         setOrderDetails({
           order_id: orderId,
@@ -115,6 +70,7 @@ export default function PaymentStatus() {
       );
     }
 
+    // Successful payment
     if (status === "SUCCESS") {
       return (
         <div className="text-center py-12">
@@ -140,6 +96,7 @@ export default function PaymentStatus() {
       );
     }
 
+    // Failed payment
     if (status === "FAILED" || status === "CANCELLED") {
       return (
         <div className="text-center py-12">
@@ -169,6 +126,7 @@ export default function PaymentStatus() {
       );
     }
 
+    // Pending or unknown status
     return (
       <div className="text-center py-12">
         <div className="mx-auto w-20 h-20 bg-yellow-100 rounded-full flex items-center justify-center mb-6">
@@ -211,9 +169,6 @@ export default function PaymentStatus() {
             />
           </Link>
           <h1 className="text-2xl font-bold text-gray-800">Payment Status</h1>
-          <div className="text-xs text-gray-500 mt-1">
-            {user ? `Logged in as: ${user.name || user.email || 'Authenticated User'}` : (!authLoading ? 'Not logged in' : 'Checking auth...')}
-          </div>
         </div>
         
         <div className="bg-white rounded-lg shadow-sm">

@@ -137,16 +137,55 @@ const storeOTP = async (phoneNumber, otpCode, expiresAt) => {
   // If we get here, we have a database connection
   
   console.log('Storing OTP in database');
-  const otp = await db.whatsAppOTP.create({
-    data: {
-      phoneNumber,
-      otpCode,
-      expiresAt,
-    },
-  });
   
-  console.log('OTP stored in database with ID:', otp.id);
-  return { success: true, id: otp.id };
+  try {
+    const otp = await db.whatsAppOTP.create({
+      data: {
+        phoneNumber,
+        otpCode,
+        expiresAt,
+        updatedAt: new Date(), // Explicitly set updatedAt to ensure compatibility
+      },
+    });
+    
+    console.log('OTP stored in database with ID:', otp.id);
+    return { success: true, id: otp.id };
+  } catch (error) {
+    console.error('Failed to store OTP in database:', error);
+    console.error('Error code:', error.code);
+    console.error('Error name:', error.name);
+    console.error('Error message:', error.message);
+    
+    // If it's a Prisma error with a specific code we can handle
+    if (error.code === 'P2002') {
+      // This is a unique constraint violation
+      console.log('Unique constraint violation, trying to update existing record instead');
+      
+      // Try to update an existing record instead
+      try {
+        const updatedOtp = await db.whatsAppOTP.updateMany({
+          where: { 
+            phoneNumber,
+            expiresAt: { gt: new Date() } // Only update non-expired OTPs
+          },
+          data: {
+            otpCode,
+            expiresAt,
+            updatedAt: new Date(),
+          },
+        });
+        
+        if (updatedOtp.count > 0) {
+          console.log(`Updated ${updatedOtp.count} existing OTP record(s)`);
+          return { success: true, updated: true, count: updatedOtp.count };
+        }
+      } catch (updateError) {
+        console.error('Failed to update existing OTP:', updateError);
+      }
+    }
+    
+    throw error;
+  }
 };
 
 export async function POST(request) {

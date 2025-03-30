@@ -368,6 +368,10 @@ export function UserAuthProvider({ children }) {
       // Save user data to localStorage for persistence
       localStorage.setItem("userData", JSON.stringify(userData));
       console.log("User data saved to localStorage");
+      
+      // Set flag to show location modal
+      localStorage.setItem("justLoggedIn", "true");
+      console.log("Set justLoggedIn flag for location modal trigger");
 
       return { success: true, user: userData };
     } catch (error) {
@@ -423,6 +427,10 @@ export function UserAuthProvider({ children }) {
         setUserTokens(accessToken, refreshToken);
         updateUserState(user);
         localStorage.setItem("userData", JSON.stringify(user));
+        
+        // Set flag to show location modal
+        localStorage.setItem("justLoggedIn", "true");
+        console.log("Set justLoggedIn flag for location modal trigger");
       }
 
       return { success: true, user };
@@ -634,6 +642,10 @@ export function UserAuthProvider({ children }) {
           updateUserState(userData.data.user);
           localStorage.setItem('userData', JSON.stringify(userData.data.user));
           
+          // Set flag to show location modal
+          localStorage.setItem("justLoggedIn", "true");
+          console.log("Set justLoggedIn flag for location modal trigger");
+          
           return { 
             success: true, 
             message: 'Login successful',
@@ -710,6 +722,10 @@ export function UserAuthProvider({ children }) {
         setUserTokens(accessToken, refreshToken);
         updateUserState(result.data.user);
         localStorage.setItem('userData', JSON.stringify(result.data.user));
+        
+        // Set flag to show location modal
+        localStorage.setItem("justLoggedIn", "true");
+        console.log("Set justLoggedIn flag for location modal trigger");
       }
       
       return { success: true };

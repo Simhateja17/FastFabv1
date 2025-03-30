@@ -3,8 +3,9 @@
 import Image from "next/image";
 import Link from "next/link";
 import { useState } from "react";
+import { FiMapPin } from "react-icons/fi";
 
-export default function ProductCard({ product }) {
+export default function ProductCard({ product, showSellerDistance = false }) {
   const [imageError, setImageError] = useState(false);
 
   // Calculate discount percentage
@@ -23,6 +24,9 @@ export default function ProductCard({ product }) {
   // Ensure images is always an array
   const images = Array.isArray(product.images) ? product.images : [];
   const firstImage = images.length > 0 ? images[0] : null;
+  
+  // Get distance to display (might be in product or product.seller)
+  const distance = product.distance || (product.seller && product.seller.distance);
 
   return (
     <Link href={`/products/${product.id}`}>
@@ -68,6 +72,14 @@ export default function ProductCard({ product }) {
           {discountPercentage > 0 && (
             <div className="absolute top-2 right-2 bg-accent text-white px-2 py-1 rounded-md text-sm font-medium">
               {discountPercentage}% OFF
+            </div>
+          )}
+
+          {/* Distance Badge */}
+          {showSellerDistance && distance && (
+            <div className="absolute bottom-2 left-2 bg-white bg-opacity-90 px-2 py-1 rounded-full text-xs flex items-center">
+              <FiMapPin className="mr-1 text-primary" size={12} />
+              <span>{distance} km</span>
             </div>
           )}
 
@@ -120,14 +132,22 @@ export default function ProductCard({ product }) {
 
           {/* Seller Info */}
           {product.seller && (
-            <div className="mt-1 text-xs text-text-muted">
-              <span className="font-medium">{product.seller.shopName}</span>
-              {product.seller.city && (
-                <span className="ml-1">
-                  • {product.seller.city}
-                  {product.seller.state && `, ${product.seller.state}`}
-                </span>
-              )}
+            <div className="mt-1 text-xs text-text-muted flex items-center justify-between">
+              <div className="truncate">
+                <span className="font-medium">{product.seller.shopName || product.seller.name}</span>
+                {product.seller.city && (
+                  <span className="ml-1">
+                    • {product.seller.city}
+                    {product.seller.state && `, ${product.seller.state}`}
+                  </span>
+                )}
+                {!showSellerDistance && distance && (
+                  <span className="ml-1 flex items-center inline-flex">
+                    • <FiMapPin className="mx-1 text-primary" size={10} />
+                    {distance} km
+                  </span>
+                )}
+              </div>
             </div>
           )}
 

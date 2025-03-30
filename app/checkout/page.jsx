@@ -1,11 +1,10 @@
 "use client";
 
-import { useState, useEffect, useContext } from "react";
+import { useState, useEffect } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import Image from "next/image";
 import { FiArrowLeft, FiCreditCard, FiCheckCircle } from "react-icons/fi";
 import Link from "next/link";
-import { useUserAuth } from "@/app/context/UserAuthContext"; // Import the auth context
 
 export default function Checkout() {
   const searchParams = useSearchParams();
@@ -13,62 +12,11 @@ export default function Checkout() {
   const [loading, setLoading] = useState(true);
   const [paymentStatus, setPaymentStatus] = useState("pending"); // pending, success, failed
   const [orderDetails, setOrderDetails] = useState(null);
-  const { user, login, authLoading } = useUserAuth(); // Get auth context
 
   const sessionId = searchParams.get("session_id");
   const orderId = searchParams.get("order_id");
 
-  // Special effect to ensure user stays logged in
   useEffect(() => {
-    const syncAuthState = async () => {
-      if (typeof window === 'undefined') return;
-      
-      try {
-        // Get auth info from localStorage
-        const accessToken = localStorage.getItem('accessToken');
-        const userDataStr = localStorage.getItem('user');
-        
-        if (accessToken && userDataStr) {
-          const userData = JSON.parse(userDataStr);
-          console.log('Ensuring user stays logged in on checkout page:', userData?.name || 'Anonymous user');
-          
-          // If we have token but auth context doesn't show user as logged in (or is still loading)
-          if (!user && accessToken) {
-            // Force login with the stored data to ensure auth context is updated
-            console.log('Forced login to maintain session');
-            if (login && typeof login === 'function') {
-              await login({ accessToken, user: userData });
-            }
-          }
-        }
-        
-        // Also check payment session for auth data as backup
-        const paymentSession = localStorage.getItem('payment_session');
-        if (paymentSession) {
-          const sessionData = JSON.parse(paymentSession);
-          console.log('Found payment session with auth data:', sessionData?.auth);
-          
-          // If we have auth data in payment session but no user in context, try to restore
-          if (sessionData?.auth?.isAuthenticated && !user && !accessToken) {
-            console.log('Attempting to restore auth from payment session');
-            // In a real application, you would call your API to validate the token
-            // and retrieve fresh user data if the token is still valid
-          }
-        }
-      } catch (error) {
-        console.error('Error syncing auth state:', error);
-      }
-    };
-    
-    syncAuthState();
-  }, [user, login]);
-
-  useEffect(() => {
-    // Restore authentication state first
-    if (typeof window !== 'undefined') {
-      // We handle this in the separate useEffect above
-    }
-
     // If we don't have a session ID or order ID, redirect to home
     if (!sessionId || !orderId) {
       router.push("/");
@@ -85,9 +33,6 @@ export default function Checkout() {
       currency: "INR",
       status: "pending"
     });
-
-    // Load the real order details
-    fetchOrderDetails(orderId);
 
     // Simulate loading completion
     setTimeout(() => {
@@ -117,26 +62,7 @@ export default function Checkout() {
   };
 
   const initiatePayment = () => {
-    // Check if user is logged in and preserve auth state again before payment
-    const accessToken = localStorage.getItem('accessToken');
-    const userData = localStorage.getItem('user');
-    
-    if (accessToken && userData) {
-      console.log('Preserving auth state before initiating payment');
-      // Refresh token in localStorage to ensure it doesn't expire
-      localStorage.setItem('accessToken', accessToken);
-      localStorage.setItem('user', userData);
-    }
-    
-    // Verify we have a valid session ID before proceeding
-    if (!sessionId) {
-      console.error('Session ID missing, cannot proceed with payment');
-      setLoading(false);
-      // Redirect to product page or show error
-      router.push('/');
-      return;
-    }
-    
+    // This function would be called when the user clicks "Proceed to Pay"
     if (typeof window.Cashfree === 'undefined') {
       console.error('Cashfree SDK not loaded');
       return;
@@ -145,9 +71,8 @@ export default function Checkout() {
     setLoading(true);
 
     try {
-      console.log(`Initiating payment with session ID: ${sessionId}`);
       const cashfree = new window.Cashfree({
-        mode: 'production' // Force production mode explicitly
+        mode: process.env.NEXT_PUBLIC_CASHFREE_ENV === 'PRODUCTION' ? 'production' : 'sandbox'
       });
 
       cashfree.checkout({
@@ -174,36 +99,6 @@ export default function Checkout() {
     } catch (error) {
       console.error('Error initiating Cashfree checkout:', error);
       setLoading(false);
-    }
-  };
-
-  // New function to fetch order details
-  const fetchOrderDetails = async (orderId) => {
-    try {
-      // Try to get the access token in case the user is logged in
-      const accessToken = localStorage.getItem('accessToken');
-      const headers = {
-        'Content-Type': 'application/json',
-        ...(accessToken ? { 'Authorization': `Bearer ${accessToken}` } : {})
-      };
-      
-      // Call our API to get order details
-      const response = await fetch(`/api/orders/${orderId}`, {
-        headers
-      });
-      
-      if (response.ok) {
-        const data = await response.json();
-        setOrderDetails({
-          orderId: data.order_id,
-          amount: data.order_amount,
-          currency: data.order_currency,
-          status: data.order_status
-        });
-      }
-    } catch (error) {
-      console.error('Error fetching order details:', error);
-      // We already have fallback data set, so no need to do anything
     }
   };
 
@@ -267,17 +162,38 @@ export default function Checkout() {
                     <div className="h-5 bg-gray-200 rounded w-1/2"></div>
                     <div className="h-5 bg-gray-200 rounded w-3/4"></div>
                     <div className="h-5 bg-gray-200 rounded w-1/3"></div>
+                    <div className="h-5 bg-gray-200 rounded w-1/2"></div>
+                    <div className="h-5 bg-gray-200 rounded w-1/4"></div>
+                    <div className="h-8 bg-gray-200 rounded w-1/2 mt-4"></div>
                   </div>
                 ) : (
-                  <div className="space-y-3">
+                  <div className="space-y-3 border-b pb-4 mb-4">
                     <div className="flex justify-between">
-                      <span className="text-gray-600">Order ID</span>
-                      <span className="font-medium">{orderDetails?.orderId}</span>
+                      <span className="text-gray-600">Total M.R.P</span>
+                      <span className="font-medium">₹1799</span>
                     </div>
                     <div className="flex justify-between">
-                      <span className="text-gray-600">Amount</span>
-                      <span className="font-medium">₹{orderDetails?.amount}</span>
+                      <span className="text-gray-600">Discount on M.R.P</span>
+                      <span className="font-medium text-green-600">- ₹1200</span>
                     </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">Coupon Discount</span>
+                      <button className="text-primary font-medium text-sm">Apply Coupon</button>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">Delivery Fee</span>
+                      <span className="font-medium">₹40</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">Convenience Fee</span>
+                      <span className="font-medium">₹10</span>
+                    </div>
+                  </div>
+                )}
+                {!loading && (
+                  <div className="flex justify-between font-bold text-lg mb-6">
+                    <span>Total Amount</span>
+                    <span>₹649</span>
                   </div>
                 )}
                 <div className="mt-6">
@@ -398,10 +314,6 @@ export default function Checkout() {
             />
           </Link>
           <h1 className="text-2xl font-bold text-gray-800">Checkout</h1>
-          {/* Show auth status to help debug */}
-          <div className="text-xs text-gray-500 mt-1">
-            {user ? `Logged in as: ${user.name || user.email || 'Authenticated User'}` : (!authLoading ? 'Not logged in' : 'Checking auth...')}
-          </div>
         </div>
         
         {renderContent()}
