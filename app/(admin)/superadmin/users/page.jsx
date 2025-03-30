@@ -286,9 +286,9 @@ export default function UsersPage() {
               Confirm Deletion
             </h3>
             <p className="text-text-muted mb-6">
-              Are you sure you want to delete the user "
-              {selectedUser.name || selectedUser.email}"? This action cannot be
-              undone and will delete all their data.
+              Are you sure you want to delete the user &quot;
+              {selectedUser.name || selectedUser.email}&quot;? This action
+              cannot be undone and will delete all their data.
             </p>
             <div className="flex justify-end space-x-3">
               <button

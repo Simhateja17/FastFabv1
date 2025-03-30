@@ -273,9 +273,9 @@ export default function SellersPage() {
               Confirm Deletion
             </h3>
             <p className="text-text-muted mb-6">
-              Are you sure you want to delete seller "
-              {selectedSeller.shopName || selectedSeller.phone}"? This action
-              cannot be undone and will delete all their products.
+              Are you sure you want to delete seller &quot;
+              {selectedSeller.shopName || selectedSeller.phone}&quot;? This
+              action cannot be undone and will delete all their products.
             </p>
             <div className="flex justify-end space-x-3">
               <button
