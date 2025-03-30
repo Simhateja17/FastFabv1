@@ -50,6 +50,8 @@ function LocationModalContent({ isOpen, onClose, setCurrentLocation, locationCon
       console.warn("Using localStorage fallback for location storage");
       try {
         localStorage.setItem("userLocation", JSON.stringify(locationData));
+        // Set a flag to indicate location has been set by the user
+        localStorage.setItem("locationSet", "true");
         success = true;
       } catch (err) {
         console.error("Failed to store location in localStorage:", err);
@@ -205,6 +207,14 @@ function LocationModalContent({ isOpen, onClose, setCurrentLocation, locationCon
 
         // Set the selected location
         setCurrentLocation(locationName);
+        
+        // Set a flag to indicate location has been set by the user
+        // This helps prevent the location modal from showing repeatedly
+        localStorage.setItem("locationSet", "true");
+        
+        // Remove the justLoggedIn flag to prevent the modal from showing again on refresh
+        localStorage.removeItem("justLoggedIn");
+        
         onClose();
       });
     } catch (error) {
@@ -251,64 +261,46 @@ function LocationModalContent({ isOpen, onClose, setCurrentLocation, locationCon
             if (status === 'OK' && results[0]) {
               console.log('Geocoder results:', results);
               
-              // Use the first result as the location name, usually the formatted address
-              const locationName = results[0].formatted_address.split(',')[0];
-              console.log("Current location detected:", locationName);
-              setCurrentLocation(locationName);
+              const address = results[0];
+              const locationName = address.formatted_address.split(",")[0];
               
-              // Also store the full address information if user is logged in
-              if (user?.id) {
-                const addressData = {
-                  line1: results[0].formatted_address,
-                  city: '',
-                  state: '',
-                  pincode: '',
-                  name: 'Current Location',
-                  phone: user.phone || '',
-                  latitude,
-                  longitude
-                };
-                
-                // Extract address components
-                results[0].address_components.forEach(component => {
-                  if (component.types.includes("locality")) {
-                    addressData.city = component.long_name;
-                  } else if (component.types.includes("administrative_area_level_1")) {
-                    addressData.state = component.long_name;
-                  } else if (component.types.includes("postal_code")) {
-                    addressData.pincode = component.long_name;
-                  }
-                });
-                
-                console.log("Storing complete address:", addressData);
-                storeUserAddress(user.id, addressData);
-              }
-              
-              // Update location context with new location using our safer method
+              // Store the location and update UI
               safeUpdateLocation({
                 latitude,
                 longitude,
                 label: locationName,
-                source: "currentLocation",
+                source: "geolocation",
                 timestamp: new Date().toISOString()
               });
+
+              // Set location as chosen by user
+              localStorage.setItem("locationSet", "true");
               
+              // Remove the justLoggedIn flag
+              localStorage.removeItem("justLoggedIn");
+              
+              setCurrentLocation(locationName);
               onClose();
+
+              // If user is logged in, store in server
+              if (user?.id) {
+                storeUserLocation(user.id, latitude, longitude);
+              }
             } else {
-              console.error("Geocoder failed due to: " + status);
-              setCurrentLocation("Location error");
+              console.error("Geocoder failed:", status);
+              alert("Could not determine your address. Please try again or enter it manually.");
             }
           });
         },
         (error) => {
           setLoading(false);
-          console.error("Error getting current location:", error);
-          alert("Unable to get your current location. Please check your browser permissions.");
+          console.error("Geolocation error:", error);
+          alert("Error accessing your location: " + error.message);
         }
       );
     } else {
       setLoading(false);
-      alert("Geolocation is not supported by this browser.");
+      alert("Geolocation is not supported by your browser.");
     }
   };
 
