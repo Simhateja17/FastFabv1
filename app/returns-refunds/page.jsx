@@ -113,7 +113,7 @@ export default function ReturnsAndRefunds() {
                 <p className="text-text">
                   Some items may not be eligible for return. Please check the
                   product page before purchasing to see if an item is marked as
-                  "non-returnable."
+                  &quot;non-returnable.&quot;
                 </p>
               </div>
             </section>
