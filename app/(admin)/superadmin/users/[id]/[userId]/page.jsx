@@ -1,8 +1,8 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
-import { getAdminApiClient } from "@/lib/api";
-import { ADMIN_ENDPOINTS } from "@/lib/endpoints";
+import { getAdminApiClient } from "@/app/lib/api";
+import { ADMIN_ENDPOINTS } from "@/app/lib/endpoints";
 import { useParams } from "next/navigation";
 
 const UserDetailsPage = () => {
