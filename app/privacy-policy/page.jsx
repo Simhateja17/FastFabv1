@@ -55,14 +55,28 @@ export default function PrivacyPolicy() {
               </h2>
               <div className="space-y-4 ml-11 text-text">
                 <p>
-                  This Privacy Policy explains how Fast&Fab ("we", "us", or
-                  "our") collects, uses, and protects your personal information
-                  when you use our website or services. We are committed to
-                  ensuring that your privacy is protected.
+                  This Privacy Policy explains how Fast&Fab (&quot;we&quot;,
+                  &quot;us&quot;, or &quot;our&quot;) collects, uses, and
+                  protects your personal information when you use our website or
+                  services. We are committed to ensuring that your privacy is
+                  protected.
                 </p>
                 <p>
                   By using our website, you agree to the collection and use of
                   information in accordance with this policy.
+                </p>
+                <p className="mt-2">
+                  This Privacy Policy applies to all personal information
+                  collected by us. By using our services, you consent to the
+                  collection, use, storage, and disclosure of your personal
+                  information in accordance with this Privacy Policy and as
+                  otherwise permitted under the Privacy Act.
+                </p>
+                <p className="mt-2">
+                  The terms &quot;we&quot;, &quot;us&quot;, &quot;our&quot; and
+                  &quot;Fast&Fab&quot; refer to Fast&Fab, and the terms
+                  &quot;you&quot; and &quot;your&quot; refer to our customers,
+                  users, and visitors of the FastFab website.
                 </p>
               </div>
             </section>
@@ -93,6 +107,10 @@ export default function PrivacyPolicy() {
                     Information about your device and how you use our website
                   </li>
                 </ul>
+                <p className="mt-2">
+                  When setting up and operating your Fast&apos;nFab account, we
+                  collect personal information such as:
+                </p>
               </div>
             </section>
 
@@ -138,6 +156,13 @@ export default function PrivacyPolicy() {
                   of electronic storage is 100% secure. While we strive to use
                   commercially acceptable means to protect your personal
                   information, we cannot guarantee its absolute security.
+                </p>
+                <p className="mt-2">
+                  For security and verification purposes, we may record and
+                  track details of your visits to our platform. We may monitor
+                  traffic patterns, site usage, and related information to
+                  optimize your experience. We also use &quot;cookies&quot; and
+                  &quot;web beacons&quot; to remember your preferences.
                 </p>
               </div>
             </section>
@@ -196,7 +221,7 @@ export default function PrivacyPolicy() {
                 <span className="bg-primary bg-opacity-10 text-primary rounded-full w-8 h-8 inline-flex items-center justify-center mr-3 text-sm">
                   7
                 </span>
-                Children's Privacy
+                Children&apos;s Privacy
               </h2>
               <div className="space-y-4 ml-11 text-text">
                 <p>
@@ -220,7 +245,7 @@ export default function PrivacyPolicy() {
                 <p>
                   We may update our Privacy Policy from time to time. We will
                   notify you of any changes by posting the new Privacy Policy on
-                  this page and updating the "Last updated" date.
+                  this page and updating the &quot;Last updated&quot; date.
                 </p>
                 <p>
                   You are advised to review this Privacy Policy periodically for
