@@ -65,7 +65,7 @@ export default function SustainabilityPage() {
                   <p className="mt-2">
                     At Fast&Fab, we believe in{" "}
                     <span className="font-medium">
-                      fashion that doesn't cost the earth
+                      fashion that doesn&apos;t cost the earth
                     </span>
                     . Our commitment extends beyond quick commerce to ensuring
                     environmental responsibility.
