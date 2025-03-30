@@ -26,9 +26,9 @@ export default function ShippingPolicy() {
               </h2>
               <div className="space-y-4">
                 <p className="text-text">
-                  Need your outfit ASAP? We've got you covered! Your order will
-                  be delivered within 30 minutes, so you'll never have to wait
-                  long to style up.
+                  Need your outfit ASAP? We&apos;ve got you covered! Your order
+                  will be delivered within 30 minutes, so you&apos;ll never have
+                  to wait long to style up.
                 </p>
                 <div className="bg-background p-4 rounded-lg border border-ui-border mt-4">
                   <div className="flex items-center">
@@ -53,7 +53,8 @@ export default function ShippingPolicy() {
                         30-Minute Delivery Promise
                       </h3>
                       <p className="text-text-muted">
-                        We're committed to getting your fashion to you quickly
+                        We&apos;re committed to getting your fashion to you
+                        quickly
                       </p>
                     </div>
                   </div>
@@ -68,13 +69,13 @@ export default function ShippingPolicy() {
               <div className="space-y-4">
                 <p className="text-text">
                   Our 30-minute delivery service is currently available in
-                  select areas of Hyderabad. During checkout, you'll be able to
-                  see if your location qualifies for our express delivery
-                  service.
+                  select areas of Hyderabad. During checkout, you&apos;ll be
+                  able to see if your location qualifies for our express
+                  delivery service.
                 </p>
                 <p className="text-text">
-                  We're constantly expanding our coverage area to serve more
-                  customers with our lightning-fast delivery.
+                  We&apos;re constantly expanding our coverage area to serve
+                  more customers with our lightning-fast delivery.
                 </p>
               </div>
             </section>
@@ -91,8 +92,8 @@ export default function ShippingPolicy() {
                 </p>
                 <p className="text-text">
                   During peak times or special sale events, delivery times may
-                  be slightly extended. We'll always keep you informed about the
-                  status of your order.
+                  be slightly extended. We&apos;ll always keep you informed
+                  about the status of your order.
                 </p>
               </div>
             </section>
@@ -121,10 +122,10 @@ export default function ShippingPolicy() {
               </h2>
               <div className="space-y-4">
                 <p className="text-text">
-                  Once your order is confirmed, you'll receive real-time updates
-                  about your delivery status via SMS and in-app notifications.
-                  You can also track your order's progress through your account
-                  dashboard.
+                  Once your order is confirmed, you&apos;ll receive real-time
+                  updates about your delivery status via SMS and in-app
+                  notifications. You can also track your order&apos;s progress
+                  through your account dashboard.
                 </p>
               </div>
             </section>
