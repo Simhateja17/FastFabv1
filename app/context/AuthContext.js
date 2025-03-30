@@ -270,6 +270,80 @@ export function AuthProvider({ children }) {
     }
   };
 
+  // Login with OTP function
+  const loginWithOTP = async (phone) => {
+    try {
+      setLoading(true);
+      const response = await fetch(`/api/auth/signin-otp`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ phone }),
+      });
+
+      const data = await response.json();
+      console.log('OTP Login response:', data);
+
+      if (!response.ok) {
+        return { success: false, error: data.message || 'Login failed' };
+      }
+
+      if (data.accessToken && data.refreshToken) {
+        setTokens(data.accessToken, data.refreshToken);
+        setSeller(data.seller);
+        return { success: true, seller: data.seller };
+      } else {
+        console.error('Missing tokens in login response');
+        return { success: false, error: 'Invalid server response' };
+      }
+    } catch (error) {
+      console.error("OTP Login error:", error);
+      return { success: false, error: error.message || 'Something went wrong' };
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Register with OTP function
+  const registerWithOTP = async (phone) => {
+    try {
+      setLoading(true);
+      const response = await fetch(`/api/auth/signup-otp`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ phone }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        return { 
+          success: false, 
+          error: data.message || "Registration failed" 
+        };
+      }
+
+      setTokens(data.accessToken, data.refreshToken);
+      setSeller(data.seller);
+      return { 
+        success: true, 
+        accessToken: data.accessToken, 
+        seller: data.seller 
+      };
+    } catch (error) {
+      console.error("OTP Registration error:", error);
+      return { 
+        success: false, 
+        error: error.message || 'Something went wrong' 
+      };
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
     <AuthContext.Provider
       value={{
@@ -281,6 +355,8 @@ export function AuthProvider({ children }) {
         updateSellerDetails,
         authFetch,
         setSeller,
+        loginWithOTP,
+        registerWithOTP,
       }}
     >
       {children}
