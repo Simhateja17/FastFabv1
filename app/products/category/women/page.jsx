@@ -66,29 +66,30 @@ export default function WomenProductsPage() {
       let filteredProducts = data.products.filter(
         product => product.category === "WOMEN" || product.category === "Women"
       );
-      
+
       // Apply subcategory filter if selected
       if (filters.subcategory) {
         filteredProducts = filteredProducts.filter(
-          product => 
-            product.subcategory && 
-            product.subcategory.toLowerCase() === filters.subcategory.toLowerCase()
+          (product) =>
+            product.subcategory &&
+            product.subcategory.toLowerCase() ===
+              filters.subcategory.toLowerCase()
         );
       }
-      
+
       // Apply size filter if selected
       if (filters.size) {
         filteredProducts = filteredProducts.filter(
-          product => 
-            product.sizeQuantities && 
-            product.sizeQuantities[filters.size] && 
+          (product) =>
+            product.sizeQuantities &&
+            product.sizeQuantities[filters.size] &&
             product.sizeQuantities[filters.size] > 0
         );
       }
-      
+
       // Apply client-side filtering for price if needed
       if (filters.minPrice !== null || filters.maxPrice !== null) {
-        filteredProducts = filteredProducts.filter(product => {
+        filteredProducts = filteredProducts.filter((product) => {
           const price = Number(product.sellingPrice);
           if (filters.minPrice !== null && filters.maxPrice !== null) {
             return price >= filters.minPrice && price <= filters.maxPrice;
@@ -100,18 +101,18 @@ export default function WomenProductsPage() {
           return true;
         });
       }
-      
+
       // Apply sorting
       if (filters.sort) {
         filteredProducts = [...filteredProducts].sort((a, b) => {
           switch (filters.sort) {
-            case 'price_asc':
+            case "price_asc":
               return Number(a.sellingPrice) - Number(b.sellingPrice);
-            case 'price_desc':
+            case "price_desc":
               return Number(b.sellingPrice) - Number(a.sellingPrice);
-            case 'newest':
+            case "newest":
               return new Date(b.createdAt || 0) - new Date(a.createdAt || 0);
-            case 'popular':
+            case "popular":
               // If you have popularity metrics like views or sales, use them here
               return 0;
             default:
@@ -119,7 +120,7 @@ export default function WomenProductsPage() {
           }
         });
       }
-      
+
       setProducts(filteredProducts);
       setLocationError(filteredProducts.length === 0);
     } catch (error) {
@@ -248,4 +249,4 @@ export default function WomenProductsPage() {
       }}
     </SafeLocationConsumer>
   );
-} 
+}
