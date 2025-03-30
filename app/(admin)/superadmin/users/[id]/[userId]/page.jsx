@@ -1,3 +1,5 @@
+"use client";
+
 import React, { useEffect, useState } from "react";
 import { getAdminApiClient } from "@/lib/api";
 import { ADMIN_ENDPOINTS } from "@/lib/endpoints";
