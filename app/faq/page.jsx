@@ -151,7 +151,7 @@ export default function FAQPage() {
                     What if my order is delayed?
                   </h3>
                   <p className="mt-2">
-                    If your order isn't delivered within{" "}
+                    If your order isn&apos;t delivered within{" "}
                     <span className="font-medium">30 minutes</span>, you can
                     contact our support team for assistance.
                   </p>
@@ -248,7 +248,9 @@ export default function FAQPage() {
                   </h3>
                   <p className="mt-2">
                     Interested sellers can apply through our{" "}
-                    <span className="font-medium">"Sell on Fast&Fab"</span>{" "}
+                    <span className="font-medium">
+                      &quot;Sell on Fast&Fab&quot;
+                    </span>{" "}
                     portal. We review applications and onboard sellers quickly.
                   </p>
                 </div>
