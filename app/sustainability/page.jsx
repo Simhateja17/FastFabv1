@@ -76,7 +76,7 @@ export default function SustainabilityPage() {
                     Balancing Speed and Sustainability
                   </h3>
                   <p className="mt-2">
-                    We're proving that{" "}
+                    We&apos;re proving that{" "}
                     <span className="font-medium">
                       fast delivery and sustainable practices
                     </span>{" "}
@@ -115,7 +115,7 @@ export default function SustainabilityPage() {
                     Reducing Harmful Chemicals
                   </h3>
                   <p className="mt-2">
-                    We're working with manufacturers who are committed to{" "}
+                    We&apos;re working with manufacturers who are committed to{" "}
                     <span className="font-medium">
                       reducing harmful chemicals in the dyeing and production
                       processes
@@ -129,7 +129,9 @@ export default function SustainabilityPage() {
                   </h3>
                   <p className="mt-2">
                     Look for our{" "}
-                    <span className="font-medium">"Earth-Friendly" labels</span>{" "}
+                    <span className="font-medium">
+                      &quot;Earth-Friendly&quot; labels
+                    </span>{" "}
                     that highlight products meeting our sustainability criteria.
                   </p>
                 </div>
@@ -200,7 +202,10 @@ export default function SustainabilityPage() {
                     Clothing Recycle Program
                   </h3>
                   <p className="mt-2">
-                    Our <span className="font-medium">"Give Back" program</span>{" "}
+                    Our{" "}
+                    <span className="font-medium">
+                      &quot;Give Back&quot; program
+                    </span>{" "}
                     allows customers to return old clothing items during
                     delivery of new orders, which we then recycle or upcycle.
                   </p>
@@ -256,7 +261,7 @@ export default function SustainabilityPage() {
                     Transparent Supply Chain
                   </h3>
                   <p className="mt-2">
-                    We're working towards{" "}
+                    We&apos;re working towards{" "}
                     <span className="font-medium">
                       100% supply chain transparency
                     </span>{" "}
@@ -270,7 +275,9 @@ export default function SustainabilityPage() {
                   </h3>
                   <p className="mt-2">
                     Our{" "}
-                    <span className="font-medium">"Artisan Collection"</span>{" "}
+                    <span className="font-medium">
+                      &quot;Artisan Collection&quot;
+                    </span>{" "}
                     showcases products from local craftspeople, preserving
                     traditional techniques while providing sustainable
                     livelihoods.
@@ -286,7 +293,7 @@ export default function SustainabilityPage() {
                   Join Our Sustainability Journey
                 </h2>
                 <p className="text-text mb-4">
-                  We're constantly working to improve our sustainability
+                  We&apos;re constantly working to improve our sustainability
                   practices. Have suggestions or want to learn more? Contact our
                   sustainability team at{" "}
                   <a
