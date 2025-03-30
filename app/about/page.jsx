@@ -56,11 +56,11 @@ export default function AboutUs() {
               </h2>
               <p className="text-lg text-text ml-11">
                 Why wait for fashion when you can have it now? Fast&Fab is
-                Hyderabad's first ultra-fast fashion delivery service, designed
-                for those who need style on demand. Whether it's a last-minute
-                event, an unexpected plan, or just the urge to refresh your
-                wardrobe, we bring the latest trends straight to your doorstep
-                in just 30 minutes.
+                Hyderabad&apos;s first ultra-fast fashion delivery service,
+                designed for those who need style on demand. Whether it&apos;s a
+                last-minute event, an unexpected plan, or just the urge to
+                refresh your wardrobe, we bring the latest trends straight to
+                your doorstep in just 30 minutes.
               </p>
             </div>
 
@@ -75,8 +75,8 @@ export default function AboutUs() {
                 <p className="text-text">
                   Trends move fast, and so do we! Our collection is constantly
                   updated with stylish, curated outfits that help you stand out.
-                  Whether you're dressing up for a big night out or keeping it
-                  casual, we make sure you always have the right look at the
+                  Whether you&apos;re dressing up for a big night out or keeping
+                  it casual, we make sure you always have the right look at the
                   right time.
                 </p>
               </div>

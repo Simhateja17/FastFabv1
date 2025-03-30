@@ -115,7 +115,7 @@ export default function FAQPage() {
               <div className="space-y-6 ml-11 text-text">
                 <div>
                   <h3 className="text-lg font-medium text-text-dark">
-                    How fast is Fast&Fab's delivery?
+                    How fast is Fast&Fab&apos;s delivery?
                   </h3>
                   <p className="mt-2">
                     We guarantee delivery within{" "}
@@ -129,8 +129,8 @@ export default function FAQPage() {
                     Can I track my order?
                   </h3>
                   <p className="mt-2">
-                    Yes! You'll receive a tracking link via SMS or email after
-                    placing your order.
+                    Yes! You&apos;ll receive a tracking link via SMS or email
+                    after placing your order.
                   </p>
                 </div>
                 <div>
