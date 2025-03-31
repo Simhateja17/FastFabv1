@@ -368,7 +368,7 @@ export function UserAuthProvider({ children }) {
       // Save user data to localStorage for persistence
       localStorage.setItem("userData", JSON.stringify(userData));
       console.log("User data saved to localStorage");
-      
+
       // Set flag to show location modal
       localStorage.setItem("justLoggedIn", "true");
       console.log("Set justLoggedIn flag for location modal trigger");
@@ -427,7 +427,7 @@ export function UserAuthProvider({ children }) {
         setUserTokens(accessToken, refreshToken);
         updateUserState(user);
         localStorage.setItem("userData", JSON.stringify(user));
-        
+
         // Set flag to show location modal
         localStorage.setItem("justLoggedIn", "true");
         console.log("Set justLoggedIn flag for location modal trigger");
@@ -503,237 +503,255 @@ export function UserAuthProvider({ children }) {
   const sendWhatsAppOTP = async (phoneNumber) => {
     try {
       setLoading(true);
-      
+
       // Just trim the phone number, the backend will handle formatting
       const formattedPhone = phoneNumber.trim();
-      
-      console.log('Sending request to WhatsApp OTP API:', formattedPhone);
-      
-      const response = await fetch('/api/whatsapp-otp/send', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+
+      console.log("Sending request to WhatsApp OTP API:", formattedPhone);
+
+      const response = await fetch("/api/whatsapp-otp/send", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ phoneNumber: formattedPhone }),
       });
-      
-      console.log('WhatsApp OTP API response status:', response.status);
-      
+
+      console.log("WhatsApp OTP API response status:", response.status);
+
       let result;
       try {
         result = await response.json();
-        console.log('WhatsApp OTP API response body:', result);
+        console.log("WhatsApp OTP API response body:", result);
       } catch (jsonError) {
-        console.error('Failed to parse API response as JSON:', jsonError);
+        console.error("Failed to parse API response as JSON:", jsonError);
         return {
           success: false,
-          message: 'Failed to communicate with OTP service',
-          error: jsonError
+          message: "Failed to communicate with OTP service",
+          error: jsonError,
         };
       }
-      
+
       // Check if the response includes the special "delivery may be delayed" message
-      const isDelayedDelivery = result?.message?.includes('delivery may be delayed') || 
-                                result?.message?.includes('cannot be sent');
-      
+      const isDelayedDelivery =
+        result?.message?.includes("delivery may be delayed") ||
+        result?.message?.includes("cannot be sent");
+
       // Even with a successful status code, the message might indicate a partial success
       if (response.ok) {
         // If OTP was generated but delivery might be delayed (partial success)
         if (isDelayedDelivery) {
-          console.log('OTP generated but delivery may be delayed:', result);
-          return { 
+          console.log("OTP generated but delivery may be delayed:", result);
+          return {
             success: true, // Consider this a success since the OTP was created
-            message: 'OTP generated but delivery to WhatsApp may be delayed. Please check your app.',
+            message:
+              "OTP generated but delivery to WhatsApp may be delayed. Please check your app.",
             expiresAt: result.expiresAt,
-            warning: true // Flag to indicate this is a partial success
+            warning: true, // Flag to indicate this is a partial success
           };
         }
-        
+
         // Full success case
-        return { 
-          success: true, 
-          message: result.message || 'OTP sent successfully',
-          expiresAt: result.expiresAt 
+        return {
+          success: true,
+          message: result.message || "OTP sent successfully",
+          expiresAt: result.expiresAt,
         };
       }
-      
+
       // Handle error cases
-      console.error('Error from WhatsApp OTP API:', result?.error || result?.message || 'No specific error details available from API');
-      
+      console.error(
+        "Error from WhatsApp OTP API:",
+        result?.error ||
+          result?.message ||
+          "No specific error details available from API"
+      );
+
       // If we have a special case where OTP was generated but delivery failed
       if (isDelayedDelivery && result.expiresAt) {
-        return { 
+        return {
           success: true, // Consider this a success since the OTP was created
-          message: 'OTP generated but not delivered to WhatsApp. Please contact support if needed.',
+          message:
+            "OTP generated but not delivered to WhatsApp. Please contact support if needed.",
           expiresAt: result.expiresAt,
-          warning: true // Flag to indicate this is a partial success
+          warning: true, // Flag to indicate this is a partial success
         };
       }
-      
+
       // Regular error case
-      return { 
-        success: false, 
-        message: result?.message || 'Failed to send OTP',
-        error: result?.error || 'Unknown error',
-        code: result?.code
+      return {
+        success: false,
+        message: result?.message || "Failed to send OTP",
+        error: result?.error || "Unknown error",
+        code: result?.code,
       };
     } catch (error) {
-      console.error('WhatsApp OTP send error:', error);
-      return { 
-        success: false, 
-        message: error.message || 'Failed to send OTP',
-        error: error
+      console.error("WhatsApp OTP send error:", error);
+      return {
+        success: false,
+        message: error.message || "Failed to send OTP",
+        error: error,
       };
     } finally {
       setLoading(false);
     }
   };
-  
+
   const verifyWhatsAppOTP = async (phoneNumber, otpCode) => {
     try {
       setLoading(true);
-      
+
       // Just trim the phone number, the backend will handle formatting
       const formattedPhone = phoneNumber.trim();
-      
-      console.log('Sending verification request to WhatsApp OTP API:', { phone: formattedPhone, otpCode });
-      
-      const response = await fetch('/api/whatsapp-otp/verify', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          phoneNumber: formattedPhone, 
-          otpCode 
+
+      console.log("Sending verification request to WhatsApp OTP API:", {
+        phone: formattedPhone,
+        otpCode,
+      });
+
+      const response = await fetch("/api/whatsapp-otp/verify", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          phoneNumber: formattedPhone,
+          otpCode,
         }),
       });
-      
-      console.log('WhatsApp OTP verification API response status:', response.status);
+
+      console.log(
+        "WhatsApp OTP verification API response status:",
+        response.status
+      );
       const result = await response.json();
-      console.log('WhatsApp OTP verification API response body:', result);
-      
+      console.log("WhatsApp OTP verification API response body:", result);
+
       // Even if we get a non-200 status, we still have the error details in the result
       if (!response.ok) {
-        console.error('Error from WhatsApp OTP verification API:', result);
-        return { 
-          success: false, 
-          message: result.message || 'Failed to verify OTP',
+        console.error("Error from WhatsApp OTP verification API:", result);
+        return {
+          success: false,
+          message: result.message || "Failed to verify OTP",
           error: result.error,
-          code: result.code
+          code: result.code,
         };
       }
-      
+
       // User exists case: Check if user exists with this phone number
       try {
-        console.log('Checking if user exists with phone number:', formattedPhone);
-        const formattedPhoneWithPlus = formattedPhone.startsWith('+') ? formattedPhone : '+' + formattedPhone;
-        
+        console.log(
+          "Checking if user exists with phone number:",
+          formattedPhone
+        );
+        const formattedPhoneWithPlus = formattedPhone.startsWith("+")
+          ? formattedPhone
+          : "+" + formattedPhone;
+
         const userResponse = await fetch(USER_ENDPOINTS.GET_USER_BY_PHONE, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ phone: formattedPhoneWithPlus }),
         });
 
-        console.log('User lookup response status:', userResponse.status);
+        console.log("User lookup response status:", userResponse.status);
         const userData = await userResponse.json();
-        console.log('User lookup response:', userData);
+        console.log("User lookup response:", userData);
 
         // If user exists, login with phone (userData.success === true)
         if (userData.success && userData.data?.tokens) {
           const { accessToken, refreshToken } = userData.data.tokens;
           setUserTokens(accessToken, refreshToken);
           updateUserState(userData.data.user);
-          localStorage.setItem('userData', JSON.stringify(userData.data.user));
-          
+          localStorage.setItem("userData", JSON.stringify(userData.data.user));
+
           // Set flag to show location modal
           localStorage.setItem("justLoggedIn", "true");
           console.log("Set justLoggedIn flag for location modal trigger");
-          
-          return { 
-            success: true, 
-            message: 'Login successful',
+
+          return {
+            success: true,
+            message: "Login successful",
             isNewUser: false,
-            userId: userData.data.user.id
+            userId: userData.data.user.id,
           };
         }
-        
+
         // User doesn't exist, will need to register
-        return { 
-          success: true, 
-          message: 'OTP verified successfully. New user registration required.',
+        return {
+          success: true,
+          message: "OTP verified successfully. New user registration required.",
           isNewUser: true,
-          userId: null
+          userId: null,
         };
       } catch (userLookupError) {
-        console.error('Error checking user existence:', userLookupError);
+        console.error("Error checking user existence:", userLookupError);
         // Even if user lookup fails, OTP was verified successfully
-        return { 
-          success: true, 
-          message: 'OTP verified successfully, but user lookup failed.',
+        return {
+          success: true,
+          message: "OTP verified successfully, but user lookup failed.",
           isNewUser: true, // Assume new user if lookup fails
           userId: null,
-          error: userLookupError
+          error: userLookupError,
         };
       }
     } catch (error) {
-      console.error('WhatsApp OTP verification error:', error);
-      return { 
-        success: false, 
-        message: error.message || 'Failed to verify OTP',
-        error: error
+      console.error("WhatsApp OTP verification error:", error);
+      return {
+        success: false,
+        message: error.message || "Failed to verify OTP",
+        error: error,
       };
     } finally {
       setLoading(false);
     }
   };
-  
+
   const registerWithPhone = async (userData) => {
     try {
       setLoading(true);
-      const { name, phone, email = '' } = userData;
-      
+      const { name, phone } = userData;
+
       if (!name || !phone) {
-        throw new Error('Name and phone are required');
+        throw new Error("Name and phone are required");
       }
-      
+
       // Format phone number
       let formattedPhone = phone.trim();
-      if (!formattedPhone.startsWith('+')) {
-        formattedPhone = '+' + formattedPhone;
+      if (!formattedPhone.startsWith("+")) {
+        formattedPhone = "+" + formattedPhone;
       }
-      
+
       const response = await fetch(USER_ENDPOINTS.REGISTER, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           name,
-          email,
           phone: formattedPhone,
           isPhoneVerified: true, // Already verified via OTP
         }),
       });
-      
+
       const result = await response.json();
-      
+
       if (!response.ok) {
-        throw new Error(result.message || 'Registration failed');
+        throw new Error(result.message || "Registration failed");
       }
-      
+
       // If registration succeeds, set the auth state
       if (result.data?.tokens) {
         const { accessToken, refreshToken } = result.data.tokens;
         setUserTokens(accessToken, refreshToken);
         updateUserState(result.data.user);
-        localStorage.setItem('userData', JSON.stringify(result.data.user));
-        
+        localStorage.setItem("userData", JSON.stringify(result.data.user));
+
         // Set flag to show location modal
         localStorage.setItem("justLoggedIn", "true");
         console.log("Set justLoggedIn flag for location modal trigger");
       }
-      
+
       return { success: true };
     } catch (error) {
-      console.error('Registration with phone error:', error);
-      return { 
-        success: false, 
-        message: error.message || 'Registration failed' 
+      console.error("Registration with phone error:", error);
+      return {
+        success: false,
+        message: error.message || "Registration failed",
       };
     } finally {
       setLoading(false);
