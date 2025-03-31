@@ -18,6 +18,8 @@ export default function PaymentStatus() {
   const txStatus = searchParams.get("txStatus");
 
   useEffect(() => {
+<<<<<<< HEAD
+=======
     const syncAuthState = async () => {
       if (typeof window === "undefined") return;
 
@@ -63,6 +65,7 @@ export default function PaymentStatus() {
   }, [user, login]);
 
   useEffect(() => {
+>>>>>>> df6b3e7bc68afbac4146fc6dfc27d34aaacf15d9
     async function verifyPayment() {
       if (!orderId) {
         router.push("/");
@@ -72,6 +75,11 @@ export default function PaymentStatus() {
       setLoading(true);
 
       try {
+<<<<<<< HEAD
+        // Call your API to verify payment status
+        const response = await fetch(`/api/verify-payment?order_id=${orderId}&payment_id=${paymentId || ''}`);
+        
+=======
         const accessToken = localStorage.getItem("accessToken");
         const headers = {
           "Content-Type": "application/json",
@@ -85,12 +93,18 @@ export default function PaymentStatus() {
           { headers }
         );
 
+>>>>>>> df6b3e7bc68afbac4146fc6dfc27d34aaacf15d9
         if (!response.ok) {
           throw new Error("Failed to verify payment status");
         }
 
         const data = await response.json();
+<<<<<<< HEAD
+        
+        // Set payment status based on API response
+=======
 
+>>>>>>> df6b3e7bc68afbac4146fc6dfc27d34aaacf15d9
         setStatus(data.payment_status || txStatus || "PENDING");
         setOrderDetails(
           data.order_details || {
@@ -239,13 +253,32 @@ export default function PaymentStatus() {
             <Image
               src="/logo.svg"
               alt="Fast&Fab Logo"
-              width={200}
-              height={60}
+              width={160}
+              height={50}
+              className="mx-auto mb-4"
+              onError={(e) => {
+                e.target.onerror = null;
+                e.target.src =
+                  "data:image/svg+xml,%3Csvg width='160' height='50' viewBox='0 0 160 50' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Crect width='160' height='50' fill='%23333'/%3E%3Ctext x='80' y='25' font-family='Arial' font-size='18' text-anchor='middle' fill='white'%3EFast&amp;Fab%3C/text%3E%3C/svg%3E";
+              }}
             />
           </Link>
+          <h1 className="text-2xl font-bold text-gray-800">Payment Status</h1>
+<<<<<<< HEAD
+=======
+          <div className="text-xs text-gray-500 mt-1">
+            {user
+              ? `Logged in as: ${
+                  user.name || user.email || "Authenticated User"
+                }`
+              : !authLoading
+              ? "Not logged in"
+              : "Checking auth..."}
+          </div>
+>>>>>>> df6b3e7bc68afbac4146fc6dfc27d34aaacf15d9
         </div>
 
-        <div className="bg-white rounded-lg shadow-sm overflow-hidden">
+        <div className="bg-white rounded-lg shadow-sm">
           {renderStatusContent()}
         </div>
       </div>

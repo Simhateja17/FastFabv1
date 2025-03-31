@@ -225,6 +225,40 @@ model PaymentTransaction {
   order             Order?        @relation(fields: [orderId], references: [id])
 }
 
+model SellerEarning {
+  id           String           @id @default(uuid())
+  sellerId     String
+  orderId      String?
+  amount       Float
+  commission   Float
+  netAmount    Float
+  type         TransactionType
+  description  String?
+  status       PaymentStatus    @default(SUCCESSFUL)
+  transactionId String?
+  createdAt    DateTime         @default(now())
+  updatedAt    DateTime         @updatedAt
+  refund       Refund?
+}
+
+model Refund {
+  id             String         @id @default(uuid())
+  orderId        String
+  orderItemId    String?
+  sellerId       String
+  userId         String
+  amount         Float
+  reason         String
+  status         RefundStatus   @default(PENDING)
+  refundMethod   RefundMethod   @default(ORIGINAL_PAYMENT)
+  notes          String?
+  processedAt    DateTime?
+  earningId      String?        @unique
+  sellerEarning  SellerEarning? @relation(fields: [earningId], references: [id])
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+}
+
 model WhatsAppOTP {
   id          String   @id @default(uuid())
   phoneNumber String
@@ -286,4 +320,22 @@ enum UserRole {
   USER
   ADMIN
   MODERATOR
+}
+
+enum TransactionType {
+  SALE
+  REFUND
+  PAYOUT
+}
+
+enum RefundStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  PROCESSED
+}
+
+enum RefundMethod {
+  ORIGINAL_PAYMENT
+  STORE_CREDIT
 }

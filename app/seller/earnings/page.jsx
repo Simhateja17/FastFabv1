@@ -1,138 +1,152 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import { useAuth } from "@/app/context/AuthContext";
 import ProtectedRoute from "@/app/components/ProtectedRoute";
 
 // The actual earnings content
 function EarningsContent() {
+  const { user, getAccessToken } = useAuth();
   const [activeTab, setActiveTab] = useState("all");
   const [dateRange, setDateRange] = useState("30days");
+  const [earnings, setEarnings] = useState([]);
+  const [stats, setStats] = useState({
+    totalSales: 0,
+    totalCommission: 0,
+    totalRefunds: 0,
+    netEarnings: 0,
+    availableBalance: 0,
+    totalPayouts: 0
+  });
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
 
-  // Mock earnings data
-  const mockEarnings = [
-    {
-      id: "TXN-1001",
-      orderId: "ORD-1001",
-      date: "2024-03-15",
-      amount: 1169,
-      type: "sale",
-      status: "completed",
-      commission: 130,
-    },
-    {
-      id: "TXN-1002",
-      orderId: "ORD-1002",
-      date: "2024-03-14",
-      amount: 809,
-      type: "sale",
-      status: "completed",
-      commission: 90,
-    },
-    {
-      id: "TXN-1003",
-      orderId: "ORD-1003",
-      date: "2024-03-13",
-      amount: 2249,
-      type: "sale",
-      status: "completed",
-      commission: 250,
-    },
-    {
-      id: "TXN-1004",
-      orderId: "ORD-1004",
-      date: "2024-03-12",
-      amount: 1439,
-      type: "sale",
-      status: "completed",
-      commission: 160,
-    },
-    {
-      id: "TXN-1005",
-      orderId: "ORD-1005",
-      date: "2024-03-11",
-      amount: -3299,
-      type: "refund",
-      status: "completed",
-      commission: -330,
-    },
-    {
-      id: "TXN-1006",
-      orderId: "PAYOUT-102",
-      date: "2024-03-10",
-      amount: -5000,
-      type: "payout",
-      status: "completed",
-      commission: 0,
-    },
-    {
-      id: "TXN-1007",
-      orderId: "ORD-960",
-      date: "2024-03-01",
-      amount: 1619,
-      type: "sale",
-      status: "completed",
-      commission: 180,
-    },
-  ];
+  useEffect(() => {
+    const fetchEarnings = async () => {
+      try {
+        setLoading(true);
+        
+        // Get the authentication token
+        const token = await getAccessToken();
+        
+        if (!token) {
+          // Handle missing token case
+          console.error('No authentication token available');
+          setError('Authentication required');
+          setLoading(false);
+          return;
+        }
+        
+        const response = await fetch(`/api/seller/earnings?dateRange=${dateRange}`, {
+          headers: {
+            'Authorization': `Bearer ${token}`
+          }
+        });
+        
+        if (!response.ok) {
+          throw new Error(`Failed to fetch earnings: ${response.status} ${response.statusText}`);
+        }
+        
+        const data = await response.json();
+        
+        if (!data || typeof data !== 'object') {
+          throw new Error('Invalid response format');
+        }
+        
+        setEarnings(data.earnings || []);
+        
+        // Safely access stats with fallback
+        if (data.stats && typeof data.stats === 'object' && data.stats[dateRange]) {
+          setStats(data.stats[dateRange]);
+        } else {
+          // Default stats if not available
+          setStats({
+            totalSales: 0,
+            totalCommission: 0,
+            totalRefunds: 0,
+            netEarnings: 0,
+            availableBalance: 0,
+            totalPayouts: 0
+          });
+        }
+      } catch (err) {
+        console.error('Error fetching earnings:', err);
+        setError(err.message);
+        // Reset to default values on error
+        setEarnings([]);
+        setStats({
+          totalSales: 0,
+          totalCommission: 0,
+          totalRefunds: 0,
+          netEarnings: 0,
+          availableBalance: 0,
+          totalPayouts: 0
+        });
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    if (user?.id) {
+      fetchEarnings();
+    } else {
+      // Handle case when user is not authenticated
+      setLoading(false);
+    }
+  }, [user?.id, dateRange, getAccessToken]);
+
+  // Update stats when date range changes
+  useEffect(() => {
+    // Avoid duplicate API calls - the first useEffect will already handle this
+    // Only manually update stats from API if we have a user and the component is already mounted
+    if (stats && dateRange && user?.id && !loading) {
+      const fetchStats = async () => {
+        try {
+          // Get the authentication token
+          const token = await getAccessToken();
+          
+          if (!token) {
+            console.error('No authentication token available for stats update');
+            return;
+          }
+          
+          const response = await fetch(`/api/seller/earnings?dateRange=${dateRange}`, {
+            headers: {
+              'Authorization': `Bearer ${token}`
+            }
+          });
+          
+          if (!response.ok) {
+            console.error(`Failed to update stats: ${response.status} ${response.statusText}`);
+            return;
+          }
+          
+          const data = await response.json();
+          
+          // Safely access stats
+          if (data.stats && typeof data.stats === 'object' && data.stats[dateRange]) {
+            setStats(data.stats[dateRange]);
+          }
+        } catch (err) {
+          console.error('Error updating stats:', err);
+          // Don't reset stats on error for this secondary update
+        }
+      };
+      
+      fetchStats();
+    }
+  }, [dateRange, user?.id, getAccessToken, loading]);
 
   // Filter transactions based on active tab
-  const filteredTransactions = mockEarnings.filter((transaction) => {
+  const filteredTransactions = earnings.filter((transaction) => {
     if (activeTab === "all") return true;
-    return transaction.type === activeTab;
+    return transaction.type.toLowerCase() === activeTab.toLowerCase();
   });
-
-  // Calculate summary statistics
-  const calculateSummary = () => {
-    let totalSales = 0;
-    let totalCommission = 0;
-    let totalRefunds = 0;
-    let totalPayouts = 0;
-
-    // Filter transactions based on date range
-    const now = new Date();
-    const startDate = new Date();
-
-    if (dateRange === "7days") {
-      startDate.setDate(now.getDate() - 7);
-    } else if (dateRange === "30days") {
-      startDate.setDate(now.getDate() - 30);
-    } else if (dateRange === "90days") {
-      startDate.setDate(now.getDate() - 90);
-    }
-
-    mockEarnings.forEach((transaction) => {
-      const txnDate = new Date(transaction.date);
-      if (txnDate >= startDate) {
-        if (transaction.type === "sale") {
-          totalSales += transaction.amount;
-          totalCommission += transaction.commission;
-        } else if (transaction.type === "refund") {
-          totalRefunds += Math.abs(transaction.amount);
-        } else if (transaction.type === "payout") {
-          totalPayouts += Math.abs(transaction.amount);
-        }
-      }
-    });
-
-    const netEarnings = totalSales - totalRefunds - totalCommission;
-    const availableBalance = netEarnings - totalPayouts;
-
-    return {
-      totalSales,
-      totalCommission,
-      totalRefunds,
-      netEarnings,
-      availableBalance,
-    };
-  };
-
-  const summary = calculateSummary();
 
   // Get transaction type badge color
   const getTypeBadgeClass = (type) => {
-    switch (type) {
+    switch (type.toLowerCase()) {
       case "sale":
         return "bg-success bg-opacity-10 text-success";
       case "refund":
@@ -142,6 +156,24 @@ function EarningsContent() {
       default:
         return "bg-gray-100 text-gray-800";
     }
+  };
+
+  // Format currency
+  const formatCurrency = (amount) => {
+    return new Intl.NumberFormat('en-IN', {
+      style: 'currency',
+      currency: 'INR',
+      maximumFractionDigits: 0
+    }).format(amount);
+  };
+
+  // Format date
+  const formatDate = (dateString) => {
+    return new Date(dateString).toLocaleDateString("en-IN", {
+      day: "numeric",
+      month: "short", 
+      year: "numeric",
+    });
   };
 
   return (
@@ -189,120 +221,131 @@ function EarningsContent() {
       </div>
 
       {/* Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-6">
-        <div className="bg-background-card p-6 rounded-lg shadow-sm border border-ui-border">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-text-muted text-sm">Total Sales</p>
-              <h3 className="text-2xl font-semibold text-text-dark mt-1">
-                ₹{summary.totalSales.toLocaleString("en-IN")}
-              </h3>
+      {loading ? (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-6">
+          {[1, 2, 3, 4].map((item) => (
+            <div key={item} className="bg-background-card p-6 rounded-lg shadow-sm border border-ui-border">
+              <div className="animate-pulse flex space-x-4">
+                <div className="flex-1 space-y-4 py-1">
+                  <div className="h-4 bg-background-alt rounded w-3/4"></div>
+                  <div className="h-6 bg-background-alt rounded w-1/2"></div>
+                </div>
+                <div className="rounded-full bg-background-alt h-12 w-12"></div>
+              </div>
             </div>
-            <div className="p-3 bg-success bg-opacity-10 rounded-full">
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                className="h-6 w-6 text-success"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
-                />
-              </svg>
+          ))}
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-6">
+          <div className="bg-background-card p-6 rounded-lg shadow-sm border border-ui-border">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-text-muted text-sm">Total Sales</p>
+                <h3 className="text-2xl font-semibold text-text-dark mt-1">
+                  {formatCurrency(stats.totalSales || 0)}
+                </h3>
+              </div>
+              <div className="p-3 bg-success bg-opacity-10 rounded-full">
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  className="h-6 w-6 text-success"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+                  />
+                </svg>
+              </div>
             </div>
           </div>
-        </div>
 
-        <div className="bg-background-card p-6 rounded-lg shadow-sm border border-ui-border">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-text-muted text-sm">Platform Fees</p>
-              <h3 className="text-2xl font-semibold text-text-dark mt-1">
-                ₹{summary.totalCommission.toLocaleString("en-IN")}
-              </h3>
-            </div>
-            <div className="p-3 bg-secondary bg-opacity-10 rounded-full">
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                className="h-6 w-6 text-secondary"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z"
-                />
-              </svg>
+          <div className="bg-background-card p-6 rounded-lg shadow-sm border border-ui-border">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-text-muted text-sm">Platform Fees</p>
+                <h3 className="text-2xl font-semibold text-text-dark mt-1">
+                  {formatCurrency(stats.totalCommission || 0)}
+                </h3>
+              </div>
+              <div className="p-3 bg-secondary bg-opacity-10 rounded-full">
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  className="h-6 w-6 text-secondary"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z"
+                  />
+                </svg>
+              </div>
             </div>
           </div>
-        </div>
 
-        <div className="bg-background-card p-6 rounded-lg shadow-sm border border-ui-border">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-text-muted text-sm">Net Earnings</p>
-              <h3 className="text-2xl font-semibold text-text-dark mt-1">
-                ₹{summary.netEarnings.toLocaleString("en-IN")}
-              </h3>
-            </div>
-            <div className="p-3 bg-primary bg-opacity-10 rounded-full">
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                className="h-6 w-6 text-primary"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
-                />
-              </svg>
+          <div className="bg-background-card p-6 rounded-lg shadow-sm border border-ui-border">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-text-muted text-sm">Net Earnings</p>
+                <h3 className="text-2xl font-semibold text-text-dark mt-1">
+                  {formatCurrency(stats.netEarnings || 0)}
+                </h3>
+              </div>
+              <div className="p-3 bg-primary bg-opacity-10 rounded-full">
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  className="h-6 w-6 text-primary"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+                  />
+                </svg>
+              </div>
             </div>
           </div>
-        </div>
 
-        <div className="bg-background-card p-6 rounded-lg shadow-sm border border-ui-border">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-text-muted text-sm">Available Balance</p>
-              <h3 className="text-2xl font-semibold text-text-dark mt-1">
-                ₹{summary.availableBalance.toLocaleString("en-IN")}
-              </h3>
+          <div className="bg-background-card p-6 rounded-lg shadow-sm border border-ui-border">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-text-muted text-sm">Available Balance</p>
+                <h3 className="text-2xl font-semibold text-text-dark mt-1">
+                  {formatCurrency(stats.availableBalance || 0)}
+                </h3>
+              </div>
+              <div className="p-3 bg-info bg-opacity-10 rounded-full">
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  className="h-6 w-6 text-info"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z"
+                  />
+                </svg>
+              </div>
             </div>
-            <div className="p-3 bg-accent bg-opacity-10 rounded-full">
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                className="h-6 w-6 text-accent-dark"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z"
-                />
-              </svg>
-            </div>
-          </div>
-          <div className="mt-4">
-            <button className="text-sm text-white bg-primary hover:bg-primary-dark px-3 py-1 rounded">
-              Request Payout
-            </button>
           </div>
         </div>
-      </div>
+      )}
 
       {/* Tabs */}
       <div className="flex overflow-x-auto mb-6 border-b border-ui-border">
@@ -350,49 +393,60 @@ function EarningsContent() {
 
       {/* Transactions Table */}
       <div className="bg-background-card rounded-lg shadow-sm overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="min-w-full divide-y divide-ui-border">
-            <thead className="bg-background-alt">
-              <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-text-muted uppercase tracking-wider">
-                  Transaction ID
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-text-muted uppercase tracking-wider">
-                  Reference
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-text-muted uppercase tracking-wider">
-                  Date
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-text-muted uppercase tracking-wider">
-                  Type
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-text-muted uppercase tracking-wider">
-                  Amount
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-text-muted uppercase tracking-wider">
-                  Commission
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-text-muted uppercase tracking-wider">
-                  Net
-                </th>
-              </tr>
-            </thead>
-            <tbody className="bg-background-card divide-y divide-ui-border">
-              {filteredTransactions.length > 0 ? (
-                filteredTransactions.map((transaction) => (
-                  <tr key={transaction.id} className="hover:bg-background-alt">
+        {loading ? (
+          <div className="py-10 text-center">
+            <p className="text-text-muted">Loading transactions...</p>
+          </div>
+        ) : error ? (
+          <div className="py-10 text-center">
+            <p className="text-error">Error: {error}</p>
+          </div>
+        ) : filteredTransactions.length === 0 ? (
+          <div className="py-10 text-center">
+            <p className="text-text-muted">No transactions found.</p>
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="min-w-full divide-y divide-ui-border">
+              <thead className="bg-background-alt">
+                <tr>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-text-muted uppercase tracking-wider">
+                    Transaction ID
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-text-muted uppercase tracking-wider">
+                    Related Order
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-text-muted uppercase tracking-wider">
+                    Date
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-text-muted uppercase tracking-wider">
+                    Type
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-text-muted uppercase tracking-wider">
+                    Amount
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-text-muted uppercase tracking-wider">
+                    Commission
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-text-muted uppercase tracking-wider">
+                    Net Amount
+                  </th>
+                </tr>
+              </thead>
+              <tbody className="bg-background-card divide-y divide-ui-border">
+                {filteredTransactions.map((transaction) => (
+                  <tr
+                    key={transaction.id}
+                    className="hover:bg-background-alt"
+                  >
                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-primary">
-                      {transaction.id}
+                      {transaction.id.substring(0, 8)}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-text">
-                      {transaction.orderId}
+                      {transaction.orderId || "-"}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-text">
-                      {new Date(transaction.date).toLocaleDateString("en-IN", {
-                        day: "numeric",
-                        month: "short",
-                        year: "numeric",
-                      })}
+                      {formatDate(transaction.createdAt)}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <span
@@ -400,79 +454,25 @@ function EarningsContent() {
                           transaction.type
                         )}`}
                       >
-                        {transaction.type.charAt(0).toUpperCase() +
-                          transaction.type.slice(1)}
+                        {transaction.type.charAt(0) +
+                          transaction.type.slice(1).toLowerCase()}
                       </span>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-text">
-                      {transaction.type === "refund" ||
-                      transaction.type === "payout" ? (
-                        <span className="text-error">
-                          -₹
-                          {Math.abs(transaction.amount).toLocaleString("en-IN")}
-                        </span>
-                      ) : (
-                        <span>
-                          ₹{transaction.amount.toLocaleString("en-IN")}
-                        </span>
-                      )}
+                      {formatCurrency(transaction.amount)}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-text">
-                      {transaction.commission !== 0 ? (
-                        transaction.commission < 0 ? (
-                          <span className="text-success">
-                            +₹
-                            {Math.abs(transaction.commission).toLocaleString(
-                              "en-IN"
-                            )}
-                          </span>
-                        ) : (
-                          <span className="text-error">
-                            -₹{transaction.commission.toLocaleString("en-IN")}
-                          </span>
-                        )
-                      ) : (
-                        <span>-</span>
-                      )}
+                      {formatCurrency(transaction.commission)}
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                      {transaction.type === "sale" ? (
-                        <span className="text-success">
-                          +₹
-                          {(
-                            transaction.amount - transaction.commission
-                          ).toLocaleString("en-IN")}
-                        </span>
-                      ) : transaction.type === "refund" ? (
-                        <span className="text-error">
-                          -₹
-                          {(
-                            Math.abs(transaction.amount) -
-                            Math.abs(transaction.commission)
-                          ).toLocaleString("en-IN")}
-                        </span>
-                      ) : (
-                        <span className="text-error">
-                          -₹
-                          {Math.abs(transaction.amount).toLocaleString("en-IN")}
-                        </span>
-                      )}
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-text">
+                      {formatCurrency(transaction.netAmount)}
                     </td>
                   </tr>
-                ))
-              ) : (
-                <tr>
-                  <td
-                    colSpan="7"
-                    className="px-6 py-10 text-center text-text-muted"
-                  >
-                    No transactions found matching your criteria
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
       </div>
     </div>
   );

@@ -10,16 +10,61 @@ import SellerTermsModal from "@/app/components/SellerTermsModal";
 import LoadingButton from "@/app/components/LoadingButton";
 
 export default function SellerSignup() {
+  const [step, setStep] = useState(1); // Step 1: Phone entry, Step 2: OTP verification
   const [formData, setFormData] = useState({
     phone: "",
   });
   const [loading, setLoading] = useState(false);
+  const [otpLoading, setOtpLoading] = useState(false);
   const [termsAccepted, setTermsAccepted] = useState(false);
   const [showTermsModal, setShowTermsModal] = useState(false);
-  const [otpSent, setOtpSent] = useState(false);
   const [otpCode, setOtpCode] = useState("");
+  const [otpSent, setOtpSent] = useState(false);
+  const [otpVerified, setOtpVerified] = useState(false);
+  const [timeRemaining, setTimeRemaining] = useState(null);
+  const [expiryTime, setExpiryTime] = useState(null);
+  const timerRef = useRef(null);
+  
   const router = useRouter();
-  const { registerWithOTP } = useAuth();
+  const { register, sendSellerOTP, verifySellerOTP } = useAuth();
+
+  // Format time remaining for OTP
+  useEffect(() => {
+    if (expiryTime) {
+      const updateTimer = () => {
+        const now = new Date();
+        const expiry = new Date(expiryTime);
+        const diff = Math.max(0, Math.floor((expiry - now) / 1000)); // difference in seconds
+        
+        if (diff <= 0) {
+          setTimeRemaining("Expired");
+          clearInterval(timerRef.current);
+        } else {
+          const minutes = Math.floor(diff / 60);
+          const seconds = diff % 60;
+          setTimeRemaining(`${minutes}:${seconds.toString().padStart(2, '0')}`);
+        }
+      };
+      
+      // Initial update
+      updateTimer();
+      
+      // Clear any existing interval
+      if (timerRef.current) {
+        clearInterval(timerRef.current);
+      }
+      
+      // Set up the interval
+      timerRef.current = setInterval(updateTimer, 1000);
+      
+      // Clean up on unmount or when expiryTime changes
+      return () => {
+        if (timerRef.current) {
+          clearInterval(timerRef.current);
+        }
+      };
+    }
+  }, [expiryTime]);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -29,109 +74,114 @@ export default function SellerSignup() {
       if (numericValue.length <= 10) {
         setFormData((prev) => ({ ...prev, [name]: numericValue }));
       }
-    } else if (name === "otpCode") {
-      // Only allow numbers and limit to 6 digits
-      const numericValue = value.replace(/[^0-9]/g, "");
-      if (numericValue.length <= 6) {
-        setOtpCode(numericValue);
-      }
     } else {
       setFormData((prev) => ({ ...prev, [name]: value }));
     }
   };
 
-  const handleSendOTP = async (e) => {
+  const handleSendOtp = async (e) => {
     e.preventDefault();
+    
+    if (!formData.phone || formData.phone.length !== 10) {
+      toast.error("Please enter a valid 10-digit phone number");
+      return;
+    }
 
+    setOtpLoading(true);
+    
+    try {
+      const result = await sendSellerOTP(formData.phone);
+      
+      if (result.success) {
+        setOtpSent(true);
+        setExpiryTime(result.expiresAt);
+        toast.success("OTP sent to your WhatsApp number");
+        setStep(2);
+      } else {
+        toast.error(result.error || "Failed to send OTP");
+      }
+    } catch (error) {
+      console.error("Error sending OTP:", error);
+      toast.error("Something went wrong. Please try again.");
+    } finally {
+      setOtpLoading(false);
+    }
+  };
+
+  const handleVerifyOtp = async (e) => {
+    if (e && e.preventDefault) {
+      e.preventDefault();
+    }
+    
+    if (!otpCode || otpCode.length !== 6 || !/^\d+$/.test(otpCode)) {
+      toast.error("Please enter a valid 6-digit OTP");
+      return;
+    }
+    
     if (!termsAccepted) {
       setShowTermsModal(true);
       return;
     }
 
-    if (formData.phone.length !== 10) {
-      toast.error("Please enter a valid 10-digit phone number");
-      return;
-    }
-
-    setLoading(true);
-
+    setOtpLoading(true);
+    
     try {
-      const response = await fetch('/api/whatsapp-otp/send', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ phoneNumber: formData.phone }),
-      });
+      const result = await verifySellerOTP(formData.phone, otpCode);
+      
+      if (result.success) {
+        setOtpVerified(true);
+        toast.success("Phone number verified successfully");
+        
+        // Proceed with registration
+        try {
+          console.log("Registering with:", formData.phone);
+          toast.loading("Creating your seller account...");
+          const registerResult = await register(formData.phone);
+          toast.dismiss();
+          
+          if (registerResult && registerResult.accessToken) {
+            toast.success("Registration successful!");
 
-      const data = await response.json();
+            // Set a flag in localStorage to indicate this is a new registration
+            localStorage.setItem("isNewRegistration", "true");
 
-      if (response.ok) {
-        toast.success("OTP sent to your WhatsApp number");
-        setOtpSent(true);
+            // Simple direct navigation - no complex state management
+            console.log("Redirecting new seller to onboarding");
+            router.push("/seller/onboarding");
+          } else {
+            toast.error(registerResult?.error || "Registration failed. Please try again.");
+          }
+        } catch (registerError) {
+          console.error("Registration error:", registerError);
+          toast.error(registerError?.message || "Something went wrong. Please try again.");
+        }
       } else {
-        toast.error(data.message || "Failed to send OTP. Please try again.");
+        toast.error(result.error || "Failed to verify OTP");
       }
     } catch (error) {
-      console.error("OTP send error:", error);
+      console.error("Error verifying OTP:", error);
       toast.error("Something went wrong. Please try again.");
     } finally {
-      setLoading(false);
+      setOtpLoading(false);
     }
   };
 
-  const handleVerifyOTP = async (e) => {
-    e.preventDefault();
-
-    if (otpCode.length !== 6) {
-      toast.error("Please enter the 6-digit OTP code");
+  const handleResendOtp = async () => {
+    if (timeRemaining !== "Expired" && timeRemaining !== null) {
+      toast.error("Please wait until the current OTP expires");
       return;
     }
-
-    setLoading(true);
-
-    try {
-      const response = await fetch('/api/whatsapp-otp/verify', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ 
-          phoneNumber: formData.phone,
-          otpCode 
-        }),
-      });
-
-      const data = await response.json();
-
-      if (response.ok && data.success) {
-        // OTP verified successfully, now register the seller
-        const result = await registerWithOTP(formData.phone);
-        
-        if (result && result.success) {
-          toast.success("Registration successful!");
-          // Set a flag in localStorage to indicate this is a new registration
-          localStorage.setItem("isNewRegistration", "true");
-          // Redirect to onboarding
-          router.push("/seller/onboarding");
-        } else {
-          toast.error(result.error || "Registration failed. Please try again.");
-        }
-      } else {
-        toast.error(data.message || "OTP verification failed. Please try again.");
-      }
-    } catch (error) {
-      console.error("OTP verification error:", error);
-      toast.error("Something went wrong. Please try again.");
-    } finally {
-      setLoading(false);
-    }
+    
+    await handleSendOtp({ preventDefault: () => {} });
   };
 
   const handleTermsAccept = () => {
     setTermsAccepted(true);
     setShowTermsModal(false);
-    // Don't automatically submit after accepting terms
+    // Automatically submit the form after accepting terms
+    if (otpCode.length === 6 && formData.phone.length === 10) {
+      handleVerifyOtp({ preventDefault: () => {} });
+    }
   };
 
   return (
@@ -145,14 +195,12 @@ export default function SellerSignup() {
             height={60}
             className="mx-auto mb-6"
           />
-          <h1 className="text-xl font-medium text-text-dark">
-            Become a Seller
-          </h1>
+          <h1 className="text-xl font-medium text-text-dark">Seller Registration</h1>
         </div>
 
         <div className="bg-background-card p-8 rounded-lg shadow-sm">
-          {!otpSent ? (
-            <form onSubmit={handleSendOTP} className="space-y-6">
+          {step === 1 && (
+            <form onSubmit={handleSendOtp} className="space-y-6">
               <div>
                 <label
                   htmlFor="phone"
@@ -165,7 +213,7 @@ export default function SellerSignup() {
                   id="phone"
                   name="phone"
                   className="w-full px-4 py-3 border border-ui-border rounded-md focus:outline-none focus:ring-2 focus:ring-secondary bg-input"
-                  placeholder="Enter your phone number"
+                  placeholder="Enter your 10-digit phone number"
                   value={formData.phone}
                   onChange={handleChange}
                   pattern="[0-9]{10}"
@@ -174,7 +222,74 @@ export default function SellerSignup() {
                 />
               </div>
 
-              <div className="flex items-center">
+              <LoadingButton
+                type="submit"
+                variant="secondary"
+                className="w-full py-3 text-lg font-bold text-white bg-ui-button hover:bg-ui"
+                fullWidth
+                isLoading={otpLoading}
+                loadingText="Sending OTP..."
+                disabled={formData.phone.length !== 10}
+              >
+                Get OTP on WhatsApp
+              </LoadingButton>
+
+              <div className="text-center text-sm text-text-muted">
+                Already have an account?{" "}
+                <Link
+                  href="/seller/signin"
+                  className="text-primary hover:underline"
+                >
+                  Sign in
+                </Link>
+              </div>
+            </form>
+          )}
+
+          {step === 2 && (
+            <form onSubmit={handleVerifyOtp} className="space-y-6">
+              <div>
+                <div className="flex justify-between items-center mb-1">
+                  <label
+                    htmlFor="otp"
+                    className="block text-sm font-medium text-text-dark"
+                  >
+                    Enter OTP from WhatsApp
+                  </label>
+                  {timeRemaining && (
+                    <span
+                      className={`text-xs font-medium ${
+                        timeRemaining === "Expired"
+                          ? "text-red-500"
+                          : "text-green-600"
+                      }`}
+                    >
+                      {timeRemaining === "Expired"
+                        ? "OTP Expired"
+                        : `Expires in: ${timeRemaining}`}
+                    </span>
+                  )}
+                </div>
+                <input
+                  type="text"
+                  id="otp"
+                  className="w-full px-4 py-3 border border-ui-border rounded-md focus:outline-none focus:ring-2 focus:ring-secondary bg-input"
+                  placeholder="Enter 6-digit OTP"
+                  value={otpCode}
+                  onChange={(e) => {
+                    // Only allow digits and limit to 6
+                    const numericValue = e.target.value.replace(/[^0-9]/g, "");
+                    if (numericValue.length <= 6) {
+                      setOtpCode(numericValue);
+                    }
+                  }}
+                  pattern="[0-9]{6}"
+                  maxLength={6}
+                  required
+                />
+              </div>
+
+              <div className="flex items-center mb-4">
                 <input
                   type="checkbox"
                   id="terms"
@@ -195,70 +310,36 @@ export default function SellerSignup() {
                 </label>
               </div>
 
-              <LoadingButton
-                type="submit"
-                variant="secondary"
-                className="w-full py-3 text-lg font-bold text-white bg-ui-button hover:bg-ui"
-                fullWidth
-                isLoading={loading}
-                loadingText="Sending OTP..."
-                disabled={formData.phone.length !== 10 || !termsAccepted}
-              >
-                Get OTP on WhatsApp
-              </LoadingButton>
-
-              <div className="text-center text-sm text-text-muted">
-                Already have an account?{" "}
-                <Link
-                  href="/seller/signin"
-                  className="text-primary hover:underline"
+              <div className="flex flex-col space-y-3">
+                <LoadingButton
+                  type="submit"
+                  variant="secondary"
+                  className="w-full py-3 text-lg font-bold text-white bg-ui-button hover:bg-ui"
+                  fullWidth
+                  isLoading={otpLoading}
+                  loadingText="Verifying..."
+                  disabled={otpCode.length !== 6 || !termsAccepted}
                 >
-                  Sign in
-                </Link>
-              </div>
-            </form>
-          ) : (
-            <form onSubmit={handleVerifyOTP} className="space-y-6">
-              <div>
-                <label
-                  htmlFor="otpCode"
-                  className="block text-sm font-medium text-text mb-1"
+                  Verify & Create Account
+                </LoadingButton>
+                
+                <button
+                  type="button"
+                  onClick={handleResendOtp}
+                  className="text-secondary hover:underline"
+                  disabled={timeRemaining && timeRemaining !== "Expired"}
                 >
-                  Enter OTP from WhatsApp
-                </label>
-                <input
-                  type="text"
-                  id="otpCode"
-                  name="otpCode"
-                  className="w-full px-4 py-3 border border-ui-border rounded-md focus:outline-none focus:ring-2 focus:ring-secondary bg-input"
-                  placeholder="Enter 6-digit OTP"
-                  value={otpCode}
-                  onChange={handleChange}
-                  pattern="[0-9]{6}"
-                  maxLength={6}
-                  required
-                />
+                  Resend OTP
+                </button>
+                
+                <button
+                  type="button"
+                  onClick={() => setStep(1)}
+                  className="text-gray-500 hover:underline"
+                >
+                  Change Phone Number
+                </button>
               </div>
-
-              <LoadingButton
-                type="submit"
-                variant="secondary"
-                className="w-full py-3 text-lg font-bold text-white bg-ui-button hover:bg-ui"
-                fullWidth
-                isLoading={loading}
-                loadingText="Verifying..."
-                disabled={otpCode.length !== 6}
-              >
-                Verify & Sign Up
-              </LoadingButton>
-
-              <button
-                type="button"
-                onClick={() => setOtpSent(false)}
-                className="w-full py-2 text-sm text-primary hover:underline"
-              >
-                Change Phone Number
-              </button>
             </form>
           )}
         </div>

@@ -14,6 +14,7 @@ import {
   FiPlus,
   FiCheck,
 } from "react-icons/fi";
+import { PRODUCT_ENDPOINTS } from "@/app/config";
 
 const SIZES = [
   "XS",
@@ -367,6 +368,8 @@ export default function AddProduct() {
         formData.append("images", file);
       });
 
+      console.log("Uploading images to:", `${process.env.NEXT_PUBLIC_API_URL}/api/products/upload-images`);
+      
       const response = await authFetch(
         `${process.env.NEXT_PUBLIC_API_URL}/api/products/upload-images`,
         {
@@ -375,11 +378,20 @@ export default function AddProduct() {
         }
       );
 
-      const data = await response.json();
+      // Check if response is OK before trying to parse JSON
       if (!response.ok) {
-        throw new Error(data.message || "Failed to upload images");
+        const contentType = response.headers.get("content-type") || "";
+        if (contentType.includes("application/json")) {
+          const errorData = await response.json();
+          throw new Error(errorData.message || "Failed to upload images");
+        } else {
+          const text = await response.text();
+          console.error("Non-JSON error response:", text);
+          throw new Error("Server returned a non-JSON response");
+        }
       }
 
+      const data = await response.json();
       setUploadedImages(data.imageUrls);
       return data.imageUrls;
     } catch (error) {
@@ -425,7 +437,7 @@ export default function AddProduct() {
       };
 
       const response = await authFetch(
-        `${process.env.NEXT_PUBLIC_API_URL}/api/products`,
+        PRODUCT_ENDPOINTS.CREATE,
         {
           method: "POST",
           headers: {
