@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, Suspense } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import Image from "next/image";
 import Link from "next/link";
@@ -226,6 +226,11 @@ export default function PaymentStatus() {
     );
   };
 
+  return renderStatusContent();
+}
+
+// Main component with Suspense boundary
+export default function PaymentStatus() {
   return (
     <div className="min-h-screen bg-gray-50 py-12">
       <div className="max-w-3xl mx-auto px-4">
