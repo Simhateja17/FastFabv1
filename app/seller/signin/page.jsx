@@ -10,11 +10,12 @@ import { toast } from "react-hot-toast";
 export default function SellerSignin() {
   const [formData, setFormData] = useState({
     phone: "",
-    password: "",
   });
   const [loading, setLoading] = useState(false);
+  const [otpSent, setOtpSent] = useState(false);
+  const [otpCode, setOtpCode] = useState("");
   const router = useRouter();
-  const { login, seller } = useAuth();
+  const { loginWithOTP, seller } = useAuth();
 
   // Redirect if already logged in
   useEffect(() => {
@@ -31,35 +32,99 @@ export default function SellerSignin() {
       if (numericValue.length <= 10) {
         setFormData((prev) => ({ ...prev, [name]: numericValue }));
       }
+    } else if (name === "otpCode") {
+      // Only allow numbers and limit to 6 digits
+      const numericValue = value.replace(/[^0-9]/g, "");
+      if (numericValue.length <= 6) {
+        setOtpCode(numericValue);
+      }
     } else {
       setFormData((prev) => ({ ...prev, [name]: value }));
     }
   };
 
-  const handleSubmit = async (e) => {
+  const handleSendOTP = async (e) => {
     e.preventDefault();
+    
+    if (formData.phone.length !== 10) {
+      toast.error("Please enter a valid 10-digit phone number");
+      return;
+    }
+
     setLoading(true);
 
     try {
-      const result = await login(formData.phone, formData.password);
-      console.log("Login API response:", result);
+      const response = await fetch('/api/whatsapp-otp/send', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ phoneNumber: formData.phone }),
+      });
 
-      if (result.success) {
-        toast.success("Login successful!");
+      const data = await response.json();
 
-        if (!result.seller?.shopName || !result.seller?.gstin) {
-          console.log("Seller profile incomplete, redirecting to onboarding");
-          router.push("/seller/onboarding");
-        } else {
-          console.log("Seller profile complete, redirecting to dashboard");
-          router.push("/seller/dashboard");
-        }
+      if (response.ok) {
+        toast.success("OTP sent to your WhatsApp number");
+        setOtpSent(true);
       } else {
-        toast.error(result.error);
+        toast.error(data.message || "Failed to send OTP. Please try again.");
       }
     } catch (error) {
+      console.error("OTP send error:", error);
       toast.error("Something went wrong. Please try again.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleVerifyOTP = async (e) => {
+    e.preventDefault();
+    
+    if (otpCode.length !== 6) {
+      toast.error("Please enter the 6-digit OTP code");
+      return;
+    }
+
+    setLoading(true);
+
+    try {
+      const response = await fetch('/api/whatsapp-otp/verify', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ 
+          phoneNumber: formData.phone,
+          otpCode 
+        }),
+      });
+
+      const data = await response.json();
+
+      if (response.ok && data.success) {
+        // OTP verified successfully, now login the seller
+        const result = await loginWithOTP(formData.phone);
+        
+        if (result.success) {
+          toast.success("Login successful!");
+
+          if (!result.seller?.shopName || !result.seller?.gstin) {
+            console.log("Seller profile incomplete, redirecting to onboarding");
+            router.push("/seller/onboarding");
+          } else {
+            console.log("Seller profile complete, redirecting to dashboard");
+            router.push("/seller/dashboard");
+          }
+        } else {
+          toast.error(result.error || "Login failed. Please try again.");
+        }
+      } else {
+        toast.error(data.message || "OTP verification failed. Please try again.");
+      }
+    } catch (error) {
       console.error("Login error:", error);
+      toast.error("Something went wrong. Please try again.");
     } finally {
       setLoading(false);
     }
@@ -80,91 +145,87 @@ export default function SellerSignin() {
         </div>
 
         <div className="bg-background-card p-8 rounded-lg shadow-sm">
-          <form onSubmit={handleSubmit} className="space-y-6">
-            <div>
-              <label
-                htmlFor="phone"
-                className="block text-sm font-medium text-text mb-1"
-              >
-                Phone Number
-              </label>
-              <input
-                type="tel"
-                id="phone"
-                name="phone"
-                className="w-full px-4 py-3 border border-ui-border rounded-md focus:outline-none focus:ring-2 focus:ring-secondary bg-input"
-                placeholder="Enter your phone number"
-                value={formData.phone}
-                onChange={handleChange}
-                pattern="[0-9]{10}"
-                maxLength={10}
-                required
-              />
-            </div>
-
-            <div>
-              <label
-                htmlFor="password"
-                className="block text-sm font-medium text-text mb-1"
-              >
-                Password
-              </label>
-              <input
-                type="password"
-                id="password"
-                name="password"
-                className="w-full px-4 py-3 border border-ui-border rounded-md focus:outline-none focus:ring-2 focus:ring-secondary bg-input"
-                placeholder="Enter your password"
-                value={formData.password}
-                onChange={handleChange}
-                required
-              />
-            </div>
-
-            <div className="flex items-center justify-between">
-              <div className="flex items-center">
-                <input
-                  id="remember-me"
-                  name="remember-me"
-                  type="checkbox"
-                  className="h-4 w-4 text-secondary focus:ring-secondary border-ui-border rounded"
-                />
+          {!otpSent ? (
+            <form onSubmit={handleSendOTP} className="space-y-6">
+              <div>
                 <label
-                  htmlFor="remember-me"
-                  className="ml-2 block text-sm text-text"
+                  htmlFor="phone"
+                  className="block text-sm font-medium text-text mb-1"
                 >
-                  Remember me
+                  Phone Number
                 </label>
+                <input
+                  type="tel"
+                  id="phone"
+                  name="phone"
+                  className="w-full px-4 py-3 border border-ui-border rounded-md focus:outline-none focus:ring-2 focus:ring-secondary bg-input"
+                  placeholder="Enter your phone number"
+                  value={formData.phone}
+                  onChange={handleChange}
+                  pattern="[0-9]{10}"
+                  maxLength={10}
+                  required
+                />
               </div>
 
-              <div className="text-sm">
+              <button
+                type="submit"
+                className="w-full text-pink-500 text-bold hover:text-white py-3 rounded-md hover:bg-secondary-dark transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                disabled={loading || formData.phone.length !== 10}
+              >
+                {loading ? "Sending OTP..." : "Get OTP on WhatsApp"}
+              </button>
+
+              <div className="text-center text-sm text-text-muted">
+                Don't have an account?{" "}
                 <Link
-                  href="/seller/forgot-password"
-                  className="text-secondary hover:underline"
+                  href="/seller/signup"
+                  className="text-primary hover:underline"
                 >
-                  Forgot password?
+                  Sign up
                 </Link>
               </div>
-            </div>
+            </form>
+          ) : (
+            <form onSubmit={handleVerifyOTP} className="space-y-6">
+              <div>
+                <label
+                  htmlFor="otpCode"
+                  className="block text-sm font-medium text-text mb-1"
+                >
+                  Enter OTP from WhatsApp
+                </label>
+                <input
+                  type="text"
+                  id="otpCode"
+                  name="otpCode"
+                  className="w-full px-4 py-3 border border-ui-border rounded-md focus:outline-none focus:ring-2 focus:ring-secondary bg-input"
+                  placeholder="Enter 6-digit OTP"
+                  value={otpCode}
+                  onChange={handleChange}
+                  pattern="[0-9]{6}"
+                  maxLength={6}
+                  required
+                />
+              </div>
 
-            <button
-              type="submit"
-              className="w-full text-pink-500 text-bold   hover:text-white py-3 rounded-md hover:bg-secondary-dark transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-              disabled={loading || formData.phone.length !== 10}
-            >
-              {loading ? "Signing in..." : "Sign In"}
-            </button>
-
-            <div className="text-center text-sm text-text-muted">
-              Don&apos;t have an account?{" "}
-              <Link
-                href="/seller/signup"
-                className="text-primary hover:underline"
+              <button
+                type="submit"
+                className="w-full text-pink-500 text-bold hover:text-white py-3 rounded-md hover:bg-secondary-dark transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                disabled={loading || otpCode.length !== 6}
               >
-                Sign up
-              </Link>
-            </div>
-          </form>
+                {loading ? "Verifying..." : "Verify & Sign In"}
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setOtpSent(false)}
+                className="w-full py-2 text-sm text-primary hover:underline"
+              >
+                Change Phone Number
+              </button>
+            </form>
+          )}
         </div>
       </div>
     </div>

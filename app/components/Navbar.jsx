@@ -18,6 +18,16 @@ import { BsPerson } from "react-icons/bs";
 import { useAuth } from "../context/AuthContext";
 import { useUserAuth } from "../context/UserAuthContext";
 import Image from "next/image";
+import { USER_ENDPOINTS } from "@/app/config";
+import { useContext } from "react";
+import { LocationContext } from "@/app/context/LocationContext";
+import dynamic from "next/dynamic";
+
+// Dynamically import the LocationModal component with SSR disabled
+// This ensures it's only loaded client-side when needed
+const LocationModal = dynamic(() => import("./LocationModal"), {
+  ssr: false,
+});
 
 // User Avatar Component
 const UserAvatar = ({ user }) => (
@@ -337,6 +347,9 @@ const Navbar = () => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isSellerDropdownOpen, setIsSellerDropdownOpen] = useState(false);
   const [isUserDropdownOpen, setIsUserDropdownOpen] = useState(false);
+  const [isLocationModalOpen, setIsLocationModalOpen] = useState(false);
+  const [currentLocation, setCurrentLocation] = useState("Select Location");
+  const [previousAuthState, setPreviousAuthState] = useState(null);
   const pathname = usePathname();
   const router = useRouter();
   const {
@@ -353,6 +366,28 @@ const Navbar = () => {
   console.log("Current pathname:", pathname);
 
   const redirect = seller ? `/seller/dashboard` : "/";
+
+  // Initialize component state including current location from localStorage
+  useEffect(() => {
+    // Try to load saved location
+    try {
+      const savedLocationData = localStorage.getItem("userLocation");
+      if (savedLocationData) {
+        const locationData = JSON.parse(savedLocationData);
+        if (locationData.label) {
+          setCurrentLocation(locationData.label);
+          console.log("Restored saved location:", locationData.label);
+          
+          // Set locationSet flag if not already set
+          if (localStorage.getItem("locationSet") !== "true") {
+            localStorage.setItem("locationSet", "true");
+          }
+        }
+      }
+    } catch (error) {
+      console.error("Error loading saved location:", error);
+    }
+  }, []);
 
   // Check authentication status on component mount
   useEffect(() => {
@@ -375,6 +410,42 @@ const Navbar = () => {
     // Close any open mobile menu when auth state changes
     setIsMenuOpen(false);
   }, [checkSellerAuth, user]); // Include user in dependencies
+  
+  // Open location modal when user logs in or signs up
+  useEffect(() => {
+    // Check if user just logged in (previousAuthState was null and now user exists)
+    // AND make sure location hasn't already been set
+    if (!previousAuthState && user && localStorage.getItem("locationSet") !== "true") {
+      console.log("User just logged in, showing location modal");
+      
+      // Short delay to ensure UI has settled
+      const timer = setTimeout(() => {
+        setIsLocationModalOpen(true);
+      }, 500);
+      
+      return () => clearTimeout(timer);
+    }
+    
+    // Update previous auth state
+    setPreviousAuthState(user);
+  }, [user, previousAuthState]);
+  
+  // Also check pathname changes to detect signup/login page redirects
+  useEffect(() => {
+    // Check if we just arrived from a login or signup page
+    // AND make sure we don't show the location modal if the user has already set their location
+    if (user && 
+        (pathname === "/" || pathname === "/products") && 
+        (localStorage.getItem("justLoggedIn") === "true") &&
+        (localStorage.getItem("locationSet") !== "true")) {
+      
+      console.log("Detected login/signup redirect, showing location modal");
+      setIsLocationModalOpen(true);
+      
+      // Clear the flag
+      localStorage.removeItem("justLoggedIn");
+    }
+  }, [pathname, user]);
 
   // Close dropdowns when clicking outside
   useEffect(() => {
@@ -421,101 +492,138 @@ const Navbar = () => {
   };
 
   return (
-    <nav className="bg-background-card shadow-sm">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex items-center justify-between h-16">
-          {/* Logo - visible on all screens */}
-          <Link href={`${redirect}`} className="text-xl font-medium">
-            <Image
-              src="/logo.svg"
-              alt="Fast&Fab Logo"
-              width={100}
-              height={30}
-              className="m-auto"
-            />
-          </Link>
+    <>
+      <nav className="bg-background-card shadow-sm">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex items-center justify-between h-16">
+            {/* Logo and Location - visible on all screens */}
+            <div className="flex items-center">
+              <Link href={`${redirect}`} className="text-xl font-medium">
+                <Image
+                  src="/logo.svg"
+                  alt="Fast&Fab Logo"
+                  width={100}
+                  height={30}
+                  className="m-auto"
+                />
+              </Link>
+              
+              {/* Clickable Location display with icon */}
+              <div 
+                className="ml-4 text-text-muted hover:text-text-dark flex items-center cursor-pointer"
+                onClick={() => setIsLocationModalOpen(true)}
+                data-location-trigger
+              >
+                <FiMapPin className="mr-1" />
+                <span>{currentLocation}</span>
+                <svg 
+                  className="ml-1 w-4 h-4" 
+                  fill="none" 
+                  stroke="currentColor" 
+                  viewBox="0 0 24 24" 
+                  xmlns="http://www.w3.org/2000/svg"
+                >
+                  <path 
+                    strokeLinecap="round" 
+                    strokeLinejoin="round" 
+                    strokeWidth={2} 
+                    d="M19 9l-7 7-7-7" 
+                  />
+                </svg>
+              </div>
+            </div>
 
-          {/* Desktop Navigation */}
-          <div className="hidden md:flex md:items-center md:space-x-6">
-            <Link
-              href="/products"
-              className="text-text-muted hover:text-text-dark"
-            >
-              Products
-            </Link>
-
-            {!seller && (
+            {/* Desktop Navigation */}
+            <div className="hidden md:flex md:items-center md:space-x-6">
               <Link
-                href="/seller/signup"
+                href="/products"
                 className="text-text-muted hover:text-text-dark"
               >
-                Become a Seller
+                Products
               </Link>
-            )}
 
-            <Link
-              href="/contact-us"
-              className="text-text-muted hover:text-text-dark"
-            >
-              Contact Us
-            </Link>
-
-            {/* User Authentication - Either show profile or login/signup */}
-            {!seller &&
-              (user ? (
-                <UserDropdown
-                  user={user}
-                  isOpen={isUserDropdownOpen}
-                  setIsOpen={setIsUserDropdownOpen}
-                  onLogout={handleUserLogout}
-                  userDropdownRef={userDropdownRef}
-                />
-              ) : (
-                <AuthLinks />
-              ))}
-
-            {/* Seller Profile with Dropdown */}
-            <SellerDropdown
-              seller={seller}
-              isOpen={isSellerDropdownOpen}
-              setIsOpen={setIsSellerDropdownOpen}
-              onLogout={handleSellerLogout}
-              sellerDropdownRef={sellerDropdownRef}
-            />
-          </div>
-
-          {/* Mobile Navigation Menu Button */}
-          <div className="flex items-center md:hidden">
-            {/* User profile icon in mobile view */}
-            {!seller && user && (
-              <div className="mr-4" onClick={() => router.push("/profile")}>
-                <UserAvatar user={user} />
-              </div>
-            )}
-
-            <button
-              onClick={() => setIsMenuOpen(!isMenuOpen)}
-              className="text-text-muted hover:text-text-dark focus:outline-none"
-            >
-              {isMenuOpen ? (
-                <FiX className="w-6 h-6" />
-              ) : (
-                <FiMenu className="w-6 h-6" />
+              {!seller && (
+                <Link
+                  href="/seller/signup"
+                  className="text-text-muted hover:text-text-dark"
+                >
+                  Become a Seller
+                </Link>
               )}
-            </button>
+
+              <Link
+                href="/contact-us"
+                className="text-text-muted hover:text-text-dark"
+              >
+                Contact Us
+              </Link>
+
+              {/* User Authentication - Either show profile or login/signup */}
+              {!seller &&
+                (user ? (
+                  <UserDropdown
+                    user={user}
+                    isOpen={isUserDropdownOpen}
+                    setIsOpen={setIsUserDropdownOpen}
+                    onLogout={handleUserLogout}
+                    userDropdownRef={userDropdownRef}
+                  />
+                ) : (
+                  <AuthLinks />
+                ))}
+
+              {/* Seller Profile with Dropdown */}
+              <SellerDropdown
+                seller={seller}
+                isOpen={isSellerDropdownOpen}
+                setIsOpen={setIsSellerDropdownOpen}
+                onLogout={handleSellerLogout}
+                sellerDropdownRef={sellerDropdownRef}
+              />
+            </div>
+
+            {/* Mobile Navigation Menu Button */}
+            <div className="flex items-center md:hidden">
+              {/* User profile icon in mobile view */}
+              {!seller && user && (
+                <div className="mr-4" onClick={() => router.push("/profile")}>
+                  <UserAvatar user={user} />
+                </div>
+              )}
+
+              <button
+                onClick={() => setIsMenuOpen(!isMenuOpen)}
+                className="text-text-muted hover:text-text-dark focus:outline-none"
+              >
+                {isMenuOpen ? (
+                  <FiX className="w-6 h-6" />
+                ) : (
+                  <FiMenu className="w-6 h-6" />
+                )}
+              </button>
+            </div>
           </div>
         </div>
-      </div>
 
-      {/* Mobile Menu */}
-      <MobileMenu
-        isOpen={isMenuOpen}
-        seller={seller}
-        user={user}
-        onUserLogout={handleUserLogout}
-        onSellerLogout={handleSellerLogout}
-      />
-    </nav>
+        {/* Mobile Menu */}
+        <MobileMenu
+          isOpen={isMenuOpen}
+          seller={seller}
+          user={user}
+          onUserLogout={handleUserLogout}
+          onSellerLogout={handleSellerLogout}
+        />
+      </nav>
+
+      {/* Location Selection Modal */}
+      {isLocationModalOpen && (
+        <LocationModal 
+          isOpen={isLocationModalOpen} 
+          onClose={() => setIsLocationModalOpen(false)}
+          setCurrentLocation={setCurrentLocation}
+        />
+      )}
+    </>
   );
 };
 

@@ -5,39 +5,13 @@ import { useSearchParams, useRouter } from "next/navigation";
 import Image from "next/image";
 import Link from "next/link";
 import { FiCheckCircle, FiXCircle, FiArrowLeft } from "react-icons/fi";
-import { useUserAuth } from "@/app/context/UserAuthContext";
 
-// Loading component
-function LoadingFallback() {
-  return (
-    <div className="min-h-screen bg-gray-50 py-12">
-      <div className="max-w-3xl mx-auto px-4">
-        <div className="text-center mb-8">
-          <div className="animate-pulse">
-            <div className="h-12 bg-gray-200 rounded w-40 mx-auto mb-4"></div>
-            <div className="h-8 bg-gray-200 rounded w-32 mx-auto"></div>
-          </div>
-        </div>
-        <div className="bg-white rounded-lg shadow p-6">
-          <div className="animate-pulse">
-            <div className="h-4 bg-gray-200 rounded w-3/4 mb-4"></div>
-            <div className="h-4 bg-gray-200 rounded w-1/2"></div>
-            <div className="h-4 bg-gray-200 rounded w-2/3 mt-4"></div>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// Separate component that uses useSearchParams
-function PaymentStatusContent() {
+export default function PaymentStatus() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const [loading, setLoading] = useState(true);
   const [status, setStatus] = useState(null);
   const [orderDetails, setOrderDetails] = useState(null);
-  const { user, login, authLoading } = useUserAuth();
 
   const orderId = searchParams.get("order_id");
   const paymentId = searchParams.get("cf_payment_id");
@@ -127,6 +101,7 @@ function PaymentStatusContent() {
         );
       } catch (error) {
         console.error("Payment verification error:", error);
+        // If the API call fails, fallback to URL params
         setStatus(txStatus || "UNKNOWN");
         setOrderDetails({
           order_id: orderId,
@@ -151,6 +126,7 @@ function PaymentStatusContent() {
       );
     }
 
+    // Successful payment
     if (status === "SUCCESS") {
       return (
         <div className="text-center py-12">
@@ -179,6 +155,7 @@ function PaymentStatusContent() {
       );
     }
 
+    // Failed payment
     if (status === "FAILED" || status === "CANCELLED") {
       return (
         <div className="text-center py-12">
@@ -211,6 +188,7 @@ function PaymentStatusContent() {
       );
     }
 
+    // Pending or unknown status
     return (
       <div className="text-center py-12">
         <div className="mx-auto w-20 h-20 bg-yellow-100 rounded-full flex items-center justify-center mb-6">
@@ -261,22 +239,15 @@ export default function PaymentStatus() {
             <Image
               src="/logo.svg"
               alt="Fast&Fab Logo"
-              width={160}
-              height={50}
-              className="mx-auto mb-4"
-              onError={(e) => {
-                e.target.onerror = null;
-                e.target.src =
-                  "data:image/svg+xml,%3Csvg width='160' height='50' viewBox='0 0 160 50' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Crect width='160' height='50' fill='%23333'/%3E%3Ctext x='80' y='25' font-family='Arial' font-size='18' text-anchor='middle' fill='white'%3EFast&amp;Fab%3C/text%3E%3C/svg%3E";
-              }}
+              width={200}
+              height={60}
             />
           </Link>
-          <h1 className="text-2xl font-bold text-gray-800">Payment Status</h1>
         </div>
 
-        <Suspense fallback={<LoadingFallback />}>
-          <PaymentStatusContent />
-        </Suspense>
+        <div className="bg-white rounded-lg shadow-sm overflow-hidden">
+          {renderStatusContent()}
+        </div>
       </div>
     </div>
   );
