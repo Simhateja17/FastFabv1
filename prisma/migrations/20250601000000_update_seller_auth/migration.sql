@@ -1,0 +1,3 @@
+-- We only need to update Zod validation in our code, no actual DB schema changes are needed
+-- Since we're making GST number required in validation only, not at DB level, this is a safe migration
+-- No existing data will be affected 
