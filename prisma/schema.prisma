@@ -3,47 +3,51 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
+  provider     = "postgresql"
+  url          = env("DATABASE_URL")
   relationMode = "prisma"
 }
 
 model Seller {
-  id            String         @id @default(uuid())
-  phone         String         @unique
-  password      String
-  shopName      String?
-  ownerName     String?
-  address       String?
-  city          String?
-  state         String?
-  pincode       String?
-  openTime      String?
-  closeTime     String?
-  categories    String[]       @default([])
-  createdAt     DateTime       @default(now())
-  updatedAt     DateTime       @updatedAt
-  products      Product[]
-  refreshTokens RefreshToken[]
+  id              String         @id @default(uuid())
+  phone           String         @unique
+  password        String?
+  shopName        String?
+  ownerName       String?
+  address         String?
+  city            String?
+  state           String?
+  pincode         String?
+  openTime        String?
+  closeTime       String?
+  categories      String[]       @default([])
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+  latitude        Float?
+  longitude       Float?
+  isPhoneVerified Boolean        @default(false)
+  gstNumber       String?
+  products        Product[]
+  refreshTokens   RefreshToken[]
 }
 
 model SuperAdmin {
-  id            String               @id @default(uuid())
-  email         String               @unique
-  password      String
-  name          String?
-  createdAt     DateTime             @default(now())
-  updatedAt     DateTime             @updatedAt
-  adminTokens   AdminRefreshToken[]
+  id          String              @id @default(uuid())
+  email       String              @unique
+  password    String
+  name        String?
+  createdAt   DateTime            @default(now())
+  updatedAt   DateTime            @updatedAt
+  adminTokens AdminRefreshToken[]
 }
 
 model AdminRefreshToken {
-  id           String     @id @default(uuid())
-  token        String     @unique
-  adminId      String
-  expiresAt    DateTime
-  createdAt    DateTime   @default(now())
-  superAdmin   SuperAdmin @relation(fields: [adminId], references: [id], onDelete: Cascade)
+  id         String     @id @default(uuid())
+  token      String     @unique
+  adminId    String
+  expiresAt  DateTime
+  createdAt  DateTime   @default(now())
+  superAdmin SuperAdmin @relation(fields: [adminId], references: [id], onDelete: Cascade)
 }
 
 model RefreshToken {
@@ -56,59 +60,53 @@ model RefreshToken {
 }
 
 model Product {
-  id             String   @id @default(uuid())
+  id             String           @id @default(uuid())
   name           String
   description    String?
   mrpPrice       Float
   sellingPrice   Float
-  images         String[] @default([])
+  images         String[]         @default([])
   category       String?
   subcategory    String?
   sizeQuantities Json
-  isActive       Boolean  @default(true)
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
+  isActive       Boolean          @default(true)
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
   sellerId       String
-  seller         Seller   @relation(fields: [sellerId], references: [id])
+  seller         Seller           @relation(fields: [sellerId], references: [id])
   colorInventory ColorInventory[]
 }
 
 model ColorInventory {
   id        String   @id @default(uuid())
   productId String
-  product   Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
   color     String
-  colorCode String   @default("")
-  inventory Json     // Will store sizes and quantities for this color
+  inventory Json
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+  colorCode String   @default("")
+  product   Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
 
   @@unique([productId, color])
 }
 
-enum ProductCategory {
-  MEN
-  WOMEN
-  KIDS
-}
-
 model User {
-  id                 String              @id @default(uuid())
-  email              String?             @unique
-  phone              String?             @unique
+  id                 String               @id @default(uuid())
+  email              String               @unique
+  phone              String?              @unique
   password           String
   name               String?
   profilePicture     String?
-  isVerified         Boolean             @default(false)
-  isPhoneVerified    Boolean             @default(false)
+  isVerified         Boolean              @default(false)
   verificationToken  String?
   passwordResetToken String?
   resetTokenExpiry   DateTime?
+  createdAt          DateTime             @default(now())
+  updatedAt          DateTime             @updatedAt
+  isPhoneVerified    Boolean              @default(false)
   lastLoginAt        DateTime?
-  tokenVersion       Int                 @default(0)
-  role               UserRole            @default(USER)
-  createdAt          DateTime            @default(now())
-  updatedAt          DateTime            @updatedAt
+  role               UserRole             @default(USER)
+  tokenVersion       Int                  @default(0)
   addresses          Address[]
   orders             Order[]
   carts              Cart[]
@@ -126,38 +124,37 @@ model UserRefreshToken {
 }
 
 model Address {
-  id          String   @id @default(uuid())
-  userId      String
-  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  name        String
-  phone       String
-  line1       String
-  line2       String?
-  city        String
-  state       String
-  pincode     String
-  country     String   @default("India")
-  isDefault   Boolean  @default(false)
-  latitude    Float?
-  longitude   Float?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-  orders      Order[]
+  id        String   @id @default(uuid())
+  userId    String
+  name      String
+  phone     String
+  line1     String
+  line2     String?
+  city      String
+  state     String
+  pincode   String
+  country   String   @default("India")
+  isDefault Boolean  @default(false)
+  latitude  Float?
+  longitude Float?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  orders    Order[]
 }
 
 model Cart {
   id        String     @id @default(uuid())
   userId    String
-  user      User       @relation(fields: [userId], references: [id], onDelete: Cascade)
-  items     CartItem[]
   createdAt DateTime   @default(now())
   updatedAt DateTime   @updatedAt
+  user      User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  items     CartItem[]
 }
 
 model CartItem {
   id        String   @id @default(uuid())
   cartId    String
-  cart      Cart     @relation(fields: [cartId], references: [id], onDelete: Cascade)
   productId String
   quantity  Int      @default(1)
   size      String
@@ -165,38 +162,38 @@ model CartItem {
   price     Float
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+  cart      Cart     @relation(fields: [cartId], references: [id], onDelete: Cascade)
 }
 
 model Order {
-  id                String              @id @default(uuid())
-  orderNumber       String              @unique
+  id                String               @id @default(uuid())
+  orderNumber       String               @unique
   userId            String
-  user              User                @relation(fields: [userId], references: [id])
-  items             OrderItem[]
   totalAmount       Float
-  status            OrderStatus         @default(PENDING)
-  paymentStatus     PaymentStatus       @default(PENDING)
-  paymentMethod     PaymentMethod       @default(COD)
+  status            OrderStatus          @default(PENDING)
+  paymentStatus     PaymentStatus        @default(PENDING)
+  paymentMethod     PaymentMethod        @default(COD)
   addressId         String?
-  shippingAddress   Address?            @relation(fields: [addressId], references: [id])
-  discount          Float               @default(0)
-  shippingFee       Float               @default(0)
-  tax               Float               @default(0)
+  discount          Float                @default(0)
+  shippingFee       Float                @default(0)
+  tax               Float                @default(0)
   notes             String?
   deliveryNotes     String?
   estimatedDelivery DateTime?
   trackingNumber    String?
   deliveredAt       DateTime?
   cancelledAt       DateTime?
+  createdAt         DateTime             @default(now())
+  updatedAt         DateTime             @updatedAt
+  user              User                 @relation(fields: [userId], references: [id])
+  items             OrderItem[]
+  shippingAddress   Address?             @relation(fields: [addressId], references: [id])
   transactions      PaymentTransaction[]
-  createdAt         DateTime            @default(now())
-  updatedAt         DateTime            @updatedAt
 }
 
 model OrderItem {
   id          String   @id @default(uuid())
   orderId     String
-  order       Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
   productId   String
   productName String
   sellerId    String
@@ -207,14 +204,13 @@ model OrderItem {
   discount    Float    @default(0)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
+  order       Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
 }
 
 model PaymentTransaction {
   id                String        @id @default(uuid())
   userId            String
-  user              User          @relation(fields: [userId], references: [id])
   orderId           String?
-  order             Order?        @relation(fields: [orderId], references: [id])
   amount            Float
   currency          String        @default("INR")
   status            PaymentStatus
@@ -225,6 +221,40 @@ model PaymentTransaction {
   paymentLinkExpiry DateTime?
   createdAt         DateTime      @default(now())
   updatedAt         DateTime      @updatedAt
+  user              User          @relation(fields: [userId], references: [id])
+  order             Order?        @relation(fields: [orderId], references: [id])
+}
+
+model WhatsAppOTP {
+  id          String   @id @default(uuid())
+  phoneNumber String
+  otpCode     String
+  verified    Boolean  @default(false)
+  expiresAt   DateTime
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  name        String?
+  email       String?
+  isNewUser   Boolean? @default(false)
+
+  @@index([phoneNumber, expiresAt])
+}
+
+model OTP {
+  id          String   @id @default(uuid())
+  phoneNumber String
+  otpCode     String
+  createdAt   DateTime @default(now())
+  expiresAt   DateTime
+  verified    Boolean  @default(false)
+
+  @@index([phoneNumber])
+}
+
+enum ProductCategory {
+  MEN
+  WOMEN
+  KIDS
 }
 
 enum OrderStatus {
@@ -252,33 +282,8 @@ enum PaymentMethod {
   NET_BANKING
 }
 
-model WhatsAppOTP {
-  id           String    @id @default(uuid())
-  phoneNumber  String
-  otpCode      String
-  verified     Boolean   @default(false)
-  expiresAt    DateTime
-  createdAt    DateTime  @default(now())
-  name         String?   // For storing name during registration
-  email        String?   // For storing email during registration
-  isNewUser    Boolean   @default(false)
-
-  @@index([phoneNumber, verified, expiresAt])
-}
-
 enum UserRole {
   USER
   ADMIN
   MODERATOR
-}
-
-model OTP {
-  id           String   @id @default(uuid())
-  phoneNumber  String
-  otpCode      String
-  createdAt    DateTime @default(now())
-  expiresAt    DateTime
-  verified     Boolean  @default(false)
-
-  @@index([phoneNumber])
 }
