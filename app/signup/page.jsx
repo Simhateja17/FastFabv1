@@ -1,18 +1,11 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
 import { toast } from "react-hot-toast";
 import { useUserAuth } from "@/app/context/UserAuthContext";
-import {
-  FiUser,
-  FiMail,
-  FiLock,
-  FiPhone,
-  FiMessageCircle,
-} from "react-icons/fi";
+import { FiUser, FiPhone, FiMessageCircle } from "react-icons/fi";
 import { USER_ENDPOINTS } from "@/app/config";
 
 export default function SignUp() {
@@ -79,7 +72,7 @@ export default function SignUp() {
     if (name === "phone") {
       // Remove non-digit characters except +
       processedValue = value.replace(/[^\d+]/g, "");
-      
+
       // If there's no + at the beginning and it's not empty, add it
       if (processedValue && !processedValue.startsWith("+")) {
         processedValue = "+" + processedValue;
@@ -106,7 +99,8 @@ export default function SignUp() {
 
     // Check if phone number is in the correct format (+[country code][number])
     if (!formData.phone.match(/^\+[1-9]\d{8,14}$/)) {
-      const errorMsg = "Please enter a valid phone number with country code (e.g., +916309599582)";
+      const errorMsg =
+        "Please enter a valid phone number with country code (e.g., +916309599582)";
       toast.error(errorMsg);
       setError(errorMsg);
       return;
@@ -133,7 +127,8 @@ export default function SignUp() {
 
     // Validate phone format (must include country code)
     if (!formData.phone.match(/^\+[1-9]\d{8,14}$/)) {
-      const errorMsg = "Please enter a valid phone number with country code (e.g., +916309599582)";
+      const errorMsg =
+        "Please enter a valid phone number with country code (e.g., +916309599582)";
       toast.error(errorMsg);
       setError(errorMsg);
       return;
@@ -149,29 +144,35 @@ export default function SignUp() {
       if (result.success) {
         setOtpSent(true);
         setExpiresAt(result.expiresAt);
-        
+
         // Check if it's a partial success (OTP generated but delivery issue)
         if (result.warning) {
-          toast.success(result.message, { 
-            icon: '⚠️',
-            duration: 6000 // Show warning for longer
+          toast.success(result.message, {
+            icon: "⚠️",
+            duration: 6000, // Show warning for longer
           });
         } else {
           toast.success("OTP sent to your WhatsApp number");
         }
       } else {
         console.error("Failed to send OTP:", result);
-        
+
         // Display specific error message based on the error code
         if (result.code === "P1001" || result.code === "P1002") {
-          setError("Unable to connect to the database. Please try again later.");
-          toast.error("Unable to connect to the database. Please try again later.");
+          setError(
+            "Unable to connect to the database. Please try again later."
+          );
+          toast.error(
+            "Unable to connect to the database. Please try again later."
+          );
         } else if (result.code === "P2002") {
           setError("A validation error occurred. Please check your input.");
           toast.error("A validation error occurred. Please check your input.");
         } else {
           setError(result.message || "Failed to send OTP. Please try again.");
-          toast.error(result.message || "Failed to send OTP. Please try again.");
+          toast.error(
+            result.message || "Failed to send OTP. Please try again."
+          );
         }
       }
     } catch (error) {
@@ -213,8 +214,12 @@ export default function SignUp() {
             toast.success("Account created and verified successfully!");
             router.push("/");
           } else {
-            setError(registerResult.message || "Registration failed. Please try again.");
-            toast.error(registerResult.message || "Registration failed. Please try again.");
+            setError(
+              registerResult.message || "Registration failed. Please try again."
+            );
+            toast.error(
+              registerResult.message || "Registration failed. Please try again."
+            );
           }
         } else {
           // Existing user - already logged in by verifyWhatsAppOTP
@@ -222,8 +227,12 @@ export default function SignUp() {
           router.push("/");
         }
       } else {
-        setError(result.message || "OTP verification failed. Please try again.");
-        toast.error(result.message || "OTP verification failed. Please try again.");
+        setError(
+          result.message || "OTP verification failed. Please try again."
+        );
+        toast.error(
+          result.message || "OTP verification failed. Please try again."
+        );
       }
     } catch (error) {
       console.error("Error verifying OTP:", error);
@@ -240,7 +249,9 @@ export default function SignUp() {
     if (timeRemaining === "Expired" || !timeRemaining) {
       handleSendOtp();
     } else {
-      toast.error(`Please wait until the current OTP expires (${timeRemaining})`);
+      toast.error(
+        `Please wait until the current OTP expires (${timeRemaining})`
+      );
     }
   };
 
@@ -277,7 +288,7 @@ export default function SignUp() {
               {error}
             </div>
           )}
-          
+
           {!otpSent ? (
             <form onSubmit={handleRegularSignup} className="space-y-6">
               <div>
