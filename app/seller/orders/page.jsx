@@ -1,94 +1,141 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import { useAuth } from "@/app/context/AuthContext";
 import ProtectedRoute from "@/app/components/ProtectedRoute";
 
 // The actual orders content
 function OrdersContent() {
+  const { user, getAccessToken } = useAuth();
   const [activeTab, setActiveTab] = useState("all");
   const [searchTerm, setSearchTerm] = useState("");
+  const [orders, setOrders] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [stats, setStats] = useState({
+    totalOrders: 0,
+    pendingOrders: 0,
+    completedOrders: 0,
+    cancelledOrders: 0
+  });
 
-  // Mock order data
-  const mockOrders = [
-    {
-      id: "ORD-1001",
-      customerName: "Priya Sharma",
-      date: "2024-03-15",
-      total: 1299,
-      items: 2,
-      status: "delivered",
-      paymentMethod: "UPI",
-      address: "123 Main St, Hyderabad",
-    },
-    {
-      id: "ORD-1002",
-      customerName: "Rahul Verma",
-      date: "2024-03-14",
-      total: 899,
-      items: 1,
-      status: "processing",
-      paymentMethod: "Credit Card",
-      address: "456 Park Ave, Hyderabad",
-    },
-    {
-      id: "ORD-1003",
-      customerName: "Ananya Patel",
-      date: "2024-03-13",
-      total: 2499,
-      items: 3,
-      status: "shipped",
-      paymentMethod: "Cash on Delivery",
-      address: "789 Oak Rd, Hyderabad",
-    },
-    {
-      id: "ORD-1004",
-      customerName: "Vikram Singh",
-      date: "2024-03-12",
-      total: 1599,
-      items: 2,
-      status: "delivered",
-      paymentMethod: "UPI",
-      address: "101 Pine St, Hyderabad",
-    },
-    {
-      id: "ORD-1005",
-      customerName: "Neha Gupta",
-      date: "2024-03-11",
-      total: 3299,
-      items: 4,
-      status: "cancelled",
-      paymentMethod: "Credit Card",
-      address: "202 Maple Ave, Hyderabad",
-    },
-  ];
+  useEffect(() => {
+    const fetchOrders = async () => {
+      try {
+        setLoading(true);
+        
+        // Get the authentication token
+        const token = await getAccessToken();
+        
+        if (!token) {
+          // Handle missing token case
+          console.error('No authentication token available');
+          setError('Authentication required');
+          setLoading(false);
+          return;
+        }
+        
+        const response = await fetch(`/api/seller/orders`, {
+          headers: {
+            'Authorization': `Bearer ${token}`
+          }
+        });
+        
+        if (!response.ok) {
+          throw new Error(`Failed to fetch orders: ${response.status} ${response.statusText}`);
+        }
+        
+        const data = await response.json();
+        
+        if (!data || typeof data !== 'object') {
+          throw new Error('Invalid response format');
+        }
+        
+        setOrders(data.orders || []);
+        
+        // Safely access stats
+        if (data.stats && typeof data.stats === 'object') {
+          setStats(data.stats);
+        } else {
+          // Default stats if not available
+          setStats({
+            totalOrders: 0,
+            pendingOrders: 0,
+            completedOrders: 0,
+            cancelledOrders: 0
+          });
+        }
+      } catch (err) {
+        console.error('Error fetching orders:', err);
+        setError(err.message);
+        // Reset to default values on error
+        setOrders([]);
+        setStats({
+          totalOrders: 0,
+          pendingOrders: 0,
+          completedOrders: 0,
+          cancelledOrders: 0
+        });
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    if (user?.id) {
+      fetchOrders();
+    } else {
+      // Handle case when user is not authenticated
+      setLoading(false);
+    }
+  }, [user?.id, getAccessToken]);
 
   // Filter orders based on active tab and search term
-  const filteredOrders = mockOrders.filter((order) => {
-    const matchesTab = activeTab === "all" || order.status === activeTab;
+  const filteredOrders = orders.filter((order) => {
+    const matchesTab = activeTab === "all" || order.status.toLowerCase() === activeTab;
 
     const matchesSearch =
-      order.id.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      order.customerName.toLowerCase().includes(searchTerm.toLowerCase());
+      order.orderNumber?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      order.user?.name?.toLowerCase().includes(searchTerm.toLowerCase());
 
     return matchesTab && matchesSearch;
   });
 
   // Get status badge color
   const getStatusBadgeClass = (status) => {
-    switch (status) {
+    switch (status.toLowerCase()) {
       case "processing":
+      case "pending":
+      case "confirmed":
         return "bg-accent-light text-accent-dark";
       case "shipped":
         return "bg-info bg-opacity-10 text-info";
       case "delivered":
         return "bg-success bg-opacity-10 text-success";
       case "cancelled":
+      case "returned":
         return "bg-error bg-opacity-10 text-error";
       default:
         return "bg-gray-100 text-gray-800";
     }
+  };
+
+  // Format currency
+  const formatCurrency = (amount) => {
+    return new Intl.NumberFormat('en-IN', {
+      style: 'currency',
+      currency: 'INR',
+      maximumFractionDigits: 0
+    }).format(amount);
+  };
+
+  // Format date
+  const formatDate = (dateString) => {
+    return new Date(dateString).toLocaleDateString("en-IN", {
+      day: "numeric",
+      month: "short",
+      year: "numeric",
+    });
   };
 
   return (
@@ -137,13 +184,23 @@ function OrdersContent() {
         </button>
         <button
           className={`px-4 py-2 font-medium text-sm whitespace-nowrap ${
-            activeTab === "processing"
+            activeTab === "pending"
               ? "text-primary border-b-2 border-primary"
               : "text-text-muted hover:text-primary"
           }`}
-          onClick={() => setActiveTab("processing")}
+          onClick={() => setActiveTab("pending")}
         >
-          Processing
+          Pending
+        </button>
+        <button
+          className={`px-4 py-2 font-medium text-sm whitespace-nowrap ${
+            activeTab === "confirmed"
+              ? "text-primary border-b-2 border-primary"
+              : "text-text-muted hover:text-primary"
+          }`}
+          onClick={() => setActiveTab("confirmed")}
+        >
+          Confirmed
         </button>
         <button
           className={`px-4 py-2 font-medium text-sm whitespace-nowrap ${
@@ -179,49 +236,57 @@ function OrdersContent() {
 
       {/* Orders Table */}
       <div className="bg-background-card rounded-lg shadow-sm overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="min-w-full divide-y divide-ui-border">
-            <thead className="bg-background-alt">
-              <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-text-muted uppercase tracking-wider">
-                  Order ID
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-text-muted uppercase tracking-wider">
-                  Customer
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-text-muted uppercase tracking-wider">
-                  Date
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-text-muted uppercase tracking-wider">
-                  Amount
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-text-muted uppercase tracking-wider">
-                  Status
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-text-muted uppercase tracking-wider">
-                  Actions
-                </th>
-              </tr>
-            </thead>
-            <tbody className="bg-background-card divide-y divide-ui-border">
-              {filteredOrders.length > 0 ? (
-                filteredOrders.map((order) => (
+        {loading ? (
+          <div className="py-10 text-center">
+            <p className="text-text-muted">Loading orders...</p>
+          </div>
+        ) : error ? (
+          <div className="py-10 text-center">
+            <p className="text-error">Error: {error}</p>
+          </div>
+        ) : filteredOrders.length === 0 ? (
+          <div className="py-10 text-center">
+            <p className="text-text-muted">No orders found.</p>
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="min-w-full divide-y divide-ui-border">
+              <thead className="bg-background-alt">
+                <tr>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-text-muted uppercase tracking-wider">
+                    Order ID
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-text-muted uppercase tracking-wider">
+                    Customer
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-text-muted uppercase tracking-wider">
+                    Date
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-text-muted uppercase tracking-wider">
+                    Amount
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-text-muted uppercase tracking-wider">
+                    Status
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-text-muted uppercase tracking-wider">
+                    Actions
+                  </th>
+                </tr>
+              </thead>
+              <tbody className="bg-background-card divide-y divide-ui-border">
+                {filteredOrders.map((order) => (
                   <tr key={order.id} className="hover:bg-background-alt">
                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-primary">
-                      {order.id}
+                      {order.orderNumber}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-text">
-                      {order.customerName}
+                      {order.user?.name || 'Unknown Customer'}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-text">
-                      {new Date(order.date).toLocaleDateString("en-IN", {
-                        day: "numeric",
-                        month: "short",
-                        year: "numeric",
-                      })}
+                      {formatDate(order.createdAt)}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-text">
-                      ₹{order.total.toLocaleString("en-IN")}
+                      {formatCurrency(order.totalAmount)}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <span
@@ -230,7 +295,7 @@ function OrdersContent() {
                         )}`}
                       >
                         {order.status.charAt(0).toUpperCase() +
-                          order.status.slice(1)}
+                          order.status.slice(1).toLowerCase()}
                       </span>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-text">
@@ -238,17 +303,17 @@ function OrdersContent() {
                         className="text-primary hover:text-primary-dark mr-3"
                         onClick={() => {
                           // View order details (to be implemented)
-                          alert(`View details for order ${order.id}`);
+                          alert(`View details for order ${order.orderNumber}`);
                         }}
                       >
                         View
                       </button>
-                      {order.status === "processing" && (
+                      {(order.status === "PENDING" || order.status === "CONFIRMED") && (
                         <button
                           className="text-secondary hover:text-secondary-dark"
                           onClick={() => {
                             // Update order status (to be implemented)
-                            alert(`Update status for order ${order.id}`);
+                            alert(`Update status for order ${order.orderNumber}`);
                           }}
                         >
                           Update
@@ -256,24 +321,12 @@ function OrdersContent() {
                       )}
                     </td>
                   </tr>
-                ))
-              ) : (
-                <tr>
-                  <td
-                    colSpan="6"
-                    className="px-6 py-10 text-center text-text-muted"
-                  >
-                    No orders found matching your criteria
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
       </div>
-
-      {/* Order Details Modal (placeholder for future implementation) */}
-      {/* This will be implemented when backend integration is done */}
     </div>
   );
 }
