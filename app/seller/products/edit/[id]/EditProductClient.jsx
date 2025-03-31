@@ -13,6 +13,7 @@ import {
   FiPlus,
   FiCheck,
 } from "react-icons/fi";
+import { PRODUCT_ENDPOINTS, API_URL } from "@/app/config";
 
 const SIZES = [
   "XS",
@@ -137,7 +138,7 @@ export default function EditProductClient({ productId }) {
       console.log("Fetching product with ID:", productId);
 
       const response = await authFetch(
-        `${process.env.NEXT_PUBLIC_API_URL}/api/products/${productId}`
+        PRODUCT_ENDPOINTS.DETAIL(productId)
       );
 
       console.log("Fetch response status:", response.status);
@@ -167,7 +168,7 @@ export default function EditProductClient({ productId }) {
       // Fetch color inventories if available
       try {
         const colorResponse = await authFetch(
-          `${process.env.NEXT_PUBLIC_API_URL}/api/products/${productId}/colors`
+          `${API_URL}/api/seller/products/${productId}/colors`
         );
 
         if (colorResponse.ok) {
@@ -506,7 +507,7 @@ export default function EditProductClient({ productId }) {
       console.log("Updating product:", productId);
       console.log(
         "API URL:",
-        `${process.env.NEXT_PUBLIC_API_URL}/api/products/${productId}`
+        PRODUCT_ENDPOINTS.UPDATE(productId)
       );
 
       // Prepare payload with color inventories
@@ -525,7 +526,7 @@ export default function EditProductClient({ productId }) {
       console.log("With data:", payload);
 
       const response = await authFetch(
-        `${process.env.NEXT_PUBLIC_API_URL}/api/products/${productId}`,
+        PRODUCT_ENDPOINTS.UPDATE(productId),
         {
           method: "PUT",
           headers: {

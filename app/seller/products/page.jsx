@@ -31,8 +31,9 @@ function ProductsListContent() {
   const fetchProducts = async () => {
     try {
       setLoading(true);
+      // Get only the current seller's products by adding /seller/products endpoint
       const response = await authFetch(
-        `${process.env.NEXT_PUBLIC_API_URL}/api/products`
+        `${process.env.NEXT_PUBLIC_API_URL}/api/seller/products`
       );
 
       if (!response.ok) {
@@ -40,10 +41,13 @@ function ProductsListContent() {
       }
 
       const data = await response.json();
+      
+      // Check if the response contains the products array
+      const productsArray = data.products || [];
 
       // Fetch color inventories for each product
       const productsWithColors = await Promise.all(
-        data.map(async (product) => {
+        productsArray.map(async (product) => {
           try {
             const colorResponse = await authFetch(
               `${process.env.NEXT_PUBLIC_API_URL}/api/products/${product.id}/colors`
