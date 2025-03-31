@@ -272,15 +272,6 @@ export default function PaymentStatus() {
             />
           </Link>
           <h1 className="text-2xl font-bold text-gray-800">Payment Status</h1>
-          <div className="text-xs text-gray-500 mt-1">
-            {user
-              ? `Logged in as: ${
-                  user.name || user.email || "Authenticated User"
-                }`
-              : !authLoading
-              ? "Not logged in"
-              : "Checking auth..."}
-          </div>
         </div>
 
         <Suspense fallback={<LoadingFallback />}>
