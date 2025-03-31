@@ -6,6 +6,7 @@ import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { PRODUCT_ENDPOINTS, PUBLIC_ENDPOINTS } from "@/app/config";
 import LoadingSpinner from "@/app/components/LoadingSpinner";
+import { useUserAuth } from "@/app/context/UserAuthContext";
 import {
   FiChevronRight,
   FiShoppingBag,
@@ -31,6 +32,7 @@ export default function ProductDetails({ params }) {
   const [selectedSize, setSelectedSize] = useState("");
   const [selectedColor, setSelectedColor] = useState("");
   const [colorInventories, setColorInventories] = useState([]);
+  const { user, loading: authLoading } = useUserAuth();
   const [paymentLoading, setPaymentLoading] = useState(false);
 
   useEffect(() => {
@@ -114,7 +116,19 @@ export default function ProductDetails({ params }) {
 
   // Function to handle the "Buy Now" button click
   const handleBuyNow = async () => {
-    // Validate selection
+    // Check if user is logged in
+    if (authLoading) {
+      toast("Checking authentication...");
+      return; // Don't proceed if auth state is still loading
+    }
+    
+    if (!user) {
+      toast.error("Please log in or sign up to buy this product.");
+      router.push('/signup'); // Redirect to signup page
+      return;
+    }
+    
+    // Existing validations
     if (!selectedSize && Object.keys(product.sizeQuantities || {}).length > 0) {
       toast.error("Please select a size");
       return;
@@ -149,9 +163,9 @@ export default function ProductDetails({ params }) {
       // Prepare the order data
       const orderData = {
         amount: product.sellingPrice,
-        customer_id: userData?.id || `guest_${Date.now()}`,
-        customer_email: userData?.email || "guest@example.com",
-        customer_phone: userData?.phone || "9999999999",
+        customer_id: user.id, // Use logged-in user's ID
+        customer_email: user.email || `guest_${user.id}@example.com`, // Use user's email or generate one
+        customer_phone: user.phone, // Use user's phone
         product_details: {
           product_id: productId,
           name: product.name,
@@ -211,467 +225,419 @@ export default function ProductDetails({ params }) {
           })
         );
 
-        // Before redirecting, ensure Cashfree SDK is loaded
-        const loadCashfreeSDK = async () => {
-          return new Promise((resolve) => {
-            if (window.Cashfree) {
-              return resolve(window.Cashfree);
-            }
-
-            // Load Cashfree SDK dynamically
-            const script = document.createElement("script");
-            script.src = "https://sdk.cashfree.com/js/v3/cashfree.js";
-            script.onload = () => resolve(window.Cashfree);
-            document.body.appendChild(script);
-          });
-        };
-
-        // Load SDK and initiate payment directly
-        toast.success("Payment initiated! Preparing payment gateway...");
-        const Cashfree = await loadCashfreeSDK();
-
-        try {
-          const cashfree = new Cashfree({
-            mode: "production", // Force production mode explicitly
-          });
-
-          cashfree.checkout({
-            paymentSessionId: paymentData.payment_session_id,
-            redirectTarget: "_self", // Open in the same window
-            onSuccess: (data) => {
-              console.log("Payment success", data);
-              // Redirect will happen automatically to return_url
-            },
-            onFailure: (data) => {
-              console.log("Payment failed", data);
-              // Redirect will happen automatically to return_url
-            },
-            onClose: () => {
-              // Handle user closing the payment popup
-              console.log("Payment window closed");
-              setPaymentLoading(false);
-            },
-          });
-        } catch (sdkError) {
-          console.error("Cashfree SDK error:", sdkError);
-
-          // Fallback - redirect to checkout page if SDK fails
-          console.log("Falling back to checkout page redirect");
-          window.location.href = `/checkout?session_id=${paymentData.payment_session_id}&order_id=${paymentData.order_id}`;
-        }
+        console.log("Payment session stored in localStorage");
+        toast.success("Proceeding to checkout...");
+        router.push(
+          `/checkout?session_id=${paymentData.payment_session_id}&order_id=${paymentData.order_id}`
+        );
       } else {
-        throw new Error("Payment initialization failed - missing session ID");
+        throw new Error("No payment session ID returned");
       }
     } catch (error) {
-      console.error("Payment error:", error);
-      toast.error(error.message || "Payment initialization failed");
+      console.error("Payment creation error:", error);
+      toast.error(error.message || "Failed to proceed to checkout");
     } finally {
       setPaymentLoading(false);
     }
   };
 
+  // Function to add product to cart
+  const handleAddToCart = async () => {
+    if (authLoading) {
+      toast("Checking authentication...");
+      return; // Don't proceed if auth state is still loading
+    }
+    
+    if (!user) {
+      toast.error("Please log in or sign up first");
+      router.push('/signup'); // Redirect to signup page
+      return;
+    }
+    
+    // Validate size and color selection
+    if (!selectedSize && Object.keys(product.sizeQuantities || {}).length > 0) {
+      toast.error("Please select a size");
+      return;
+    }
+
+    if (!selectedColor && colorInventories.length > 0) {
+      toast.error("Please select a color");
+      return;
+    }
+
+    try {
+      const response = await fetch(`/api/cart/add`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          productId,
+          size: selectedSize,
+          color: selectedColor,
+          quantity: 1,
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || "Failed to add item to cart");
+      }
+
+      toast.success("Product added to cart!");
+    } catch (error) {
+      console.error("Add to cart error:", error);
+      toast.error(error.message || "Failed to add to cart");
+    }
+  };
+
+  // Show loading state
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
-        <LoadingSpinner size="large" color="secondary" />
+        <LoadingSpinner />
       </div>
     );
   }
 
+  // Show error state
   if (error) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="text-center">
-          <h2 className="text-2xl font-bold text-primary mb-4">
-            Error Loading Product
-          </h2>
-          <p className="text-text-muted mb-6">{error}</p>
-          <Link
-            href="/"
-            className="inline-flex items-center justify-center bg-secondary hover:bg-secondary-dark text-white px-6 py-3 rounded-md transition-colors"
-          >
-            <FiArrowLeft className="mr-2" /> Back to Home
-          </Link>
-        </div>
+      <div className="min-h-screen flex flex-col items-center justify-center p-4">
+        <h2 className="text-2xl font-bold text-red-600 mb-4">
+          Product Not Found
+        </h2>
+        <p className="text-gray-600 mb-6">{error}</p>
+        <Link
+          href="/"
+          className="inline-flex items-center justify-center bg-primary hover:bg-primary-dark text-white px-6 py-3 rounded-md transition-colors"
+        >
+          <FiArrowLeft className="mr-2" /> Back to Home
+        </Link>
       </div>
     );
   }
 
-  if (!product) {
+  // If product is loaded successfully
+  if (product) {
+    // Check if product is available
+    const isSizeAvailable =
+      Object.values(product.sizeQuantities || {}).some((qty) => qty > 0) ||
+      Object.keys(product.sizeQuantities || {}).length === 0;
+
+    const isColorAvailable =
+      colorInventories.length === 0 ||
+      colorInventories.some((color) =>
+        Object.values(color.inventory || {}).some((qty) => qty > 0)
+      );
+
+    const isProductAvailable = isSizeAvailable && isColorAvailable;
+
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="text-center">
-          <h2 className="text-2xl font-bold text-primary mb-4">
-            Product Not Found
-          </h2>
-          <p className="text-text-muted mb-6">
-            The product you&apos;re looking for doesn&apos;t exist or has been
-            removed.
-          </p>
-          <Link
-            href="/"
-            className="inline-flex items-center justify-center bg-secondary hover:bg-secondary-dark text-white px-6 py-3 rounded-md transition-colors"
-          >
-            <FiArrowLeft className="mr-2" /> Back to Home
-          </Link>
-        </div>
-      </div>
-    );
-  }
-
-  // Calculate total quantity across all sizes
-  const totalQuantity = product.sizeQuantities
-    ? Object.values(product.sizeQuantities).reduce(
-        (sum, quantity) => sum + quantity,
-        0
-      )
-    : 0;
-
-  // Check if product is in stock
-  const isInStock = totalQuantity > 0;
-
-  // Ensure images is always an array
-  const images = Array.isArray(product.images) ? product.images : [];
-
-  return (
-    <div className="bg-background min-h-screen">
-      {/* Breadcrumb */}
-      <div className="bg-background-alt border-b border-ui-border">
-        <div className="max-w-7xl mx-auto px-4 py-3 sm:px-6 lg:px-8">
-          <div className="flex items-center text-sm text-text-muted">
-            <Link href="/" className="text-primary">
-              Home
-            </Link>
-            <FiChevronRight className="mx-2 text-primary" />
-            <Link
-              href={`/products/category/${
-                product.category?.toLowerCase() || "all"
-              }`}
-              className="text-primary"
-            >
-              {product.category || "Products"}
-            </Link>
-            <FiChevronRight className="mx-2 text-primary" />
-            <span className="text-text-dark truncate max-w-[150px]">
-              {product.name}
-            </span>
-          </div>
-        </div>
-      </div>
-
-      {/* Product Details */}
-      <div className="max-w-7xl mx-auto px-4 py-8 sm:px-6 lg:px-8">
-        {/* Back Button */}
-        <div className="mb-8">
-          <Link
-            href="/products"
-            className="inline-flex items-center text-secondary hover:text-secondary-dark transition-colors"
-          >
-            <FiArrowLeft className="mr-2" /> Back to Products
-          </Link>
+      <div className="bg-background py-8">
+        {/* Breadcrumb */}
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mb-6">
+          <nav className="flex" aria-label="Breadcrumb">
+            <ol className="flex items-center space-x-2 text-sm text-gray-500">
+              <li>
+                <Link href="/" className="hover:text-primary">
+                  Home
+                </Link>
+              </li>
+              <li className="flex items-center">
+                <FiChevronRight className="h-4 w-4 mx-1" />
+                <Link href="/products" className="hover:text-primary">
+                  Products
+                </Link>
+              </li>
+              <li className="flex items-center">
+                <FiChevronRight className="h-4 w-4 mx-1" />
+                <span className="text-gray-700 font-medium truncate max-w-xs">
+                  {product.name}
+                </span>
+              </li>
+            </ol>
+          </nav>
         </div>
 
-        <div className="flex flex-col lg:flex-row -mx-4">
-          {/* Product Images */}
-          <div className="lg:w-1/2 px-4 mb-8 lg:mb-0">
-            <div className="mb-4 aspect-square relative rounded-lg overflow-hidden bg-background-alt border border-ui-border shadow-sm">
-              {images.length > 0 ? (
-                <Image
-                  src={images[selectedImage]}
-                  alt={product.name}
-                  fill
-                  priority
-                  className="object-cover"
-                />
-              ) : (
-                <div className="w-full h-full bg-background-alt flex items-center justify-center">
-                  <FiShoppingBag className="w-16 h-16 text-secondary" />
+        {/* Product Details */}
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-8 bg-background-card rounded-lg shadow-sm overflow-hidden">
+            {/* Product Images */}
+            <div className="p-4 sm:p-6">
+              <div className="flex flex-col">
+                {/* Main Image */}
+                <div className="relative h-80 sm:h-96 w-full mb-4 rounded-lg overflow-hidden bg-gray-100">
+                  {product.images && product.images.length > 0 ? (
+                    <Image
+                      src={product.images[selectedImage]}
+                      alt={product.name}
+                      layout="fill"
+                      objectFit="contain"
+                      className="transition-opacity duration-300"
+                      onError={(e) => {
+                        e.target.onerror = null;
+                        e.target.src = "/placeholder-product.png";
+                      }}
+                    />
+                  ) : (
+                    <div className="flex items-center justify-center h-full bg-gray-200 rounded-lg">
+                      <FiShoppingBag className="h-16 w-16 text-gray-400" />
+                      <span className="sr-only">No image available</span>
+                    </div>
+                  )}
+
+                  {/* Discount badge */}
+                  {product.mrpPrice && product.mrpPrice > product.sellingPrice && (
+                    <div className="absolute top-2 right-2 bg-red-500 text-white text-xs font-bold px-2 py-1 rounded-full">
+                      {calculateDiscountPercentage()}% OFF
+                    </div>
+                  )}
                 </div>
-              )}
 
-              {/* Discount Badge */}
-              {calculateDiscountPercentage() > 0 && (
-                <div className="absolute top-4 left-4 bg-accent text-white px-3 py-1 rounded-full text-sm font-medium shadow-sm">
-                  {calculateDiscountPercentage()}% OFF
-                </div>
-              )}
+                {/* Thumbnail Images */}
+                {product.images && product.images.length > 1 && (
+                  <div className="flex space-x-2 overflow-x-auto pb-2">
+                    {product.images.map((image, index) => (
+                      <button
+                        key={index}
+                        onClick={() => setSelectedImage(index)}
+                        className={`relative h-20 w-20 flex-shrink-0 rounded-md overflow-hidden ${
+                          selectedImage === index
+                            ? "ring-2 ring-primary"
+                            : "ring-1 ring-gray-200"
+                        }`}
+                      >
+                        <Image
+                          src={image}
+                          alt={`${product.name} - Image ${index + 1}`}
+                          layout="fill"
+                          objectFit="cover"
+                          onError={(e) => {
+                            e.target.onerror = null;
+                            e.target.src = "/placeholder-product.png";
+                          }}
+                        />
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
             </div>
 
-            {/* Thumbnail Images */}
-            {images.length > 1 && (
-              <div className="flex space-x-2 overflow-x-auto pb-2">
-                {images.map((image, index) => (
-                  <button
-                    key={index}
-                    onClick={() => setSelectedImage(index)}
-                    className={`relative w-20 h-20 rounded-md overflow-hidden flex-shrink-0 border-2 transition-all ${
-                      selectedImage === index
-                        ? "border-secondary shadow-md"
-                        : "border-transparent"
-                    }`}
-                  >
-                    <Image
-                      src={image}
-                      alt={`${product.name} - view ${index + 1}`}
-                      fill
-                      className="object-cover"
-                    />
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
-
-          {/* Product Info */}
-          <div className="lg:w-1/2 px-4">
-            <div className="bg-background-card rounded-lg border border-ui-border p-6 shadow-sm">
-              {/* Category */}
-              <div className="flex items-center mb-2">
-                <span className="text-sm bg-primary bg-opacity-10 text-white  rounded-full px-3 py-1">
-                  {product.category}
-                  {product.subcategory && ` • ${product.subcategory}`}
-                </span>
-              </div>
-
-              {/* Product Name */}
-              <h1 className="text-3xl font-bold text-text-dark mb-4">
+            {/* Product Info */}
+            <div className="p-4 sm:p-6 flex flex-col">
+              <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 mb-2">
                 {product.name}
               </h1>
 
-              {/* Pricing */}
-              <div className="flex items-baseline mb-6">
-                <span className="text-2xl font-bold text-secondary   mr-2">
-                  ₹{product.sellingPrice}
-                </span>
-                {product.mrpPrice > product.sellingPrice && (
-                  <span className="text-lg text-text-muted line-through">
-                    ₹{product.mrpPrice}
-                  </span>
-                )}
-                {calculateDiscountPercentage() > 0 && (
-                  <span className="ml-2 text-sm text-accent font-medium">
-                    Save {calculateDiscountPercentage()}%
-                  </span>
-                )}
-              </div>
-
-              {/* Availability */}
-              <div className="mb-6">
-                {isInStock ? (
-                  <div className="flex items-center text-success bg-success bg-opacity-10 px-3 py-2 rounded-md inline-block">
-                    <FiCheck className="mr-2 text-white" />
-                    <span className="font-medium text-white">In Stock</span>
-                  </div>
-                ) : (
-                  <div className="flex items-center text-error bg-error bg-opacity-10 px-3 py-2 rounded-md inline-block">
-                    <FiInfo className="mr-2 text-white" />
-                    <span className="font-medium text-white">Out of Stock</span>
-                  </div>
-                )}
-              </div>
-
-              {/* Description */}
-              {product.description && (
-                <div className="mb-6">
-                  <h2 className="text-lg font-medium text-text-dark mb-2">
-                    Description
-                  </h2>
-                  <div className="bg-background-alt p-4 rounded-lg border border-ui-border">
-                    <p className="text-text whitespace-pre-line">
-                      {product.description}
-                    </p>
-                  </div>
-                </div>
+              {/* Seller info */}
+              {product.seller && (
+                <p className="text-sm text-gray-500 mb-4">
+                  Sold by: {product.seller.shopName || "Unknown Seller"}
+                </p>
               )}
 
-              {/* Divider */}
-              <div className="border-t border-ui-border my-6"></div>
+              {/* Price */}
+              <div className="flex items-center mb-4">
+                <span className="text-2xl font-bold text-primary">
+                  ₹{product.sellingPrice}
+                </span>
+                {product.mrpPrice && product.mrpPrice > product.sellingPrice && (
+                  <>
+                    <span className="ml-2 text-gray-500 line-through">
+                      ₹{product.mrpPrice}
+                    </span>
+                    <span className="ml-2 text-green-600 text-sm font-medium">
+                      Save ₹{product.mrpPrice - product.sellingPrice} (
+                      {calculateDiscountPercentage()}%)
+                    </span>
+                  </>
+                )}
+              </div>
 
-              {/* Color Selection */}
+              {/* Colors */}
               {colorInventories.length > 0 && (
                 <div className="mb-6">
-                  <h2 className="text-lg font-medium text-text-dark mb-3">
-                    Select Color
-                  </h2>
-                  <div className="flex flex-wrap gap-3 mb-4">
-                    {colorInventories.map((colorInv) => {
-                      // Check if this color has any inventory
-                      const hasInventory = Object.values(
-                        colorInv.inventory || {}
+                  <h3 className="text-sm font-medium text-gray-900 mb-2">
+                    Colors:
+                  </h3>
+                  <div className="flex flex-wrap gap-2 mb-1">
+                    {colorInventories.map((colorItem) => {
+                      const colorName = colorItem.color;
+                      // Check if any size for this color is available
+                      const isAvailable = Object.values(
+                        colorItem.inventory || {}
                       ).some((qty) => qty > 0);
-                      if (!hasInventory) return null;
 
                       return (
                         <button
-                          key={colorInv.color}
-                          onClick={() => handleColorSelect(colorInv.color)}
-                          disabled={!hasInventory}
-                          className={`
-                            flex flex-col items-center p-2 rounded-md border transition-all
-                            ${
-                              selectedColor === colorInv.color
-                                ? "border-secondary bg-secondary bg-opacity-10 shadow-sm"
-                                : "border-ui-border bg-background-alt hover:border-secondary hover:shadow-sm"
-                            }
-                          `}
+                          key={colorName}
+                          onClick={() => isAvailable && handleColorSelect(colorName)}
+                          disabled={!isAvailable}
+                          className={`h-8 w-8 rounded-full flex items-center justify-center ${
+                            !isAvailable && "opacity-30 cursor-not-allowed"
+                          } ${
+                            selectedColor === colorName &&
+                            "ring-2 ring-offset-2 ring-primary"
+                          }`}
+                          style={{
+                            backgroundColor: colorName.toLowerCase(),
+                            // Use contrasting color for text if needed
+                            color:
+                              /^(white|yellow|light|beige|cream)/i.test(
+                                colorName
+                              )
+                                ? "#000"
+                                : "#fff",
+                          }}
+                          title={`${colorName}${!isAvailable ? " (Out of stock)" : ""}`}
                         >
-                          <div
-                            className="w-8 h-8 rounded-full border border-ui-border shadow-sm mb-1"
-                            style={{
-                              backgroundColor: colorInv.colorCode || "#000000",
-                            }}
-                          ></div>
-                          <span className="text-xs text-white">
-                            {colorInv.color}
-                          </span>
+                          {selectedColor === colorName && (
+                            <FiCheck className="h-5 w-5" />
+                          )}
                         </button>
                       );
                     })}
                   </div>
-
-                  {/* Color Inventory Display */}
-                  {selectedColor && (
-                    <div className="bg-primary p-3 rounded-lg ">
-                      <h3 className="text-sm font-medium text-white mb-2">
-                        {selectedColor} Inventory:
-                      </h3>
-                      <div className="flex flex-wrap gap-2">
-                        {colorInventories.find((c) => c.color === selectedColor)
-                          ?.inventory &&
-                          Object.entries(
-                            colorInventories.find(
-                              (c) => c.color === selectedColor
-                            ).inventory
-                          )
-                            .filter(([_, qty]) => qty > 0)
-                            .map(([size, qty]) => (
-                              <div
-                                key={`${selectedColor}-${size}`}
-                                className="bg-background px-2 py-1 rounded flex items-center"
-                              >
-                                <span className="text-xs font-medium text-primary">
-                                  {size}:
-                                </span>
-                                <span className="text-xs ml-1 text-secondary">
-                                  {qty} available
-                                </span>
-                              </div>
-                            ))}
-                        {!colorInventories.find(
-                          (c) => c.color === selectedColor
-                        )?.inventory ||
-                        Object.values(
-                          colorInventories.find(
-                            (c) => c.color === selectedColor
-                          )?.inventory || {}
-                        ).every((qty) => qty === 0) ? (
-                          <span className="text-xs text-error">
-                            Out of stock
-                          </span>
-                        ) : null}
-                      </div>
-                    </div>
-                  )}
+                  <p className="text-xs text-gray-500 mt-1">
+                    Selected: {selectedColor || "None"}
+                  </p>
                 </div>
               )}
 
-              {/* Size Selection */}
+              {/* Sizes */}
               {Object.keys(product.sizeQuantities || {}).length > 0 && (
                 <div className="mb-6">
-                  <h2 className="text-lg font-medium text-text-dark mb-3">
-                    Select Size
-                  </h2>
-                  <div className="flex flex-wrap gap-2 ">
-                    {Object.entries(product.sizeQuantities).map(
-                      ([size, qty]) => (
+                  <h3 className="text-sm font-medium text-gray-900 mb-2">
+                    Size:
+                  </h3>
+                  <div className="flex flex-wrap gap-2 mb-1">
+                    {Object.entries(product.sizeQuantities || {}).map(
+                      ([size, quantity]) => (
                         <button
                           key={size}
-                          onClick={() => handleSizeSelect(size)}
-                          disabled={qty <= 0}
-                          className={`
-                          h-10 min-w-[2.5rem] focus:text-white px-3 rounded-md border transition-all
-                          ${
+                          onClick={() => quantity > 0 && handleSizeSelect(size)}
+                          disabled={quantity <= 0}
+                          className={`px-3 py-1 border rounded-md ${
+                            quantity <= 0 && "opacity-30 cursor-not-allowed"
+                          } ${
                             selectedSize === size
-                              ? "border-secondary bg-secondary bg-opacity-10 text-secondary font-medium shadow-sm"
-                              : qty > 0
-                              ? "border-ui-border bg-background-alt text-text hover:border-secondary hover:shadow-sm"
-                              : "border-ui-border bg-background-alt text-text-muted opacity-50 cursor-not-allowed"
-                          }
-                        `}
+                              ? "border-primary bg-primary text-white"
+                              : "border-gray-300 hover:border-primary"
+                          }`}
                         >
                           {size}
                         </button>
                       )
                     )}
                   </div>
+                  <p className="text-xs text-gray-500 mt-1">
+                    Selected: {selectedSize || "None"}
+                  </p>
                 </div>
               )}
 
-              {/* Buy Now Button */}
+              {/* Product Description */}
               <div className="mb-6">
-                <button
-                  onClick={handleBuyNow}
-                  disabled={!isInStock || paymentLoading}
-                  className={`w-full flex items-center justify-center bg-primary hover:bg-primary-dark text-white py-3 px-4 rounded-md transition-all ${
-                    !isInStock || paymentLoading
-                      ? "opacity-50 cursor-not-allowed"
-                      : ""
-                  }`}
-                >
-                  {paymentLoading ? (
-                    <>
-                      <div className="animate-spin mr-2 h-4 w-4 border-2 border-white border-t-transparent rounded-full"></div>
-                      Processing...
-                    </>
+                <h3 className="text-sm font-medium text-gray-900 mb-2">
+                  Description:
+                </h3>
+                <div className="text-sm text-gray-600 prose">
+                  {product.description ? (
+                    <p>{product.description}</p>
                   ) : (
-                    <>
-                      <FiCreditCard className="mr-2" />
-                      Buy Now
-                    </>
+                    <p className="italic">No description available</p>
                   )}
-                </button>
-                {!isInStock && (
-                  <p className="text-error text-sm mt-2 text-center">
-                    This product is currently out of stock
-                  </p>
-                )}
+                </div>
               </div>
 
-              {/* Feature Highlights */}
-              <div className="border-t border-ui-border pt-6 mt-6">
-                <div className="space-y-4">
-                  <div className="flex items-start bg-secondary bg-opacity-5 p-3 rounded-lg">
-                    <div className="bg-secondary bg-opacity-10 p-2 rounded-full text-secondary mr-3">
-                      <FiTruck size={18} className="text-white" />
-                    </div>
-                    <div>
-                      <h3 className="font-medium text-text-dark">
-                        30-Minute Delivery
-                      </h3>
-                      <p className="text-sm text-text-dark">
-                        Get it delivered in just 30 minutes in Hyderabad
-                      </p>
-                    </div>
-                  </div>
-                  <div className="flex items-start bg-secondary bg-opacity-5 p-3 rounded-lg">
-                    <div className="bg-secondary bg-opacity-10 p-2 rounded-full text-secondary mr-3">
-                      <FiShield size={18} className="text-white" />
-                    </div>
-                    <div>
-                      <h3 className="font-medium text-text-dark">
-                        Quality Guarantee
-                      </h3>
-                      <p className="text-sm text-text-dark">
-                        Returns accepted within 24 hours of delivery
-                      </p>
-                    </div>
-                  </div>
+              {/* Product Features/Attributes */}
+              {product.attributes && Object.keys(product.attributes).length > 0 && (
+                <div className="mb-6">
+                  <h3 className="text-sm font-medium text-gray-900 mb-2">
+                    Product Attributes:
+                  </h3>
+                  <dl className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-2 text-sm">
+                    {Object.entries(product.attributes).map(([key, value]) => (
+                      <div key={key} className="flex">
+                        <dt className="font-medium text-gray-500 mr-1">
+                          {key.replace(/([A-Z])/g, " $1").trim()}:
+                        </dt>
+                        <dd className="text-gray-900">{value}</dd>
+                      </div>
+                    ))}
+                  </dl>
                 </div>
+              )}
+
+              {/* Availability */}
+              <div className="mt-auto">
+                <div className="mb-4">
+                  <span
+                    className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                      isProductAvailable
+                        ? "bg-green-100 text-green-800"
+                        : "bg-red-100 text-red-800"
+                    }`}
+                  >
+                    {isProductAvailable ? "In Stock" : "Out of Stock"}
+                  </span>
+                </div>
+
+                {/* Buttons */}
+                <div className="flex flex-col sm:flex-row space-y-3 sm:space-y-0 sm:space-x-3">
+                  <button
+                    onClick={handleAddToCart}
+                    disabled={!isProductAvailable || paymentLoading}
+                    className="flex-1 flex items-center justify-center px-4 py-3 border border-transparent rounded-md shadow-sm text-base font-medium text-white bg-primary-dark hover:bg-primary-darker transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    Add to Cart
+                  </button>
+                  <button
+                    onClick={handleBuyNow}
+                    disabled={!isProductAvailable || paymentLoading}
+                    className="flex-1 flex items-center justify-center px-4 py-3 border border-transparent rounded-md shadow-sm text-base font-medium text-white bg-primary hover:bg-primary-dark transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {paymentLoading ? (
+                      <div className="flex items-center">
+                        <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin mr-2"></div>
+                        <span>Processing...</span>
+                      </div>
+                    ) : (
+                      "Buy Now"
+                    )}
+                  </button>
+                </div>
+              </div>
+
+              {/* Delivery Info */}
+              <div className="mt-6 border-t border-gray-200 pt-4">
+                <h3 className="text-sm font-medium text-gray-900 mb-2">
+                  Delivery & Returns:
+                </h3>
+                <ul className="space-y-2 text-xs text-gray-600">
+                  <li className="flex items-center">
+                    <FiTruck className="h-4 w-4 mr-2 text-gray-400" />
+                    Free shipping on orders over ₹499
+                  </li>
+                  <li className="flex items-center">
+                    <FiShield className="h-4 w-4 mr-2 text-gray-400" />
+                    7-day return policy
+                  </li>
+                  <li className="flex items-center">
+                    <FiCreditCard className="h-4 w-4 mr-2 text-gray-400" />
+                    Secure Payment
+                  </li>
+                </ul>
               </div>
             </div>
           </div>
         </div>
       </div>
-    </div>
-  );
+    );
+  }
+
+  // Fallback (should not reach here)
+  return null;
 }

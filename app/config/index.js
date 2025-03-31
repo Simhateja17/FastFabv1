@@ -23,6 +23,8 @@ export const USER_ENDPOINTS = {
   GET_USER_BY_PHONE: `/api/user/phone-login`,
   ADDRESSES: `${API_URL}/address`,
   ADDRESS_DETAIL: (id) => `${API_URL}/address/${id}`,
+  LOCATION: `/api/user/location`,
+  ADDRESS: `/api/user/address`,
   ORDERS: `${API_URL}/orders`,
   ORDER_DETAIL: (id) => `${API_URL}/orders/${id}`,
   CART: `${API_URL}/cart`,
