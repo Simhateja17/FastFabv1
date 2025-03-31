@@ -30,6 +30,28 @@ export function AuthProvider({ children }) {
   const [seller, setSeller] = useState(null);
   const [loading, setLoading] = useState(true);
 
+  // Get the current access token, refreshing if necessary
+  const getAccessToken = async () => {
+    try {
+      const { accessToken, refreshToken } = getTokens();
+      
+      // If we have a valid access token, return it
+      if (accessToken) {
+        return accessToken;
+      }
+      
+      // If no access token but we have a refresh token, try to refresh
+      if (!accessToken && refreshToken) {
+        return await refreshAccessToken();
+      }
+      
+      return null;
+    } catch (error) {
+      console.error("Error getting access token:", error);
+      return null;
+    }
+  };
+
   // Refresh the access token using the refresh token
   const refreshAccessToken = async () => {
     try {
@@ -39,21 +61,28 @@ export function AuthProvider({ children }) {
         throw new Error("No refresh token available");
       }
 
+      console.log("Attempting to refresh token with:", refreshToken ? refreshToken.substring(0, 10) + "..." : "none");
+
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout
 
       try {
-        const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/auth/refresh`, {
+        // Add a timestamp to prevent caching issues
+        const timestamp = new Date().getTime();
+        const response = await fetch(`/api/auth/refresh?_=${timestamp}`, {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
           },
           body: JSON.stringify({ refreshToken }),
-          signal: controller.signal
+          signal: controller.signal,
+          credentials: 'include' // Important: Include cookies in the request
         });
 
         clearTimeout(timeoutId);
 
+        console.log("Token refresh response:", response.status, response.statusText);
+        
         if (response.status >= 500) {
           // Server error - don't clear tokens on server issues
           console.warn("Server error during token refresh");
@@ -62,19 +91,49 @@ export function AuthProvider({ children }) {
         }
 
         if (!response.ok) {
+          // Get error details for better debugging
+          let errorMessage = `Failed to refresh token: ${response.status}`;
+          try {
+            const errorData = await response.json();
+            errorMessage = errorData.message || errorMessage;
+          } catch (e) {
+            // If not JSON, try to get text
+            try {
+              const errorText = await response.text();
+              console.error("Error response text:", errorText);
+            } catch (textError) {
+              // Ignore if we can't get text
+            }
+          }
+
           // Handle specific error cases
           if (response.status === 401) {
             // Token invalid or expired
             throw new Error("Invalid refresh token");
+          } else if (response.status === 404) {
+            // Endpoint not found - this is likely a routing issue
+            console.error("Refresh endpoint not found (404). Check API routes configuration.");
+            throw new Error("Token refresh endpoint not found");
           } else {
             // Other client errors
-            throw new Error(`Failed to refresh token: ${response.status}`);
+            throw new Error(errorMessage);
           }
         }
 
         const data = await response.json();
-        setTokens(data.accessToken, data.refreshToken);
-        setSeller(data.seller);
+        console.log("Token refresh successful, got new tokens");
+        
+        if (!data.accessToken) {
+          console.error("Missing access token in refresh response:", data);
+          throw new Error("Invalid refresh response: missing access token");
+        }
+        
+        // Store tokens in localStorage for backward compatibility
+        setTokens(data.accessToken, data.refreshToken || refreshToken);
+        
+        if (data.seller) {
+          setSeller(data.seller);
+        }
 
         return data.accessToken;
       } catch (fetchError) {
@@ -134,21 +193,30 @@ export function AuthProvider({ children }) {
           requestHeaders.Authorization = `Bearer ${token}`;
         }
         
+        console.log(`Making request to ${url} (retry: ${retryCount})`);
         const response = await fetch(url, {
           ...options,
           headers: requestHeaders,
-          signal: controller.signal
+          signal: controller.signal,
+          credentials: 'include' // Always include cookies
         });
+
+        // Log response status and content type for debugging
+        console.log(`Response: ${response.status} ${response.statusText}`);
+        console.log(`Content-Type: ${response.headers.get('content-type')}`);
 
         // If unauthorized and we have a refresh token, try to refresh
         if (response.status === 401 && retryCount === 0) {
+          console.log("Got 401, attempting to refresh token");
           try {
             // Try to refresh the token
             const newAccessToken = await refreshAccessToken();
             
             // Retry the request with the new token
+            console.log("Token refreshed, retrying original request");
             return makeRequest(newAccessToken, retryCount + 1);
           } catch (refreshError) {
+            console.error("Token refresh failed during request:", refreshError.message);
             // Only clear auth state for specific auth errors, not network issues
             if (refreshError.message.includes("Invalid refresh token") || 
                 refreshError.message === "No refresh token available") {
@@ -164,6 +232,11 @@ export function AuthProvider({ children }) {
           console.warn(`Server error ${response.status}, retrying...`);
           await new Promise(resolve => setTimeout(resolve, 1000));
           return makeRequest(token, retryCount + 1);
+        }
+
+        // Check for 404 errors specifically
+        if (response.status === 404) {
+          console.error(`Resource not found: ${url}`);
         }
 
         return response;
@@ -202,7 +275,7 @@ export function AuthProvider({ children }) {
 
         // Try to get seller profile with current token
         try {
-          const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/auth/profile`, {
+          const response = await fetch(`/api/auth/profile`, {
             headers: {
               Authorization: `Bearer ${accessToken}`,
             },
@@ -255,27 +328,42 @@ export function AuthProvider({ children }) {
   }, []);
 
   // Login function
-  const login = async (phone, password) => {
+  const login = async (phone, password, isOtpLogin = false) => {
     try {
       setLoading(true);
-      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/auth/signin`, {
+
+      // Always use OTP login for sellers now
+      const endpoint = `/api/auth/signin-with-otp`;
+      const body = { phone };
+
+      console.log('Attempting to login with phone:', phone);
+      const response = await fetch(endpoint, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ phone, password }),
+        body: JSON.stringify(body),
+        credentials: 'include' // Include cookies in request
       });
 
+      console.log('Login response status:', response.status, response.statusText);
       const data = await response.json();
-      console.log('Login response:', data);
+      console.log('Login response:', data.success ? 'Success' : 'Failed');
 
       if (!response.ok) {
         return { success: false, error: data.message || 'Login failed' };
       }
 
+      // Check if we got tokens back
       if (data.accessToken && data.refreshToken) {
+        // Store in localStorage for backward compatibility
         setTokens(data.accessToken, data.refreshToken);
-        setSeller(data.seller);
+        
+        // Update seller state
+        if (data.seller) {
+          setSeller(data.seller);
+        }
+        
         return { success: true, seller: data.seller };
       } else {
         console.error('Missing tokens in login response');
@@ -289,51 +377,16 @@ export function AuthProvider({ children }) {
     }
   };
 
-  // Login with OTP function
-  const loginWithOTP = async (phone) => {
+  // Register function
+  const register = async (phone, password) => {
     try {
       setLoading(true);
-      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/auth/signin-otp`, {
+      const response = await fetch(`/api/auth/signup`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({ phone }),
-      });
-
-      const data = await response.json();
-      console.log('OTP Login response:', data);
-
-      if (!response.ok) {
-        return { success: false, error: data.message || 'Login failed' };
-      }
-
-      if (data.accessToken && data.refreshToken) {
-        setTokens(data.accessToken, data.refreshToken);
-        setSeller(data.seller);
-        return { success: true, seller: data.seller };
-      } else {
-        console.error('Missing tokens in login response');
-        return { success: false, error: 'Invalid server response' };
-      }
-    } catch (error) {
-      console.error("OTP Login error:", error);
-      return { success: false, error: error.message || 'Something went wrong' };
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // Register function
-  const register = async (phone, password) => {
-    try {
-      setLoading(true);
-      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/auth/signup`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ phone, password }),
       });
 
       const data = await response.json();
@@ -353,49 +406,10 @@ export function AuthProvider({ children }) {
     }
   };
 
-  // Register with OTP function
-  const registerWithOTP = async (phone) => {
-    try {
-      setLoading(true);
-      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/auth/signup-otp`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ phone }),
-      });
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        return { 
-          success: false, 
-          error: data.message || "Registration failed" 
-        };
-      }
-
-      setTokens(data.accessToken, data.refreshToken);
-      setSeller(data.seller);
-      return { 
-        success: true, 
-        accessToken: data.accessToken, 
-        seller: data.seller 
-      };
-    } catch (error) {
-      console.error("OTP Registration error:", error);
-      return { 
-        success: false, 
-        error: error.message || 'Something went wrong' 
-      };
-    } finally {
-      setLoading(false);
-    }
-  };
-
   // Logout function
   const logout = async () => {
     try {
-      await authFetch(`${process.env.NEXT_PUBLIC_API_URL}/auth/logout`, { method: "POST" });
+      await authFetch(`/api/auth/logout`, { method: "POST" });
     } catch (error) {
       console.error("Logout error:", error);
     } finally {
@@ -407,7 +421,7 @@ export function AuthProvider({ children }) {
   // Update seller details
   const updateSellerDetails = async (sellerId, details) => {
     try {
-      const response = await authFetch(`${process.env.NEXT_PUBLIC_API_URL}/auth/${sellerId}/details`, {
+      const response = await authFetch(`/api/auth/${sellerId}/details`, {
         method: "PATCH",
         body: JSON.stringify(details),
       });
@@ -426,51 +440,18 @@ export function AuthProvider({ children }) {
     }
   };
 
-  // Login with OTP function
-  const loginWithOTP = async (phone) => {
+  // Send WhatsApp OTP for seller verification
+  const sendSellerOTP = async (phone) => {
     try {
       setLoading(true);
-      const response = await fetch(`/api/auth/signin-otp`, {
+      
+      // Use the new seller WhatsApp OTP endpoint
+      const response = await fetch(`/api/seller-whatsapp-otp/send`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ phone }),
-      });
-
-      const data = await response.json();
-      console.log('OTP Login response:', data);
-
-      if (!response.ok) {
-        return { success: false, error: data.message || 'Login failed' };
-      }
-
-      if (data.accessToken && data.refreshToken) {
-        setTokens(data.accessToken, data.refreshToken);
-        setSeller(data.seller);
-        return { success: true, seller: data.seller };
-      } else {
-        console.error('Missing tokens in login response');
-        return { success: false, error: 'Invalid server response' };
-      }
-    } catch (error) {
-      console.error("OTP Login error:", error);
-      return { success: false, error: error.message || 'Something went wrong' };
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // Register with OTP function
-  const registerWithOTP = async (phone) => {
-    try {
-      setLoading(true);
-      const response = await fetch(`/api/auth/signup-otp`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ phone }),
+        body: JSON.stringify({ phoneNumber: phone }),
       });
 
       const data = await response.json();
@@ -478,19 +459,61 @@ export function AuthProvider({ children }) {
       if (!response.ok) {
         return { 
           success: false, 
-          error: data.message || "Registration failed" 
+          error: data.message || 'Failed to send OTP' 
         };
       }
 
-      setTokens(data.accessToken, data.refreshToken);
-      setSeller(data.seller);
       return { 
         success: true, 
-        accessToken: data.accessToken, 
-        seller: data.seller 
+        expiresAt: data.expiresAt,
+        isExistingSeller: data.isExistingSeller  
       };
     } catch (error) {
-      console.error("OTP Registration error:", error);
+      console.error("Send seller OTP error:", error);
+      return { 
+        success: false, 
+        error: error.message || 'Something went wrong' 
+      };
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Verify WhatsApp OTP for seller
+  const verifySellerOTP = async (phone, otpCode) => {
+    try {
+      setLoading(true);
+      
+      // Use the new seller WhatsApp OTP verification endpoint
+      const response = await fetch(`/api/seller-whatsapp-otp/verify`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ 
+          phoneNumber: phone, 
+          otpCode 
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        return { 
+          success: false, 
+          error: data.message || 'Failed to verify OTP' 
+        };
+      }
+
+      return { 
+        success: true,
+        isNewSeller: data.isNewSeller,
+        isExistingSeller: data.isExistingSeller,
+        sellerId: data.sellerId,
+        isSellerComplete: data.isSellerComplete
+      };
+    } catch (error) {
+      console.error("Verify seller OTP error:", error);
       return { 
         success: false, 
         error: error.message || 'Something went wrong' 
@@ -506,15 +529,14 @@ export function AuthProvider({ children }) {
         seller,
         loading,
         login,
-        loginWithOTP,
         register,
-        registerWithOTP,
         logout,
         updateSellerDetails,
         authFetch,
         setSeller,
-        loginWithOTP,
-        registerWithOTP,
+        sendSellerOTP,
+        verifySellerOTP,
+        getAccessToken
       }}
     >
       {children}

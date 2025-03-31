@@ -1,32 +1,38 @@
-// Script to apply WhatsAppOTP table migration
-const { PrismaClient } = require('@prisma/client');
+// Script to apply WhatsApp OTP migrations
+const { execSync } = require('child_process');
 const fs = require('fs');
 const path = require('path');
+const { PrismaClient } = require('@prisma/client');
 
-async function main() {
-  console.log('Starting migration for WhatsAppOTP table...');
+const prisma = new PrismaClient();
 
-  // Create a new PrismaClient instance
-  const prisma = new PrismaClient();
-
+async function applyMigration() {
   try {
-    // Read the migration SQL file
-    const migrationPath = path.join(process.cwd(), 'prisma/migrations/add_whatsapp_otp_fields.sql');
-    const sql = fs.readFileSync(migrationPath, 'utf8');
-
-    // Split the SQL into separate statements
-    const statements = sql
-      .split(';')
-      .map(s => s.trim())
-      .filter(s => s.length > 0);
-
+    console.log('Starting WhatsApp OTP migration...');
+    
+    // Read the SQL migration file
+    const sqlFilePath = path.join(__dirname, '../prisma/migrations/add_whatsapp_otp_fields.sql');
+    const sqlContent = fs.readFileSync(sqlFilePath, 'utf8');
+    
+    // Split the SQL into individual statements
+    const statements = sqlContent.split(';').filter(statement => statement.trim() !== '');
+    
     // Execute each SQL statement
+    console.log('Applying SQL migrations...');
     for (const statement of statements) {
-      console.log(`Executing: ${statement}`);
-      await prisma.$executeRawUnsafe(`${statement};`);
+      if (statement.trim()) {
+        await prisma.$executeRawUnsafe(`${statement};`);
+        console.log('Executed statement:', statement);
+      }
     }
-
-    console.log('Migration completed successfully!');
+    
+    console.log('SQL migrations applied successfully.');
+    
+    // Generate Prisma client with the updated schema
+    console.log('Generating updated Prisma client...');
+    execSync('npx prisma generate', { stdio: 'inherit' });
+    
+    console.log('WhatsApp OTP migration completed successfully.');
   } catch (error) {
     console.error('Migration failed:', error);
     process.exit(1);
@@ -35,4 +41,4 @@ async function main() {
   }
 }
 
-main(); 
+applyMigration(); 
