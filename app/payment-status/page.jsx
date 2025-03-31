@@ -1,13 +1,37 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, Suspense } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import Image from "next/image";
 import Link from "next/link";
 import { FiCheckCircle, FiXCircle, FiArrowLeft } from "react-icons/fi";
 import { useUserAuth } from "@/app/context/UserAuthContext";
 
-export default function PaymentStatus() {
+// Loading component
+function LoadingFallback() {
+  return (
+    <div className="min-h-screen bg-gray-50 py-12">
+      <div className="max-w-3xl mx-auto px-4">
+        <div className="text-center mb-8">
+          <div className="animate-pulse">
+            <div className="h-12 bg-gray-200 rounded w-40 mx-auto mb-4"></div>
+            <div className="h-8 bg-gray-200 rounded w-32 mx-auto"></div>
+          </div>
+        </div>
+        <div className="bg-white rounded-lg shadow p-6">
+          <div className="animate-pulse">
+            <div className="h-4 bg-gray-200 rounded w-3/4 mb-4"></div>
+            <div className="h-4 bg-gray-200 rounded w-1/2"></div>
+            <div className="h-4 bg-gray-200 rounded w-2/3 mt-4"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// Separate component that uses useSearchParams
+function PaymentStatusContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const [loading, setLoading] = useState(true);
@@ -224,6 +248,11 @@ export default function PaymentStatus() {
     );
   };
 
+  return renderStatusContent();
+}
+
+// Main component with Suspense boundary
+export default function PaymentStatus() {
   return (
     <div className="min-h-screen bg-gray-50 py-12">
       <div className="max-w-3xl mx-auto px-4">
@@ -254,9 +283,9 @@ export default function PaymentStatus() {
           </div>
         </div>
 
-        <div className="bg-white rounded-lg shadow-sm">
-          {renderStatusContent()}
-        </div>
+        <Suspense fallback={<LoadingFallback />}>
+          <PaymentStatusContent />
+        </Suspense>
       </div>
     </div>
   );
