@@ -29,6 +29,24 @@ export default function ProductsPage() {
   });
   
   const [noNearbyResults, setNoNearbyResults] = useState(false);
+  
+  // Helper function to normalize price data
+  const normalizePrice = (priceValue) => {
+    if (priceValue === null || priceValue === undefined) return 0;
+    if (typeof priceValue === 'number') return priceValue;
+    if (typeof priceValue === 'string') {
+      const cleanPrice = priceValue.replace(/[^\d.-]/g, '');
+      const parsedPrice = parseFloat(cleanPrice);
+      if (isNaN(parsedPrice)) {
+        console.warn(`normalizePrice: Could not parse price string: '${priceValue}' -> '${cleanPrice}'. Returning 0.`);
+        return 0;
+      }
+      return parsedPrice;
+    }
+    // If it's neither number nor string, log a warning
+    console.warn(`normalizePrice: Unexpected price type: ${typeof priceValue}, value:`, priceValue, `. Returning 0.`);
+    return 0;
+  };
 
   useEffect(() => {
     fetchProducts();
@@ -43,8 +61,10 @@ export default function ProductsPage() {
       // Create query params with both API and client-side filters
       const queryParams = new URLSearchParams();
       
-      // If category is selected, add it to the API query
+      // Add all filter params to see if the API is respecting them
       if (filters.category) queryParams.append("category", filters.category);
+      if (filters.minPrice !== null) queryParams.append("minPrice", filters.minPrice);
+      if (filters.maxPrice !== null) queryParams.append("maxPrice", filters.maxPrice);
       
       // Add location parameters if location is available
       const hasLocationData = locationFilter.enabled && 
@@ -102,17 +122,52 @@ export default function ProductsPage() {
       
       // Apply client-side filtering for price and sorting if needed
       if (filters.minPrice !== null || filters.maxPrice !== null) {
-        productList = productList.filter(product => {
-          const price = Number(product.sellingPrice);
+        const originalProductCount = productList.length;
+        const filteredProductList = [];
+        
+        // Log the filter state being used for this filtering pass
+        console.log(`[Filtering] Applying price filter: min=${filters.minPrice}, max=${filters.maxPrice}`);
+
+        for (const product of productList) {
+          const rawPrice = product.sellingPrice;
+          const price = normalizePrice(rawPrice);
+          let shouldInclude = true; // Default to include unless filtered out
+
+          // Apply price filter criteria
           if (filters.minPrice !== null && filters.maxPrice !== null) {
-            return price >= filters.minPrice && price <= filters.maxPrice;
+            shouldInclude = price >= filters.minPrice && price < filters.maxPrice;
           } else if (filters.minPrice !== null) {
-            return price >= filters.minPrice;
+            shouldInclude = price >= filters.minPrice;
           } else if (filters.maxPrice !== null) {
-            return price <= filters.maxPrice;
+            shouldInclude = price < filters.maxPrice;
           }
-          return true;
-        });
+          
+          // Specific logging for the problematic 5000+ filter
+          if (filters.minPrice === 5000 && filters.maxPrice === null) {
+            if (!shouldInclude) {
+               console.log(`[Filtering ₹5000+] EXCLUDED: Name='${product.name}', ID='${product.id}', RawPrice='${rawPrice}', NormalizedPrice=${price}`);
+            }
+            // Keep this explicit check for clarity in logs
+            if (price < 5000) { 
+              shouldInclude = false; // Re-affirm exclusion
+            }
+          }
+
+          if (shouldInclude) {
+            filteredProductList.push(product);
+          } else {
+             // Generic log for any exclusion if needed (can be noisy)
+             // console.log(`[Filtering] EXCLUDED Product ID ${product.id}, Price ${price}`);
+          }
+        }
+        
+        // Log the final list before setting state
+        console.log(`[Filtering] FINAL CHECK before setProducts (${filteredProductList.length} items):`, 
+          filteredProductList.map(p => ({ id: p.id, name: p.name, price: normalizePrice(p.sellingPrice) }))
+        );
+        
+        productList = filteredProductList;
+        console.log(`[Filtering] Price filtering result: ${originalProductCount} -> ${productList.length} products`);
       }
       
       // Apply sorting
@@ -199,6 +254,22 @@ export default function ProductsPage() {
       <h1 className="text-2xl md:text-3xl font-bold text-primary mb-6">
         All Products
       </h1>
+      
+      {/* Debug panel for development */}
+      {process.env.NODE_ENV === 'development' && (
+        <div className="mb-4 p-4 bg-yellow-50 border border-yellow-200 rounded-md">
+          <h3 className="text-sm font-medium text-yellow-800">Debug Info:</h3>
+          <div className="text-xs">
+            <p>Price Filter: {filters.minPrice !== null || filters.maxPrice !== null ? 
+              `${filters.minPrice === null ? 'Under' : filters.minPrice}${filters.maxPrice === null ? ' & Above' : ' - ' + filters.maxPrice}` 
+              : 'None'}</p>
+            <p>Total Products (after filtering): {products.length}</p>
+            {filters.minPrice === 5000 && filters.maxPrice === null && (
+              <p className="text-red-500 font-bold">₹5000 & Above filter active</p>
+            )}
+          </div>
+        </div>
+      )}
       
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
         {/* Sidebar with filters */}

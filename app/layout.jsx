@@ -2,6 +2,9 @@ import "./globals.css";
 import Navbar from "./components/Navbar";
 import Footer from "./components/Footer";
 import { Providers } from "./providers";
+import { LocationProvider } from "./context/LocationContext";
+import { UserAuthProvider } from "./context/UserAuthContext";
+import { AuthProvider } from "./context/AuthContext";
 import { Inter } from "next/font/google";
 import { Analytics } from "@vercel/analytics/react";
 import Script from "next/script";
@@ -32,9 +35,15 @@ export default function RootLayout({ children }) {
       </head>
       <body className="min-h-screen flex flex-col">
         <Providers>
-          <Navbar />
-          <main className="flex-grow">{children}</main>
-          <Footer />
+          <AuthProvider>
+            <UserAuthProvider>
+              <LocationProvider>
+                <Navbar />
+                <main className="flex-grow">{children}</main>
+                <Footer />
+              </LocationProvider>
+            </UserAuthProvider>
+          </AuthProvider>
         </Providers>
         <Analytics />
       </body>
