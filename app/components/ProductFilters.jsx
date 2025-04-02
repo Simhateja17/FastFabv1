@@ -30,10 +30,10 @@ export default function ProductFilters({
   const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false);
   const [isClient, setIsClient] = useState(false);
   const [openSections, setOpenSections] = useState({
-    category: false,
+    category: true,
     subcategory: false,
-    size: false,
-    price: false,
+    size: true,
+    price: true,
     sort: false,
   });
 
@@ -265,14 +265,12 @@ export default function ProductFilters({
                           onClick={() => handlePriceRangeChange(range.min, range.max)}
                           className={`flex items-center justify-between w-full px-2 py-1.5 rounded-md ${
                             filters.minPrice === range.min && filters.maxPrice === range.max
-                              ? 'bg-gray-100 text-gray-900'
-                              : 'text-gray-600'
+                              ? 'bg-primary text-white font-semibold'
+                              : 'text-gray-600 hover:bg-gray-50'
                           }`}
                         >
                           <span>{range.label}</span>
-                          {filters.minPrice === range.min && filters.maxPrice === range.max && (
-                            <FiCheck className="h-4 w-4" />
-                          )}
+                          {filters.minPrice === range.min && filters.maxPrice === range.max && <FiCheck className="h-4 w-4 text-white" />}
                         </button>
                       </div>
                     ))}
@@ -324,291 +322,146 @@ export default function ProductFilters({
       )}
 
       {/* Desktop filters */}
-      <div className="bg-white">
-        <div className="border-b border-gray-200">
-          <div className="flex w-full items-center justify-between py-4">
-            <div className="flex flex-1 items-center space-x-4">
-              <button
-                type="button"
-                className="inline-flex items-center rounded-md border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 shadow-sm hover:bg-gray-50"
-                onClick={() => setMobileFiltersOpen(true)}
-              >
-                <FiFilter className="mr-2 h-5 w-5" />
-                <span>Filters</span>
-                {getActiveFiltersCount() > 0 && (
-                  <span className="ml-1.5 inline-flex h-5 w-5 items-center justify-center rounded-full bg-primary text-xs font-medium text-white">
-                    {getActiveFiltersCount()}
-                  </span>
-                )}
-              </button>
-
-              <div className="hidden md:flex md:items-center md:space-x-2">
-                {/* Desktop filter items */}
-                <div className="relative inline-block text-left">
-                  <div>
-                    <button
-                      type="button"
-                      className="inline-flex items-center rounded-md border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 shadow-sm hover:bg-gray-50"
-                      onClick={() => toggleSection('category')}
-                    >
-                      <span>{filters.category || 'Category'}</span>
-                      <FiChevronDown
-                        className={`ml-2 h-4 w-4 transform ${openSections.category ? 'rotate-180' : ''} transition-transform`}
-                      />
-                    </button>
-                  </div>
-
-                  {openSections.category && (
-                    <div className="absolute left-0 z-10 mt-2 w-40 origin-top-left rounded-md bg-white shadow-lg ring-1 ring-black ring-opacity-5">
-                      <div className="py-1">
-                        {availableCategories.map((category) => (
-                          <button
-                            key={category}
-                            onClick={() => handleCategoryChange(category)}
-                            className={`block w-full px-4 py-2 text-left text-sm ${
-                              filters.category === category ? 'bg-gray-100 text-gray-900' : 'text-gray-700'
-                            }`}
-                          >
-                            {category}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-                </div>
-
-                {filters.category && (
-                  <div className="relative inline-block text-left">
-                    <div>
-                      <button
-                        type="button"
-                        className="inline-flex items-center rounded-md border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 shadow-sm hover:bg-gray-50"
-                        onClick={() => toggleSection('subcategory')}
-                      >
-                        <span>{filters.subcategory || 'Subcategory'}</span>
-                        <FiChevronDown
-                          className={`ml-2 h-4 w-4 transform ${openSections.subcategory ? 'rotate-180' : ''} transition-transform`}
-                        />
-                      </button>
-                    </div>
-
-                    {openSections.subcategory && (
-                      <div className="absolute left-0 z-10 mt-2 w-40 origin-top-left rounded-md bg-white shadow-lg ring-1 ring-black ring-opacity-5">
-                        <div className="py-1">
-                          {subcategories.map((subcategory) => (
-                            <button
-                              key={subcategory}
-                              onClick={() => handleSubcategoryChange(subcategory)}
-                              className={`block w-full px-4 py-2 text-left text-sm ${
-                                filters.subcategory === subcategory ? 'bg-gray-100 text-gray-900' : 'text-gray-700'
-                              }`}
-                            >
-                              {subcategory}
-                            </button>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                )}
-
-                <div className="relative inline-block text-left">
-                  <div>
-                    <button
-                      type="button"
-                      className="inline-flex items-center rounded-md border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 shadow-sm hover:bg-gray-50"
-                      onClick={() => toggleSection('size')}
-                    >
-                      <span>{filters.size || 'Size'}</span>
-                      <FiChevronDown
-                        className={`ml-2 h-4 w-4 transform ${openSections.size ? 'rotate-180' : ''} transition-transform`}
-                      />
-                    </button>
-                  </div>
-
-                  {openSections.size && (
-                    <div className="absolute left-0 z-10 mt-2 w-60 origin-top-left rounded-md bg-white shadow-lg ring-1 ring-black ring-opacity-5">
-                      <div className="p-3 grid grid-cols-4 gap-2">
-                        {availableSizes.map((size) => (
-                          <button
-                            key={size}
-                            onClick={() => handleSizeChange(size)}
-                            className={`inline-flex items-center justify-center rounded-md border px-3 py-2 text-sm ${
-                              filters.size === size
-                                ? 'border-gray-900 bg-gray-900 text-white'
-                                : 'border-gray-300 bg-white text-gray-900 hover:bg-gray-50'
-                            }`}
-                          >
-                            {size}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-                </div>
-
-                <div className="relative inline-block text-left">
-                  <div>
-                    <button
-                      type="button"
-                      className="inline-flex items-center rounded-md border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 shadow-sm hover:bg-gray-50"
-                      onClick={() => toggleSection('price')}
-                    >
-                      <RiPriceTag3Line className="mr-2 h-4 w-4" />
-                      <span>Price</span>
-                      <FiChevronDown
-                        className={`ml-2 h-4 w-4 transform ${openSections.price ? 'rotate-180' : ''} transition-transform`}
-                      />
-                    </button>
-                  </div>
-
-                  {openSections.price && (
-                    <div className="absolute left-0 z-10 mt-2 w-48 origin-top-left rounded-md bg-white shadow-lg ring-1 ring-black ring-opacity-5">
-                      <div className="py-1">
-                        {availablePriceRanges.map((range, index) => (
-                          <button
-                            key={index}
-                            onClick={() => handlePriceRangeChange(range.min, range.max)}
-                            className={`block w-full px-4 py-2 text-left text-sm ${
-                              filters.minPrice === range.min && filters.maxPrice === range.max
-                                ? 'bg-gray-100 text-gray-900'
-                                : 'text-gray-700'
-                            }`}
-                          >
-                            {range.label}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-                </div>
-              </div>
-            </div>
-
-            <div className="ml-auto flex items-center space-x-4">
-              {getActiveFiltersCount() > 0 && (
+      <div className="hidden lg:block border border-gray-200 rounded-lg p-4 bg-white shadow-sm">
+        <div className="flex justify-between items-center mb-4 border-b pb-2">
+          <h3 className="text-lg font-semibold text-primary">Filters</h3>
+          <button 
+            onClick={clearAllFilters} 
+            className="text-xs font-medium text-red-600 hover:text-red-800 disabled:text-gray-400 disabled:cursor-not-allowed"
+            disabled={getActiveFiltersCount() === 0}
+          >
+            Clear All
+          </button>
+        </div>
+        
+        {/* Category Section - Always Open */}      
+        <div className="border-b pb-4 mb-4">
+          <h4 className="font-medium text-gray-900 mb-2">Category</h4>
+          <div className="space-y-2 pt-2">
+            {availableCategories.map((category) => (
+              <div key={category} className="flex items-center">
                 <button
-                  onClick={clearAllFilters}
-                  className="hidden md:block text-sm font-medium text-primary hover:text-primary-dark"
+                  onClick={() => handleCategoryChange(category)}
+                  className={`flex items-center justify-between w-full px-2 py-1.5 rounded-md text-sm ${
+                    filters.category === category ? 'bg-primary bg-opacity-10 text-primary font-semibold' : 'text-gray-600 hover:bg-gray-50'
+                  }`}
                 >
-                  Clear all
+                  <span>{category}</span>
+                  {filters.category === category && <FiCheck className="h-4 w-4 text-primary" />}
                 </button>
-              )}
-              
-              <div className="relative inline-block text-left">
-                <div>
-                  <button
-                    type="button"
-                    className="inline-flex items-center rounded-md border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 shadow-sm hover:bg-gray-50"
-                    onClick={() => toggleSection('sort')}
-                  >
-                    <TbArrowsSort className="mr-2 h-4 w-4" />
-                    <span>Sort</span>
-                    <FiChevronDown
-                      className={`ml-2 h-4 w-4 transform ${openSections.sort ? 'rotate-180' : ''} transition-transform`}
-                    />
-                  </button>
-                </div>
-
-                {openSections.sort && (
-                  <div className="absolute right-0 z-10 mt-2 w-48 origin-top-right rounded-md bg-white shadow-lg ring-1 ring-black ring-opacity-5">
-                    <div className="py-1">
-                      {sortOptions.map((option) => (
-                        <button
-                          key={option.value}
-                          onClick={() => handleSortChange(option.value)}
-                          className={`block w-full px-4 py-2 text-left text-sm ${
-                            filters.sort === option.value ? 'bg-gray-100 text-gray-900' : 'text-gray-700'
-                          }`}
-                        >
-                          {option.label}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                )}
               </div>
-            </div>
+            ))}
           </div>
+        </div>
 
-          {/* Active filter tags */}
-          {getActiveFiltersCount() > 0 && (
-            <div className="flex flex-wrap items-center gap-2 py-3">
-              {filters.category && (
-                <div className="inline-flex items-center rounded-full bg-gray-100 py-1 pl-3 pr-2 text-sm">
-                  <span>{filters.category}</span>
+        {/* Subcategory Section - Conditional & Collapsible */}
+        {filters.category && (
+          <div className="border-b pb-4 mb-4">
+            <button
+              onClick={() => toggleSection('subcategory')}
+              className="flex w-full items-center justify-between py-2 text-sm text-gray-900 hover:text-gray-600"
+            >
+              <span className="font-medium">Subcategory</span>
+              <FiChevronDown
+                className={`h-5 w-5 transform ${openSections.subcategory ? 'rotate-180' : ''} transition-transform`}
+              />
+            </button>
+            {openSections.subcategory && (
+              <div className="space-y-2 pt-2">
+                {subcategories.map((subcategory) => (
+                  <div key={subcategory} className="flex items-center">
+                    <button
+                      onClick={() => handleSubcategoryChange(subcategory)}
+                      className={`flex items-center justify-between w-full px-2 py-1.5 rounded-md text-sm ${
+                        filters.subcategory === subcategory ? 'bg-primary bg-opacity-10 text-primary font-semibold' : 'text-gray-600 hover:bg-gray-50'
+                      }`}
+                    >
+                      <span>{subcategory}</span>
+                      {filters.subcategory === subcategory && <FiCheck className="h-4 w-4 text-primary" />}
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Size Section - Always Open */}      
+        <div className="border-b pb-4 mb-4">
+          <h4 className="font-medium text-gray-900 mb-2">Size</h4>
+           <div className="grid grid-cols-3 gap-2 pt-2">
+            {availableSizes.map((size) => (
+              <button
+                key={size}
+                onClick={() => handleSizeChange(size)}
+                className={`inline-flex items-center justify-center rounded-md border px-3 py-1.5 text-xs font-medium transition-colors duration-150 ${
+                  filters.size === size
+                    ? 'border-primary bg-primary text-white'
+                    : 'border-gray-300 bg-white text-gray-700 hover:bg-gray-50 hover:border-gray-400'
+                }`}
+              >
+                {size}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Price Section - Always Open - Restore Correct Mapping */}      
+        <div className="border-b pb-4 mb-4">
+          <h4 className="font-medium text-gray-900 mb-2">Price</h4>
+          <div className="space-y-2 pt-2">
+            {/* Ensure we are mapping over the correct availablePriceRanges prop */} 
+            {availablePriceRanges.map(({ label, min, max }) => (
+              // Use label as key assuming labels are unique, or use index if necessary
+              <div key={label} className="flex items-center">
+                <button
+                  onClick={() => handlePriceRangeChange(min, max)}
+                  className={`flex items-center justify-between w-full px-2 py-1.5 rounded-md text-sm transition-colors duration-150 ${
+                    filters.minPrice === min && filters.maxPrice === max
+                      ? 'bg-primary text-white font-semibold'
+                      : 'text-gray-600 hover:bg-gray-50'
+                  }`}
+                >
+                  <span>{label}</span>
+                  {filters.minPrice === min && filters.maxPrice === max && <FiCheck className="h-4 w-4 text-white" />}
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
+        
+        {/* Sort Section - Collapsible */}
+        <div className="pb-4">
+          <button
+            onClick={() => toggleSection('sort')}
+            className="flex w-full items-center justify-between py-2 text-sm text-gray-900 hover:text-gray-600"
+          >
+            <span className="font-medium">Sort By</span>
+            <FiChevronDown
+              className={`h-5 w-5 transform ${openSections.sort ? 'rotate-180' : ''} transition-transform`}
+            />
+          </button>
+          {openSections.sort && (
+            <div className="space-y-2 pt-2">
+              {sortOptions.map((option) => (
+                <div key={option.value} className="flex items-center">
                   <button
-                    type="button"
-                    onClick={() => handleCategoryChange("")}
-                    className="ml-1 inline-flex h-4 w-4 flex-shrink-0 items-center justify-center rounded-full text-gray-400 hover:bg-gray-200 hover:text-gray-500"
+                    onClick={() => handleSortChange(option.value)}
+                    className={`flex items-center justify-between w-full px-2 py-1.5 rounded-md text-sm ${
+                      filters.sort === option.value
+                        ? 'bg-primary bg-opacity-10 text-primary font-semibold'
+                        : 'text-gray-600 hover:bg-gray-50'
+                    }`}
                   >
-                    <FiX className="h-3 w-3" />
+                    <span>{option.label}</span>
+                    {filters.sort === option.value && <FiCheck className="h-4 w-4 text-primary" />}
                   </button>
                 </div>
-              )}
-              
-              {filters.subcategory && (
-                <div className="inline-flex items-center rounded-full bg-gray-100 py-1 pl-3 pr-2 text-sm">
-                  <span>{filters.subcategory}</span>
-                  <button
-                    type="button"
-                    onClick={() => handleSubcategoryChange("")}
-                    className="ml-1 inline-flex h-4 w-4 flex-shrink-0 items-center justify-center rounded-full text-gray-400 hover:bg-gray-200 hover:text-gray-500"
-                  >
-                    <FiX className="h-3 w-3" />
-                  </button>
-                </div>
-              )}
-              
-              {filters.size && (
-                <div className="inline-flex items-center rounded-full bg-gray-100 py-1 pl-3 pr-2 text-sm">
-                  <span>Size: {filters.size}</span>
-                  <button
-                    type="button"
-                    onClick={() => handleSizeChange("")}
-                    className="ml-1 inline-flex h-4 w-4 flex-shrink-0 items-center justify-center rounded-full text-gray-400 hover:bg-gray-200 hover:text-gray-500"
-                  >
-                    <FiX className="h-3 w-3" />
-                  </button>
-                </div>
-              )}
-              
-              {(filters.minPrice !== null || filters.maxPrice !== null) && (
-                <div className="inline-flex items-center rounded-full bg-gray-100 py-1 pl-3 pr-2 text-sm">
-                  <span>
-                    {filters.minPrice === null
-                      ? `Under ₹${filters.maxPrice}`
-                      : filters.maxPrice === null
-                      ? `₹${filters.minPrice} & Above`
-                      : `₹${filters.minPrice} - ₹${filters.maxPrice - 1}`}
-                  </span>
-                  <button
-                    type="button"
-                    onClick={() => handlePriceRangeChange(null, null)}
-                    className="ml-1 inline-flex h-4 w-4 flex-shrink-0 items-center justify-center rounded-full text-gray-400 hover:bg-gray-200 hover:text-gray-500"
-                  >
-                    <FiX className="h-3 w-3" />
-                  </button>
-                </div>
-              )}
-              
-              {filters.sort && (
-                <div className="inline-flex items-center rounded-full bg-gray-100 py-1 pl-3 pr-2 text-sm">
-                  <span>
-                    Sort: {sortOptions.find(option => option.value === filters.sort)?.label}
-                  </span>
-                  <button
-                    type="button"
-                    onClick={() => handleSortChange("")}
-                    className="ml-1 inline-flex h-4 w-4 flex-shrink-0 items-center justify-center rounded-full text-gray-400 hover:bg-gray-200 hover:text-gray-500"
-                  >
-                    <FiX className="h-3 w-3" />
-                  </button>
-                </div>
-              )}
+              ))}
             </div>
           )}
         </div>
+
       </div>
     </>
   );

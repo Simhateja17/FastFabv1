@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/app/context/AuthContext";
 import Image from "next/image";
@@ -13,6 +13,7 @@ import {
   FiArrowLeft,
   FiPlus,
   FiCheck,
+  FiInfo,
 } from "react-icons/fi";
 import { PRODUCT_ENDPOINTS } from "@/app/config";
 
@@ -83,6 +84,12 @@ const COLORS = [
   { name: "Coral", hex: "#FF7F50" },
 ];
 
+// Define returnable options
+const RETURNABLE_OPTIONS = [
+  { value: true, label: "Returnable :- 8% Commission" },
+  { value: false, label: "Non-Returnable :- 12% Commission" }
+];
+
 export default function AddProduct() {
   const router = useRouter();
   const { seller, authFetch } = useAuth();
@@ -104,6 +111,23 @@ export default function AddProduct() {
   const [showColorInventory, setShowColorInventory] = useState(false);
   const [currentColorSizes, setCurrentColorSizes] = useState([]);
 
+  // Multi-page product management
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [productPages, setProductPages] = useState([{
+    name: "",
+    description: "",
+    mrpPrice: "",
+    sellingPrice: "",
+    category: "",
+    subcategory: "",
+    selectedColor: "",
+    selectedSizes: [],
+    images: [],
+    files: [],
+    isReturnable: true
+  }]);
+
   const [formData, setFormData] = useState({
     name: "",
     description: "",
@@ -111,6 +135,7 @@ export default function AddProduct() {
     sellingPrice: "",
     category: "",
     subcategory: "",
+    isReturnable: true,
     sizeQuantities: {
       XS: 0,
       S: 0,
@@ -130,6 +155,168 @@ export default function AddProduct() {
   });
   const [selectedCategory, setSelectedCategory] = useState("");
   const [availableSubcategories, setAvailableSubcategories] = useState([]);
+
+  // Save current page data before switching
+  const saveCurrentPageData = () => {
+    // Only save if we have valid page data
+    if (currentPage <= 0 || currentPage > productPages.length) {
+      return;
+    }
+    
+    // Find color code from name
+    let colorCode = "";
+    if (selectedColor) {
+      const colorObj = COLORS.find(c => c.name === selectedColor);
+      if (colorObj) {
+        colorCode = colorObj.hex;
+      }
+    }
+    
+    const updatedProductPages = [...productPages];
+    updatedProductPages[currentPage - 1] = {
+      name: formData.name || "",
+      description: formData.description || "",
+      mrpPrice: formData.mrpPrice || "",
+      sellingPrice: formData.sellingPrice || "",
+      category: formData.category || "",
+      subcategory: formData.subcategory || "",
+      isReturnable: formData.isReturnable,
+      selectedColor: selectedColor,
+      colorCode: colorCode,
+      selectedSizes: [...selectedSizes], // Create deep copy
+      images: [...previewImages], // Create deep copy
+      files: [...selectedFiles] // Create deep copy
+    };
+    
+    console.log(`Saving data for page ${currentPage}:`, updatedProductPages[currentPage - 1]);
+    setProductPages(updatedProductPages);
+  };
+
+  // Remove current variant page
+  const removeVariant = () => {
+    if (totalPages <= 1) {
+      toast.error("Cannot remove the only page");
+      return;
+    }
+
+    // Release image preview URLs to prevent memory leaks
+    previewImages.forEach(url => URL.revokeObjectURL(url));
+
+    // Remove the current page
+    const updatedPages = [...productPages];
+    updatedPages.splice(currentPage - 1, 1);
+    
+    // Update the pages
+    setProductPages(updatedPages);
+    setTotalPages(updatedPages.length);
+    
+    // Update the current page - go to previous page if we're removing the last page
+    // or stay on the same page number otherwise (which will show the next variant)
+    const newCurrentPage = currentPage > updatedPages.length 
+      ? updatedPages.length 
+      : currentPage;
+    
+    setCurrentPage(newCurrentPage);
+    
+    // Load the data for the new current page
+    loadPageData(newCurrentPage);
+    
+    toast.success("Variant removed");
+  };
+
+  // Load the data for a specific page
+  const loadPageData = (page) => {
+    if (page < 1 || page > productPages.length) {
+      console.warn(`Invalid page number: ${page}`);
+      return;
+    }
+    
+    const pageData = productPages[page - 1];
+    console.log(`Loading data for page ${page}:`, pageData);
+    
+    // Set form field values
+    setFormData({
+      name: pageData.name || "",
+      description: pageData.description || "",
+      mrpPrice: pageData.mrpPrice || "",
+      sellingPrice: pageData.sellingPrice || "",
+      category: pageData.category || "",
+      subcategory: pageData.subcategory || "",
+      isReturnable: pageData.isReturnable !== undefined ? pageData.isReturnable : true
+    });
+    
+    // Set color, sizes, images
+    setSelectedColor(pageData.selectedColor || "");
+    setSelectedSizes(pageData.selectedSizes || []);
+    
+    // Handle images
+    if (pageData.files && pageData.files.length > 0) {
+      setSelectedFiles(pageData.files);
+    } else {
+      setSelectedFiles([]);
+    }
+    
+    if (pageData.images && pageData.images.length > 0) {
+      setPreviewImages(pageData.images);
+    } else {
+      setPreviewImages([]);
+    }
+  };
+
+  // Create a new page for adding another color variant
+  const createNewPage = () => {
+    // Save current page data first
+    saveCurrentPageData();
+    
+    // Create a new page with some defaults
+    const newPage = {
+      name: formData.name || "", // Copy name from current product
+      description: formData.description || "",
+      mrpPrice: formData.mrpPrice || "",
+      sellingPrice: formData.sellingPrice || "",
+      category: formData.category || "",
+      subcategory: formData.subcategory || "",
+      isReturnable: formData.isReturnable,
+      selectedColor: "",
+      selectedSizes: [],
+      images: [],
+      files: []
+    };
+    
+    // Add the new page to our array
+    const updatedPages = [...productPages, newPage];
+    setProductPages(updatedPages);
+    
+    // Update total pages count
+    setTotalPages(updatedPages.length);
+    
+    // Navigate to the new page
+    setCurrentPage(updatedPages.length);
+    
+    // Clear certain fields for the new variant
+    setSelectedColor("");
+    setSelectedSizes([]);
+    setSelectedFiles([]);
+    
+    // Clear preview images (make sure to release URLs to prevent memory leaks)
+    previewImages.forEach(url => URL.revokeObjectURL(url));
+    setPreviewImages([]);
+    
+    toast.success("New variant page created");
+  };
+
+  // Go to a specific page
+  const goToPage = (page) => {
+    if (page < 1 || page > totalPages) {
+      return;
+    }
+    
+    // Save current page data before switching
+    saveCurrentPageData();
+    
+    setCurrentPage(page);
+    loadPageData(page);
+  };
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
@@ -329,6 +516,9 @@ export default function AddProduct() {
 
   const handleFileChange = (e) => {
     const files = Array.from(e.target.files);
+    console.log(`Files selected for variant page ${currentPage}:`, files.length);
+
+    if (files.length === 0) return; // Early return if no files selected
 
     // Validate file size and type
     const validFiles = files.filter((file) => {
@@ -347,57 +537,101 @@ export default function AddProduct() {
       return true;
     });
 
+    if (validFiles.length === 0) {
+      toast.error("No valid files selected");
+      // Reset the file input
+      e.target.value = "";
+      return;
+    }
+
+    // Clear previous files for this variant to ensure only these images are used
+    // This helps prevent confusion between variants
+    const previousPreviews = [...previewImages];
+    previousPreviews.forEach(url => URL.revokeObjectURL(url)); // Clean up
+    
+    // Create preview URLs for new valid files
+    const newPreviewUrls = validFiles.map((file) => URL.createObjectURL(file));
+    
+    // Replace (not add to) existing files and previews
     setSelectedFiles(validFiles);
-
-    // Clean up previous preview URLs to avoid memory leaks
-    previewImages.forEach((url) => URL.revokeObjectURL(url));
-
-    // Create preview URLs for valid files
-    const previews = validFiles.map((file) => URL.createObjectURL(file));
-    setPreviewImages(previews);
+    setPreviewImages(newPreviewUrls);
+    
+    // Reset the file input to allow selecting the same file again
+    e.target.value = "";
+    
+    // Save these files to current page data
+    const updatedProductPages = [...productPages];
+    if (updatedProductPages[currentPage - 1]) {
+      updatedProductPages[currentPage - 1] = {
+        ...updatedProductPages[currentPage - 1],
+        files: validFiles,
+        images: newPreviewUrls
+      };
+      setProductPages(updatedProductPages);
+    }
+    
+    console.log(`Updated variant ${currentPage} with ${validFiles.length} images`);
+    
+    // Show confirmation that specific variant's images have been updated
+    toast.success(`Updated images for variant ${currentPage}`);
   };
 
-  const uploadImages = async () => {
-    if (selectedFiles.length === 0) return [];
+  const uploadVariantImages = async (variantFiles) => {
+    if (!variantFiles || variantFiles.length === 0) {
+      toast.error("No files provided for this variant");
+      return [];
+    }
 
     setUploading(true);
     try {
+      // Create FormData
       const formData = new FormData();
-
-      selectedFiles.forEach((file) => {
-        formData.append("images", file);
+      
+      // Log the number of files being uploaded for debugging
+      console.log(`Uploading ${variantFiles.length} files for this variant`);
+      
+      // Append files with unique names to prevent overwrites
+      variantFiles.forEach((file, index) => {
+        // Add timestamp and index to make each file name unique
+        const fileName = `${Date.now()}_${index}_${file.name.replace(/\s+/g, '_')}`;
+        formData.append("images", new File([file], fileName, { type: file.type }));
       });
 
-      console.log("Uploading images to:", `${process.env.NEXT_PUBLIC_API_URL}/api/products/upload-images`);
+      // Upload images with retry logic
+      let response;
+      let retries = 0;
+      const maxRetries = 2;
       
-      const response = await authFetch(
-        `${process.env.NEXT_PUBLIC_API_URL}/api/products/upload-images`,
-        {
-          method: "POST",
-          body: formData,
-        }
-      );
-
-      // Check if response is OK before trying to parse JSON
-      if (!response.ok) {
-        const contentType = response.headers.get("content-type") || "";
-        if (contentType.includes("application/json")) {
-          const errorData = await response.json();
-          throw new Error(errorData.message || "Failed to upload images");
-        } else {
-          const text = await response.text();
-          console.error("Non-JSON error response:", text);
-          throw new Error("Server returned a non-JSON response");
+      while (retries <= maxRetries) {
+        try {
+          response = await authFetch(
+            PRODUCT_ENDPOINTS.UPLOAD_IMAGES,
+            {
+              method: "POST",
+              body: formData,
+            }
+          );
+          break; // If successful, break out of the retry loop
+        } catch (err) {
+          console.error(`Upload attempt ${retries + 1} failed:`, err);
+          if (retries === maxRetries) throw err; // Rethrow on final attempt
+          retries++;
+          // Wait before retrying (exponential backoff)
+          await new Promise(r => setTimeout(r, 1000 * retries));
         }
       }
 
+      if (!response || !response.ok) {
+        const error = await response?.json?.() || { message: "Upload failed" };
+        throw new Error(error.message || "Failed to upload images");
+      }
+
       const data = await response.json();
-      setUploadedImages(data.imageUrls);
-      return data.imageUrls;
+      console.log("Upload successful, received URLs:", data.imageUrls?.length || 0);
+      return data.imageUrls || [];
     } catch (error) {
-      console.error("Error uploading images:", error);
-      toast.error("Failed to upload images: " + error.message);
-      setError("Failed to upload images: " + error.message);
+      console.error("Error uploading variant images:", error);
+      toast.error("Failed to upload variant images: " + error.message);
       return [];
     } finally {
       setUploading(false);
@@ -406,59 +640,142 @@ export default function AddProduct() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-
-    if (selectedFiles.length === 0) {
-      toast.error("Please upload at least one image");
+    
+    // Save current page data before validation
+    saveCurrentPageData();
+    
+    // Validate all pages
+    let isValid = true;
+    let errorPage = 0;
+    
+    // Validate required fields on all pages
+    for (let i = 0; i < productPages.length; i++) {
+      const page = productPages[i];
+      
+      // Page 1: Basic product information
+      if (i === 0) {
+        if (!page.name || !page.category || !page.subcategory || !page.mrpPrice || !page.sellingPrice) {
+          isValid = false;
+          errorPage = 1;
+          console.error("Missing required fields on page 1:", page);
+          break;
+        }
+      }
+      
+      // All variant pages should have color and at least one image
+      if (!page.selectedColor) {
+        isValid = false;
+        errorPage = i + 1;
+        console.error(`Missing color selection on page ${i + 1}:`, page);
+        break;
+      }
+      
+      if (!page.images || page.images.length === 0) {
+        isValid = false;
+        errorPage = i + 1;
+        console.error(`Missing product images on page ${i + 1}:`, page);
+        break;
+      }
+      
+      // Ensure at least one size is selected with quantity
+      if (!page.selectedSizes || page.selectedSizes.length === 0) {
+        isValid = false;
+        errorPage = i + 1;
+        console.error(`Missing size selection on page ${i + 1}:`, page);
+        break;
+      }
+    }
+    
+    if (!isValid) {
+      toast.error("Please fill in all required fields");
+      
+      // Navigate to the page with errors
+      if (errorPage !== currentPage) {
+        goToPage(errorPage);
+      }
+      
       return;
     }
-
+    
+    // Proceed with form submission
     setLoading(true);
-    setError("");
-
+    
     try {
-      // First upload images
-      const imageUrls = await uploadImages();
-
-      if (imageUrls.length === 0) {
-        throw new Error("Failed to upload images");
-      }
-
-      // Prepare payload with color inventories
-      const payload = {
-        ...formData,
-        mrpPrice: parseFloat(formData.mrpPrice),
-        sellingPrice: parseFloat(formData.sellingPrice),
-        images: imageUrls,
-        colorInventories: colorInventories.map((item) => ({
-          color: item.color,
-          colorCode: item.colorCode || "",
-          inventory: item.inventory,
-        })),
-      };
-
-      const response = await authFetch(
-        PRODUCT_ENDPOINTS.CREATE,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify(payload),
+      // Process each page as a separate product
+      for (let i = 0; i < productPages.length; i++) {
+        const page = productPages[i];
+        setCurrentPage(i + 1);
+        
+        // IMPORTANT: Use the files specifically from this page variant
+        // instead of using the current state which might have been changed
+        const variantFiles = page.files || [];
+        
+        if (variantFiles.length === 0) {
+          throw new Error(`No files selected for variant on page ${i + 1}`);
         }
-      );
+        
+        console.log(`Uploading ${variantFiles.length} images for variant ${i + 1}`);
+        
+        // Upload images for this specific variant
+        const imageUrls = await uploadVariantImages(variantFiles);
+        
+        if (imageUrls.length === 0) {
+          throw new Error(`Failed to upload images for variant on page ${i + 1}`);
+        }
+        
+        // Convert size quantities array to object format
+        const sizeQuantitiesObj = {};
+        SIZES.forEach(size => {
+          const sizeItem = page.selectedSizes.find(item => item.size === size);
+          sizeQuantitiesObj[size] = sizeItem ? sizeItem.quantity : 0;
+        });
+        
+        // Prepare color inventory
+        const colorInventory = {
+          color: page.selectedColor,
+          colorCode: COLORS.find(c => c.name === page.selectedColor)?.hex || "",
+          inventory: page.selectedSizes.reduce((acc, curr) => {
+            acc[curr.size] = curr.quantity;
+            return acc;
+          }, {})
+        };
+        
+        // Create the product
+        const productPayload = {
+          name: page.name,
+          description: page.description,
+          mrpPrice: parseFloat(page.mrpPrice),
+          sellingPrice: parseFloat(page.sellingPrice),
+          images: imageUrls,
+          category: page.category,
+          subcategory: page.subcategory,
+          isReturnable: page.isReturnable,
+          sizeQuantities: sizeQuantitiesObj,
+          colorInventories: [colorInventory]
+        };
+        
+        const response = await authFetch(
+          PRODUCT_ENDPOINTS.CREATE,
+          {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify(productPayload),
+          }
+        );
 
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.message || "Failed to add product");
+        if (!response.ok) {
+          const data = await response.json();
+          throw new Error(`Failed to add product on page ${i + 1}: ${data.message}`);
+        }
       }
 
-      toast.success("Product added successfully!");
-      router.push("/seller/dashboard");
+      toast.success(`Successfully added ${productPages.length} products!`);
+      router.push("/seller/products");
     } catch (error) {
-      setError(error.message);
-      toast.error(error.message);
-    } finally {
+      console.error("Error creating product:", error);
+      setError("Failed to create product. Please try again.");
       setLoading(false);
     }
   };
@@ -485,6 +802,19 @@ export default function AddProduct() {
     const categoryObj = CATEGORIES.find((c) => c.name === category);
     setAvailableSubcategories(categoryObj ? categoryObj.subcategories : []);
   };
+
+  // Auto-save form data when it changes
+  useEffect(() => {
+    if (currentPage > 0) {
+      // Use debounce to prevent excessive saves
+      const saveTimeout = setTimeout(() => {
+        console.log("Auto-saving form data...");
+        saveCurrentPageData();
+      }, 1000); // 1-second delay
+      
+      return () => clearTimeout(saveTimeout);
+    }
+  }, [formData, selectedColor, selectedSizes, previewImages, selectedFiles]);
 
   return (
     <div className="max-w-4xl mx-auto p-4 md:p-6 bg-background min-h-screen">
@@ -519,12 +849,48 @@ export default function AddProduct() {
       </div>
 
       <div className="bg-background-card rounded-lg shadow-md p-6 border border-ui-border">
-        <h1 className="text-2xl font-bold text-text-dark mb-6 flex items-center">
-          <span className="bg-secondary bg-opacity-20 text-secondary p-2 rounded-full mr-3">
-            <FiPlus className="w-6 h-6 stroke-2 text-white" />
-          </span>
-          Add New Product
-        </h1>
+        <div className="flex justify-between items-center mb-6">
+          <h1 className="text-2xl font-bold text-text-dark flex items-center">
+            <span className="bg-secondary bg-opacity-20 text-secondary p-2 rounded-full mr-3">
+              <FiPlus className="w-6 h-6 stroke-2 text-white" />
+            </span>
+            Add New Product
+          </h1>
+          <div className="flex items-center gap-3">
+            {currentPage > 1 && (
+              <button
+                type="button"
+                onClick={removeVariant}
+                className="bg-red-500 text-white px-3 py-1 rounded-md hover:bg-red-600 transition-colors text-sm flex items-center"
+              >
+                <FiX className="mr-1" /> Remove
+              </button>
+            )}
+            <div className="bg-gray-100 text-gray-700 px-3 py-1 rounded-full text-sm font-medium">
+              {currentPage}/{totalPages}
+            </div>
+          </div>
+        </div>
+
+        {/* Variant indicator */}
+        {totalPages > 1 && (
+          <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-md">
+            <div className="flex items-center">
+              <FiInfo className="text-blue-500 mr-2" />
+              <span className="text-blue-800 font-medium">
+                Editing Variant {currentPage} of {totalPages}
+              </span>
+            </div>
+            <p className="text-sm text-blue-700 mt-1">
+              Images uploaded here will be associated with the {" "}
+              {selectedColor ? (
+                <span className="font-medium" style={{ color: COLORS.find(c => c.name === selectedColor)?.hex || "#000" }}>
+                  {selectedColor}
+                </span>
+              ) : "current"} variant only.
+            </p>
+          </div>
+        )}
 
         <form onSubmit={handleSubmit} className="space-y-6">
           {/* Product Name */}
@@ -586,6 +952,35 @@ export default function AddProduct() {
             </div>
           </div>
 
+          {/* Returnable Option */}
+          <div>
+            <label className="block text-sm font-medium text-text-dark mb-2">
+              Returnable/Non-Returnable
+            </label>
+            <div className="relative">
+              <select
+                name="isReturnable"
+                value={formData.isReturnable ? "true" : "false"}
+                onChange={(e) => {
+                  setFormData((prev) => ({
+                    ...prev,
+                    isReturnable: e.target.value === "true"
+                  }));
+                }}
+                className="w-full p-3 border border-ui-border rounded-md bg-background focus:ring-2 focus:ring-secondary focus:border-secondary focus:outline-none transition-colors appearance-none pr-10"
+                required
+              >
+                <option value="true">Returnable :- 8% Commission</option>
+                <option value="false">Non-Returnable :- 12% Commission</option>
+              </select>
+              <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-gray-700">
+                <svg className="fill-current h-4 w-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20">
+                  <path d="M9.293 12.95l.707.707L15.657 8l-1.414-1.414L10 10.828 5.757 6.586 4.343 8z" />
+                </svg>
+              </div>
+            </div>
+          </div>
+
           {/* Description */}
           <div>
             <label className="block text-sm font-medium text-text-dark mb-2">
@@ -598,368 +993,233 @@ export default function AddProduct() {
               placeholder="Describe your product"
               rows={4}
               className="w-full p-3 border border-ui-border rounded-md bg-background focus:ring-2 focus:ring-secondary focus:border-secondary focus:outline-none transition-colors"
-              required
             />
           </div>
 
-          {/* Color Palette */}
-          <div className="bg-background-alt p-6 rounded-lg border border-ui-border">
-            <label className="block text-sm font-medium text-text-dark mb-4">
-              Color Options
+          {/* Quantity by Size */}
+          <div>
+            <label className="block text-sm font-medium text-text-dark mb-2">
+              Quantity by Size
             </label>
-
-            <div className="grid grid-cols-4 sm:grid-cols-6 gap-3">
-              {COLORS.map((color) => (
-                <button
-                  key={color.name}
-                  type="button"
-                  onClick={() => handleColorSelect(color)}
-                  className={`flex flex-col items-center space-y-1 p-2 rounded-md ${
-                    selectedColor && selectedColor.name === color.name
-                      ? "ring-2 ring-secondary"
-                      : "hover:bg-background"
-                  }`}
-                >
-                  <div
-                    className="w-8 h-8 rounded-full border border-ui-border shadow-sm"
-                    style={{ backgroundColor: color.hex }}
-                  ></div>
-                  <span className="text-xs truncate max-w-[70px]">
-                    {color.name}
-                  </span>
-                </button>
+            <div className="grid grid-cols-6 gap-4 mb-4">
+              {SIZES.slice(0, 6).map((size) => (
+                <div key={size} className="flex flex-col items-center">
+                  <div className="bg-background-alt p-2 w-12 h-12 flex items-center justify-center mb-2 rounded-md rotate-45">
+                    <span className="text-sm font-medium -rotate-45">{size}</span>
+                  </div>
+                  <input
+                    type="number"
+                    min="0"
+                    className="w-full p-2 border border-ui-border rounded-md text-center"
+                    placeholder="0"
+                    value={selectedSizes.find(s => s.size === size)?.quantity || ""}
+                    onChange={(e) => {
+                      const value = parseInt(e.target.value) || 0;
+                      const newSizes = [...selectedSizes];
+                      const index = newSizes.findIndex(s => s.size === size);
+                      
+                      if (index >= 0) {
+                        if (value > 0) {
+                          newSizes[index].quantity = value;
+                        } else {
+                          newSizes.splice(index, 1);
+                        }
+                      } else if (value > 0) {
+                        newSizes.push({ size, quantity: value });
+                      }
+                      
+                      setSelectedSizes(newSizes);
+                    }}
+                  />
+                </div>
               ))}
             </div>
-
-            {/* Selected Colors List */}
-            {colorInventories.length > 0 && (
-              <div className="mt-4 pt-4 border-t border-ui-border">
-                <h4 className="text-sm font-medium text-text-dark mb-2">
-                  Selected Colors
-                </h4>
-                <div className="flex flex-wrap gap-2">
-                  {colorInventories.map((colorInv) => (
-                    <div
-                      key={colorInv.color}
-                      className="flex items-center bg-background p-2 rounded-md border border-ui-border shadow-sm"
-                    >
-                      <div
-                        className="w-4 h-4 rounded-full mr-2"
-                        style={{
-                          backgroundColor: colorInv.colorCode || "#000000",
-                        }}
-                      ></div>
-                      <span className="text-xs mr-2">{colorInv.color}</span>
-                      <button
-                        type="button"
-                        onClick={() => removeColor(colorInv.color)}
-                        className="text-error hover:text-error-dark"
-                      >
-                        <FiX className="w-4 h-4" />
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {/* Color Inventory Summary */}
-            {colorInventories.length > 0 && (
-              <div className="mt-6 pt-4 border-t border-ui-border">
-                <h4 className="text-sm font-medium text-text-dark mb-3">
-                  Color Inventory Summary
-                </h4>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {colorInventories.map((colorInv) => {
-                    // Count total inventory for this color
-                    const sizeEntries = Object.entries(colorInv.inventory || {})
-                      .filter(([_, qty]) => qty > 0)
-                      .sort(([sizeA], [sizeB]) => {
-                        // Custom sort for sizes
-                        const sizeOrder = SIZES.reduce((acc, size, idx) => {
-                          acc[size] = idx;
-                          return acc;
-                        }, {});
-                        return (
-                          (sizeOrder[sizeA] || 999) - (sizeOrder[sizeB] || 999)
-                        );
-                      });
-
-                    const totalItems = sizeEntries.reduce(
-                      (sum, [_, qty]) => sum + (parseInt(qty) || 0),
-                      0
-                    );
-
-                    if (totalItems === 0) return null;
-
-                    return (
-                      <div
-                        key={colorInv.color}
-                        className="bg-background rounded-lg border border-ui-border p-3 shadow-sm"
-                      >
-                        <div className="flex items-center mb-2">
-                          <div
-                            className="w-5 h-5 rounded-full mr-2 border border-ui-border"
-                            style={{
-                              backgroundColor: colorInv.colorCode || "#000000",
-                            }}
-                          ></div>
-                          <h5 className="font-medium text-text-dark">
-                            {colorInv.color}
-                          </h5>
-                          <span className="ml-auto text-sm text-text-muted">
-                            {totalItems} {totalItems === 1 ? "item" : "items"}
-                          </span>
-                        </div>
-
-                        <div className="flex flex-wrap gap-2 mt-2">
-                          {sizeEntries.map(([size, qty]) => (
-                            <div
-                              key={`${colorInv.color}-${size}`}
-                              className="bg-background-alt px-2 py-1 rounded text-xs"
-                            >
-                              {size}: {qty}
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-            )}
           </div>
 
-          {/* Inventory by Size */}
-          <div className="bg-background-alt p-4 rounded-lg border border-ui-border">
-            <div className="flex justify-between items-center mb-3">
-              <label className="block text-sm font-medium text-text-dark">
-                {selectedColor
-                  ? `Inventory for ${selectedColor.name}`
-                  : "Quantity by Size"}
-              </label>
-
-              {selectedColor && (
-                <button
-                  type="button"
-                  onClick={() => {
-                    setSelectedColor("");
-                    setCurrentColorSizes([]);
-                    setShowColorInventory(false);
-                  }}
-                  className="text-secondary text-sm hover:underline"
-                >
-                  Back to Default Inventory
-                </button>
-              )}
-            </div>
-
-            <div className="flex flex-wrap gap-4 mb-4">
-              <div className="w-full md:w-1/3">
-                <label className="block text-xs text-text-muted mb-1">
-                  Size
-                </label>
-                <select
-                  value={selectedSize}
-                  onChange={handleSizeChange}
-                  className="w-full p-2 border border-ui-border rounded-md bg-background focus:ring-2 focus:ring-secondary focus:border-secondary focus:outline-none transition-colors"
-                >
-                  <option value="">Select Size</option>
-                  {SIZES.map((size) => (
-                    <option key={size} value={size}>
-                      {size}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div className="w-full md:w-1/3">
-                <label className="block text-xs text-text-muted mb-1">
-                  Quantity
-                </label>
-                <input
-                  type="number"
-                  min="1"
-                  value={selectedQuantity}
-                  onChange={handleSizeQuantityChange}
-                  className="w-full p-2 border border-ui-border rounded-md bg-background focus:ring-2 focus:ring-secondary focus:border-secondary focus:outline-none transition-colors"
-                  placeholder="Quantity"
-                />
-              </div>
-
-              <div className="w-full md:w-1/4 flex items-end">
-                <button
-                  type="button"
-                  onClick={addSizeQuantity}
-                  className="w-full p-2 bg-secondary text-white rounded-md hover:bg-secondary-dark transition-colors"
-                >
-                  Add Size
-                </button>
-              </div>
-            </div>
-
-            {/* Selected Sizes Display */}
-            {(selectedColor ? currentColorSizes : selectedSizes).length > 0 && (
-              <div className="mt-4 border-t border-ui-border pt-4">
-                <h4 className="text-sm font-medium text-text-dark mb-2">
-                  {selectedColor
-                    ? `Sizes for ${selectedColor.name}`
-                    : "Selected Sizes"}
-                </h4>
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
-                  {(selectedColor ? currentColorSizes : selectedSizes).map(
-                    (item) => (
-                      <div
-                        key={item.size}
-                        className="flex items-center justify-between p-2 border border-ui-border rounded-lg bg-background"
-                      >
-                        <span className="font-medium text-secondary">
-                          {item.size}
-                        </span>
-                        <div className="flex items-center gap-2">
-                          <span className="text-text-dark">
-                            {item.quantity}
-                          </span>
-                          <button
-                            type="button"
-                            onClick={() => removeSizeQuantity(item.size)}
-                            className="text-error hover:text-error-dark transition-colors"
-                          >
-                            <FiX className="h-4 w-4" />
-                          </button>
-                        </div>
-                      </div>
-                    )
-                  )}
-                </div>
-              </div>
-            )}
-          </div>
-
-          {/* Price */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-text-dark mb-2">
-                MRP Price (₹)
-              </label>
-              <input
-                type="text"
-                name="mrpPrice"
-                value={formData.mrpPrice}
-                onChange={handleInputChange}
-                placeholder="0.00"
-                className="w-full p-3 border border-ui-border rounded-md bg-background focus:ring-2 focus:ring-secondary focus:border-secondary focus:outline-none transition-colors"
-                required
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-text-dark mb-2">
-                Selling Price (₹)
-              </label>
-              <input
-                type="text"
-                name="sellingPrice"
-                value={formData.sellingPrice}
-                onChange={handleInputChange}
-                placeholder="0.00"
-                className="w-full p-3 border border-ui-border rounded-md bg-background focus:ring-2 focus:ring-secondary focus:border-secondary focus:outline-none transition-colors"
-                required
-              />
-              {formData.mrpPrice &&
-                formData.sellingPrice &&
-                parseFloat(formData.mrpPrice) >
-                  parseFloat(formData.sellingPrice) && (
-                  <div className="mt-2 text-sm text-accent font-medium">
-                    Discount:{" "}
-                    {Math.round(
-                      ((parseFloat(formData.mrpPrice) -
-                        parseFloat(formData.sellingPrice)) /
-                        parseFloat(formData.mrpPrice)) *
-                        100
-                    )}
-                    %
-                  </div>
-                )}
-            </div>
-          </div>
-
-          {/* Image Upload */}
-          <div className="space-y-4">
-            <label className="block text-sm font-medium text-text-dark">
-              Product Images
+          {/* Color Selection */}
+          <div>
+            <label className="block text-sm font-medium text-text-dark mb-2">
+              Colour
             </label>
-
-            {/* Preview of uploaded images */}
-            {previewImages.length > 0 && (
-              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4 mb-4">
-                {previewImages.map((url, index) => (
-                  <div key={index} className="relative">
-                    <div className="relative h-24 overflow-hidden rounded-lg border border-ui-border bg-background-alt shadow-sm">
-                      <Image
-                        src={url}
-                        alt={`Product ${index + 1}`}
-                        className="object-cover"
-                        fill
-                      />
-                    </div>
+            <div className="bg-gray-50 p-4 rounded-md">
+              <div className="mb-1 text-xs text-gray-500">Color Options</div>
+              <div className="grid grid-cols-6 gap-y-6">
+                {COLORS.map((color) => (
+                  <div key={color.name} className="flex flex-col items-center">
                     <button
                       type="button"
-                      onClick={() => removePreviewImage(index)}
-                      className="absolute -top-2 -right-2 bg-error text-white rounded-full p-1 shadow-sm hover:bg-opacity-90"
-                    >
-                      <FiX className="h-4 w-4" />
-                    </button>
+                      className={`w-10 h-10 rounded-full border-2 transition-all ${
+                        selectedColor === color.name
+                          ? "border-primary shadow-md"
+                          : "border-ui-border hover:border-ui-border-hover"
+                      }`}
+                      style={{ backgroundColor: color.hex }}
+                      onClick={() => setSelectedColor(color.name)}
+                      title={color.name}
+                    ></button>
+                    <span className="text-xs mt-1">{color.name}</span>
                   </div>
                 ))}
               </div>
-            )}
+            </div>
+          </div>
 
-            {/* Image upload area */}
-            <div className="border border-ui-border border-dashed rounded-lg p-6 bg-background-alt">
-              <div className="text-center">
-                <FiUpload className="mx-auto h-12 w-12 text-secondary opacity-80" />
-                <div className="mt-2">
-                  <label htmlFor="file-upload" className="cursor-pointer">
-                    <span className="text-secondary font-medium hover:text-secondary-dark">
-                      Upload files
-                    </span>
-                    <input
-                      id="file-upload"
-                      name="file-upload"
-                      type="file"
-                      multiple
-                      className="sr-only"
-                      onChange={handleFileChange}
-                      accept="image/*"
-                    />
-                    <span className="text-text-muted ml-1">
-                      or drag and drop
-                    </span>
-                  </label>
-                </div>
-                <p className="text-xs text-text-muted mt-1">
-                  PNG, JPG, GIF up to 10MB
-                </p>
+          {/* Price */}
+          <div>
+            <label className="block text-sm font-medium text-text-dark mb-2">
+              Price
+            </label>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-xs font-medium text-text-muted mb-2 uppercase">
+                  MRP Price
+                </label>
+                <input
+                  type="text"
+                  name="mrpPrice"
+                  value={formData.mrpPrice}
+                  onChange={handleInputChange}
+                  placeholder="0.00"
+                  className="w-full p-3 border border-ui-border rounded-md bg-background focus:ring-2 focus:ring-secondary focus:border-secondary focus:outline-none transition-colors"
+                  required
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-text-muted mb-2 uppercase">
+                  Selling Price
+                </label>
+                <input
+                  type="text"
+                  name="sellingPrice"
+                  value={formData.sellingPrice}
+                  onChange={handleInputChange}
+                  placeholder="0.00"
+                  className="w-full p-3 border border-ui-border rounded-md bg-background focus:ring-2 focus:ring-secondary focus:border-secondary focus:outline-none transition-colors"
+                  required
+                />
               </div>
             </div>
           </div>
 
-          {error && (
-            <div className="p-4 bg-error bg-opacity-10 text-error rounded-md">
-              {error}
+          {/* Create New Page Option */}
+          <div className="text-center border-t border-ui-border pt-4">
+            <p className="text-sm text-text-muted mb-2">
+              Available in another color? Create a new page and add details.
+            </p>
+            <button
+              type="button"
+              onClick={createNewPage}
+              className="px-4 py-2 border border-ui-border rounded-md bg-background hover:bg-background-alt transition-colors"
+            >
+              Create a page
+            </button>
+          </div>
+
+          {/* Product Images */}
+          <div>
+            <label className="block text-sm font-medium text-text-dark mb-2">
+              Product Images
+            </label>
+            <div className="border-2 border-dashed border-ui-border rounded-lg p-6 text-center">
+              <input
+                type="file"
+                id="imageUpload"
+                multiple
+                onChange={handleFileChange}
+                accept="image/*"
+                className="hidden"
+              />
+              {previewImages.length > 0 ? (
+                <div>
+                  <div className="grid grid-cols-3 md:grid-cols-5 gap-3 mb-4">
+                    {previewImages.map((url, index) => (
+                      <div
+                        key={index}
+                        className="relative group rounded-md overflow-hidden border border-ui-border"
+                      >
+                        <div className="relative h-24 w-full">
+                          <Image
+                            src={url}
+                            alt={`Preview ${index + 1}`}
+                            fill
+                            className="object-cover"
+                          />
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => removePreviewImage(index)}
+                          className="absolute top-1 right-1 bg-red-500 text-white rounded-full p-1 opacity-80 hover:opacity-100 transition-opacity"
+                        >
+                          <FiX className="w-4 h-4" />
+                        </button>
+                      </div>
+                    ))}
+                    {previewImages.length < 5 && (
+                      <label
+                        htmlFor="imageUpload"
+                        className="relative h-24 w-full border-2 border-dashed border-ui-border rounded-md flex flex-col items-center justify-center cursor-pointer hover:bg-background-alt transition-colors"
+                      >
+                        <FiPlus className="w-6 h-6 text-text-muted" />
+                        <span className="text-sm text-text-muted mt-1">
+                          Add More
+                        </span>
+                      </label>
+                    )}
+                  </div>
+                </div>
+              ) : (
+                <label
+                  htmlFor="imageUpload"
+                  className="w-full h-40 flex flex-col items-center justify-center cursor-pointer"
+                >
+                  <div className="w-full h-40 flex flex-col items-center justify-center">
+                    <span className="text-xl font-medium text-text-dark mb-2">Add Photos</span>
+                    <FiUpload className="w-6 h-6 text-text-muted mb-1" />
+                    <span className="text-sm text-text-muted">
+                      Upload files or drag and drop
+                    </span>
+                    <span className="text-xs text-text-muted mt-1">
+                      PNG, JPG, GIF up to 10MB
+                    </span>
+                  </div>
+                </label>
+              )}
+            </div>
+          </div>
+
+          {/* Page Navigation */}
+          {totalPages > 1 && (
+            <div className="flex justify-center gap-2 py-4">
+              {Array.from({ length: totalPages }).map((_, index) => (
+                <button
+                  key={index}
+                  type="button"
+                  onClick={() => goToPage(index + 1)}
+                  className={`w-8 h-8 rounded-full flex items-center justify-center ${
+                    currentPage === index + 1
+                      ? "bg-primary text-white"
+                      : "bg-background-alt text-text-muted hover:bg-background-alt-light"
+                  }`}
+                >
+                  {index + 1}
+                </button>
+              ))}
             </div>
           )}
 
-          <div className="pt-4 border-t border-ui-border flex justify-end">
+          {/* Submit button */}
+          <div className="pt-4">
             <button
               type="submit"
               disabled={loading || uploading}
-              className="px-6 py-3 bg-secondary text-white rounded-md hover:bg-secondary-dark transition-colors disabled:opacity-70 flex items-center"
+              className="w-full p-3 bg-primary hover:bg-primary-dark text-white rounded-md transition-colors flex items-center justify-center disabled:opacity-70 disabled:cursor-not-allowed"
             >
               {loading || uploading ? (
                 <>
-                  <div className="mr-2 h-4 w-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                  {uploading ? "Uploading..." : "Saving..."}
+                  <span className="mr-2">
+                    {uploading ? "Uploading..." : "Adding Product..."}
+                  </span>
+                  <div className="animate-spin h-5 w-5 border-2 border-white border-t-transparent rounded-full"></div>
                 </>
               ) : (
                 "Add Product"

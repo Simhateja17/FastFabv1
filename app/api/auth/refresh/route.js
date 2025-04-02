@@ -3,6 +3,8 @@ import { cookies } from 'next/headers';
 
 export async function POST(request) {
   try {
+    console.log('Token refresh request received at /api/auth/refresh/');
+    
     // Get refresh token from request or cookies
     let refreshToken;
     const cookieStore = cookies();
@@ -11,13 +13,24 @@ export async function POST(request) {
     // First try to get from cookies
     if (refreshCookie) {
       refreshToken = refreshCookie.value;
+      console.log('Using refresh token from cookies');
     } else {
       // Fall back to request body
-      const requestData = await request.json();
-      refreshToken = requestData.refreshToken;
+      try {
+        const requestData = await request.json();
+        refreshToken = requestData.refreshToken;
+        console.log('Using refresh token from request body');
+      } catch (parseError) {
+        console.error('Error parsing request body:', parseError);
+        return NextResponse.json(
+          { message: 'Invalid request format' },
+          { status: 400 }
+        );
+      }
     }
     
     if (!refreshToken) {
+      console.error('No refresh token provided');
       return NextResponse.json(
         { message: 'Refresh token is required' },
         { status: 400 }
@@ -26,15 +39,19 @@ export async function POST(request) {
     
     // Forward the request to the seller service
     const apiUrl = process.env.SELLER_SERVICE_URL || 'http://localhost:8000';
+    const refreshEndpoint = `${apiUrl}/api/auth/refresh`;
     
-    // Use the correct path /api/auth/refresh
-    const response = await fetch(`${apiUrl}/api/auth/refresh`, {
+    console.log(`Forwarding refresh request to: ${refreshEndpoint}`);
+    
+    const response = await fetch(refreshEndpoint, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({ refreshToken }),
     });
+    
+    console.log(`Refresh token response status: ${response.status}`);
     
     if (!response.ok) {
       const errorText = await response.text();
@@ -45,6 +62,7 @@ export async function POST(request) {
         // Try to parse as JSON if possible
         errorData = JSON.parse(errorText);
         errorMessage = errorData.message || errorMessage;
+        console.error('Refresh token error:', errorData);
       } catch (e) {
         // If not JSON, use text as is
         console.error('Non-JSON error response from refresh token endpoint:', errorText);
@@ -57,6 +75,7 @@ export async function POST(request) {
     }
     
     const data = await response.json();
+    console.log('Refresh token successful, tokens received');
     
     // Update cookies with new tokens - updated to use await
     const isProduction = process.env.NODE_ENV === 'production';
