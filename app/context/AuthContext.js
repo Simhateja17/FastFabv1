@@ -58,30 +58,71 @@ export function AuthProvider({ children }) {
       const { refreshToken } = getTokens();
 
       if (!refreshToken) {
+        console.error("No refresh token available for refresh");
         throw new Error("No refresh token available");
       }
 
       console.log("Attempting to refresh token with:", refreshToken ? refreshToken.substring(0, 10) + "..." : "none");
 
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout
+      const timeoutId = setTimeout(() => controller.abort(), 15000); // 15 second timeout
 
       try {
         // Add a timestamp to prevent caching issues
         const timestamp = new Date().getTime();
-        const response = await fetch(`/api/auth/refresh?_=${timestamp}`, {
+        // Try with trailing slash first to handle both router configurations
+        const response = await fetch(`/api/auth/refresh/?_=${timestamp}`, {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
           },
           body: JSON.stringify({ refreshToken }),
           signal: controller.signal,
-          credentials: 'include' // Important: Include cookies in the request
+          credentials: 'include' // Include cookies in the request
         });
 
         clearTimeout(timeoutId);
-
+        
         console.log("Token refresh response:", response.status, response.statusText);
+        
+        // If 404 error, try alternative URL format without trailing slash
+        if (response.status === 404) {
+          console.log("Refresh endpoint not found with trailing slash, trying without");
+          const altResponse = await fetch(`/api/auth/refresh?_=${timestamp}`, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({ refreshToken }),
+            credentials: 'include'
+          });
+          
+          console.log("Alternative refresh endpoint response:", altResponse.status);
+          
+          if (altResponse.ok) {
+            const data = await altResponse.json();
+            console.log("Token refresh successful with alternative URL");
+            
+            if (!data.accessToken) {
+              console.error("Missing access token in refresh response:", data);
+              throw new Error("Invalid refresh response: missing access token");
+            }
+            
+            // Store tokens
+            setTokens(data.accessToken, data.refreshToken || refreshToken);
+            
+            if (data.seller) {
+              setSeller(data.seller);
+            }
+
+            return data.accessToken;
+          }
+          
+          // If alternative also failed, handle error
+          if (!altResponse.ok) {
+            throw new Error(`Failed to refresh token: ${altResponse.status}`);
+          }
+        }
         
         if (response.status >= 500) {
           // Server error - don't clear tokens on server issues
@@ -166,7 +207,10 @@ export function AuthProvider({ children }) {
 
   // Create an authenticated fetch function that handles token refresh
   const authFetch = async (url, options = {}) => {
-    const { accessToken } = getTokens();
+    console.log(`Starting authFetch for: ${url}`);
+    const { accessToken, refreshToken } = getTokens();
+    
+    console.log(`Auth tokens available: access=${!!accessToken}, refresh=${!!refreshToken}`);
 
     // Set up headers with access token
     const headers = {
@@ -266,43 +310,93 @@ export function AuthProvider({ children }) {
   useEffect(() => {
     const initializeAuth = async () => {
       try {
+        console.log("Initializing auth state...");
         const { accessToken, refreshToken } = getTokens();
+        
+        console.log("Tokens from storage:", !!accessToken, !!refreshToken);
 
-        if (!accessToken || !refreshToken) {
+        if (!accessToken && !refreshToken) {
+          console.log("No tokens found, nothing to restore");
           setLoading(false);
           return;
         }
 
+        // If we have a refresh token but no access token, try to refresh
+        if (!accessToken && refreshToken) {
+          console.log("No access token but have refresh token, attempting refresh");
+          try {
+            await refreshAccessToken();
+            // After successful refresh, we'll have the updated seller state
+            setLoading(false);
+            return;
+          } catch (refreshError) {
+            console.error("Failed to refresh token during init:", refreshError);
+            // Only clear on specific auth errors
+            if (refreshError.message === "No refresh token available" ||
+                refreshError.message === "Invalid refresh token") {
+              clearTokens();
+              setSeller(null);
+            }
+            setLoading(false);
+            return;
+          }
+        }
+
         // Try to get seller profile with current token
         try {
+          console.log("Getting seller profile with access token");
           const response = await fetch(`/api/auth/profile`, {
             headers: {
               Authorization: `Bearer ${accessToken}`,
             },
+            credentials: 'include' // Include cookies
           });
 
           if (response.ok) {
             const sellerData = await response.json();
-            setSeller(sellerData); // Direct seller data, not nested in a 'seller' property
+            console.log("Profile fetch successful, setting seller data");
+            setSeller(sellerData);
           } else if (response.status === 401) {
             // If unauthorized, try to refresh token
+            console.log("Profile fetch returned 401, attempting token refresh");
             try {
-              await refreshAccessToken();
+              const newToken = await refreshAccessToken();
+              
+              if (newToken) {
+                // Try to fetch profile again with new token
+                const retryResponse = await fetch(`/api/auth/profile`, {
+                  headers: {
+                    Authorization: `Bearer ${newToken}`,
+                  },
+                  credentials: 'include'
+                });
+                
+                if (retryResponse.ok) {
+                  const sellerData = await retryResponse.json();
+                  console.log("Profile fetch with refreshed token successful");
+                  setSeller(sellerData);
+                } else {
+                  console.error("Profile fetch failed even after token refresh");
+                  if (retryResponse.status === 401) {
+                    clearTokens();
+                    setSeller(null);
+                  }
+                }
+              }
             } catch (refreshError) {
               console.error("Token refresh failed during init:", refreshError);
-              // Don't clear tokens immediately on a single refresh failure
-              // This prevents logout on network issues or temporary server problems
-              if (refreshError.message === "No refresh token available") {
+              // Only clear on specific auth errors
+              if (refreshError.message === "No refresh token available" ||
+                  refreshError.message === "Invalid refresh token") {
                 clearTokens();
                 setSeller(null);
               }
             }
           } else if (response.status >= 500) {
-            // Server error - don't log out the user, just set loading to false
+            // Server error - maintain current state
             console.warn("Server error during auth initialization, maintaining current state");
-            // Keep existing tokens, don't clear auth state on server errors
           } else {
-            // Other client errors (400, 403, etc)
+            // Other client errors
             console.error(`Unexpected auth response: ${response.status}`);
             clearTokens();
             setSeller(null);
@@ -310,7 +404,7 @@ export function AuthProvider({ children }) {
         } catch (fetchError) {
           // Network error or other fetch failure
           console.error("Auth profile fetch failed:", fetchError);
-          // Don't clear tokens on network errors to prevent logout on temporary issues
+          // Don't clear tokens on network errors
         }
       } catch (error) {
         console.error("Auth initialization error:", error);

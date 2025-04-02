@@ -16,6 +16,7 @@ import {
   FiBox,
   FiChevronRight,
 } from "react-icons/fi";
+import { PRODUCT_ENDPOINTS } from "@/app/config";
 
 // The actual products list content
 function ProductsListContent() {
@@ -50,7 +51,7 @@ function ProductsListContent() {
         productsArray.map(async (product) => {
           try {
             const colorResponse = await authFetch(
-              `${process.env.NEXT_PUBLIC_API_URL}/api/products/${product.id}/colors`
+              `${process.env.NEXT_PUBLIC_API_URL}/api/seller/products/${product.id}/colors`
             );
 
             if (colorResponse.ok) {
@@ -86,7 +87,7 @@ function ProductsListContent() {
 
     try {
       const response = await authFetch(
-        `${process.env.NEXT_PUBLIC_API_URL}/api/products/${productId}`,
+        PRODUCT_ENDPOINTS.DELETE(productId),
         {
           method: "DELETE",
         }
@@ -96,7 +97,15 @@ function ProductsListContent() {
         throw new Error("Failed to delete product");
       }
 
-      toast.success("Product deleted successfully");
+      // Parse the response to check if it was actually deleted or just deactivated
+      const result = await response.json();
+      
+      if (result.deactivated) {
+        toast.success("Product has been deactivated because it is referenced in orders");
+      } else {
+        toast.success("Product deleted successfully");
+      }
+      
       fetchProducts(); // Refresh the list
     } catch (error) {
       toast.error("Error deleting product: " + error.message);
@@ -134,13 +143,15 @@ function ProductsListContent() {
             </span>
             Your Products
           </h1>
-          <Link
-            href="/seller/products/add"
-            className="bg-secondary px-4 py-2 text-white rounded-md hover:bg-secondary-dark transition-colors flex items-center shadow-sm"
-          >
-            <FiPlus className="mr-2 text-white" />
-            Add New Product
-          </Link>
+          <div className="flex flex-col sm:flex-row gap-3">
+            <Link
+              href="/seller/products/add"
+              className="bg-secondary px-4 py-2 text-white rounded-md hover:bg-secondary-dark transition-colors flex items-center shadow-sm"
+            >
+              <FiPlus className="mr-2 text-white" />
+              Add New Product
+            </Link>
+          </div>
         </div>
 
         {products.length === 0 ? (

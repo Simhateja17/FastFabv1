@@ -82,6 +82,12 @@ const COLORS = [
   { name: "Coral", hex: "#FF7F50" },
 ];
 
+// Define returnable options
+const RETURNABLE_OPTIONS = [
+  { value: true, label: "Returnable :- 8% Commission" },
+  { value: false, label: "Non-Returnable :- 12% Commission" }
+];
+
 export default function EditProductClient({ productId }) {
   const router = useRouter();
   const { authFetch } = useAuth();
@@ -108,6 +114,7 @@ export default function EditProductClient({ productId }) {
     sellingPrice: "",
     category: "",
     subcategory: "",
+    isReturnable: true,
     sizeQuantities: {
       XS: 0,
       S: 0,
@@ -189,6 +196,7 @@ export default function EditProductClient({ productId }) {
           : "",
         category: product.category || "",
         subcategory: product.subcategory || "",
+        isReturnable: product.isReturnable !== undefined ? product.isReturnable : true,
         sizeQuantities: product.sizeQuantities || {
           XS: 0,
           S: 0,
@@ -425,6 +433,9 @@ export default function EditProductClient({ productId }) {
 
   const handleFileChange = (e) => {
     const files = Array.from(e.target.files);
+    console.log("Files selected:", files.length);
+
+    if (files.length === 0) return; // Early return if no files selected
 
     // Validate file size and type
     const validFiles = files.filter((file) => {
@@ -441,11 +452,24 @@ export default function EditProductClient({ productId }) {
       return true;
     });
 
-    setSelectedFiles(validFiles);
+    if (validFiles.length === 0) {
+      toast.error("No valid files selected");
+      // Reset the file input
+      e.target.value = "";
+      return;
+    }
 
-    // Create preview URLs for valid files
-    const newPreviews = validFiles.map((file) => URL.createObjectURL(file));
-    setPreviewImages((prev) => [...prev, ...newPreviews]);
+    // Add to existing files instead of replacing
+    setSelectedFiles((prevFiles) => [...prevFiles, ...validFiles]);
+
+    // Create preview URLs for new valid files and add to existing
+    const newPreviewUrls = validFiles.map((file) => URL.createObjectURL(file));
+    setPreviewImages((prevUrls) => [...prevUrls, ...newPreviewUrls]);
+    
+    // Reset the file input to allow selecting the same file again
+    e.target.value = "";
+    
+    console.log(`Updated files: ${selectedFiles.length + validFiles.length}, previews: ${previewImages.length + newPreviewUrls.length}`);
   };
 
   const uploadImages = async () => {
@@ -454,27 +478,52 @@ export default function EditProductClient({ productId }) {
     setUploading(true);
     try {
       const formDataObj = new FormData();
-      selectedFiles.forEach((file) => {
-        formDataObj.append("images", file);
+      
+      // Log the number of files being uploaded for debugging
+      console.log(`Uploading ${selectedFiles.length} files`);
+      
+      // Append files with unique names to prevent overwrites
+      selectedFiles.forEach((file, index) => {
+        // Add timestamp and index to make each file name unique
+        const fileName = `${Date.now()}_${index}_${file.name.replace(/\s+/g, '_')}`;
+        formDataObj.append("images", new File([file], fileName, { type: file.type }));
       });
 
-      const response = await authFetch(
-        `${process.env.NEXT_PUBLIC_API_URL}/api/products/upload-images`,
-        {
-          method: "POST",
-          body: formDataObj,
+      // Upload images with retry logic
+      let response;
+      let retries = 0;
+      const maxRetries = 2;
+      
+      while (retries <= maxRetries) {
+        try {
+          response = await authFetch(
+            `${process.env.NEXT_PUBLIC_API_URL}/api/products/upload-images`,
+            {
+              method: "POST",
+              body: formDataObj,
+            }
+          );
+          break; // If successful, break out of the retry loop
+        } catch (err) {
+          console.error(`Upload attempt ${retries + 1} failed:`, err);
+          if (retries === maxRetries) throw err; // Rethrow on final attempt
+          retries++;
+          // Wait before retrying (exponential backoff)
+          await new Promise(r => setTimeout(r, 1000 * retries));
         }
-      );
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.message || "Failed to upload images");
       }
 
-      return [...formData.images, ...data.imageUrls];
+      if (!response || !response.ok) {
+        const errorData = await response?.json?.() || { message: "Upload failed" };
+        throw new Error(errorData.message || "Failed to upload images");
+      }
+
+      const data = await response.json();
+      console.log("Upload successful, received URLs:", data.imageUrls?.length || 0);
+      return [...formData.images, ...(data.imageUrls || [])];
     } catch (error) {
       console.error("Image upload error:", error);
+      toast.error("Failed to upload images: " + error.message);
       throw error;
     } finally {
       setUploading(false);
@@ -659,6 +708,35 @@ export default function EditProductClient({ productId }) {
                   </option>
                 ))}
               </select>
+            </div>
+          </div>
+
+          {/* Returnable/Non-Returnable Field - Place after Category and Subcategory */}
+          <div>
+            <label className="block text-sm font-medium text-text-dark mb-2">
+              Returnable/Non-Returnable
+            </label>
+            <div className="relative">
+              <select
+                name="isReturnable"
+                value={formData.isReturnable ? "true" : "false"}
+                onChange={(e) => {
+                  setFormData((prev) => ({
+                    ...prev,
+                    isReturnable: e.target.value === "true"
+                  }));
+                }}
+                className="w-full p-3 border border-ui-border rounded-md bg-background focus:ring-2 focus:ring-secondary focus:border-secondary focus:outline-none transition-colors appearance-none pr-10"
+                required
+              >
+                <option value="true">Returnable :- 8% Commission</option>
+                <option value="false">Non-Returnable :- 12% Commission</option>
+              </select>
+              <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-gray-700">
+                <svg className="fill-current h-4 w-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20">
+                  <path d="M9.293 12.95l.707.707L15.657 8l-1.414-1.414L10 10.828 5.757 6.586 4.343 8z" />
+                </svg>
+              </div>
             </div>
           </div>
 

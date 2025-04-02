@@ -51,231 +51,91 @@ const storeRefreshToken = async (sellerId, refreshToken) => {
 
 export async function POST(request) {
   try {
-    const requestData = await request.json();
+    console.log('OTP sign-in request received');
     
-    console.log('Signin with OTP request:', {
-      phone: requestData.phone ? 'provided' : 'missing',
-      otpCode: requestData.otpCode ? 'provided' : 'missing'
-    });
+    // Get phone from request
+    const { phone } = await request.json();
     
-    // Forward request to seller service
+    if (!phone) {
+      console.error('No phone number provided');
+      return NextResponse.json(
+        { success: false, message: 'Phone number is required' },
+        { status: 400 }
+      );
+    }
+    
+    // Forward the request to the seller service
     const apiUrl = process.env.SELLER_SERVICE_URL || 'http://localhost:8000';
-    // Try standard signin path
-    const endpoint = '/api/auth/signin-with-otp';
-    console.log(`Forwarding request to: ${apiUrl}${endpoint}`);
+    // The correct endpoint for OTP login on the seller service
+    const endpoint = `${apiUrl}/api/auth/seller-otp-login`;
     
-    const response = await fetch(`${apiUrl}${endpoint}`, {
+    console.log(`Forwarding OTP sign-in request to: ${endpoint}`);
+    
+    const response = await fetch(endpoint, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify(requestData),
+      body: JSON.stringify({ phone }),
     });
     
-    // If that fails with 404, try alternative paths
-    if (response.status === 404) {
-      console.log('Endpoint not found, trying alternative path');
-      
-      // Try alternative endpoint path
-      const altEndpoint = '/api/auth/login-with-otp';
-      console.log(`Trying alternative path: ${apiUrl}${altEndpoint}`);
-      
-      const altResponse = await fetch(`${apiUrl}${altEndpoint}`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(requestData),
-      });
-      
-      console.log(`Alternative endpoint response: ${altResponse.status} ${altResponse.statusText}`);
-      
-      // If alternative endpoint also fails, try a basic signin endpoint
-      if (altResponse.status === 404) {
-        console.log('Second endpoint not found, trying basic signin');
-        
-        const basicEndpoint = '/api/auth/signin';
-        console.log(`Trying basic signin: ${apiUrl}${basicEndpoint}`);
-        
-        const basicResponse = await fetch(`${apiUrl}${basicEndpoint}`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            ...requestData,
-            isOtpLogin: true
-          }),
-        });
-        
-        console.log(`Basic signin response: ${basicResponse.status} ${basicResponse.statusText}`);
-        
-        // If that fails too, we need to use local implementation
-        if (basicResponse.status === 404) {
-          console.log('No working endpoints found, falling back to local implementation');
-          
-          // Try to find the seller and generate tokens directly using local implementation
-          const { phone } = requestData;
-          
-          // Format the phone number for database consistency
-          let dbPhone = phone;
-          if (phone.startsWith('+91')) {
-            dbPhone = phone.substring(3); // Remove +91 prefix
-          } else if (phone.startsWith('91') && phone.length === 12) {
-            dbPhone = phone.substring(2); // Remove 91 prefix
-          }
-          
-          // Find the seller by phone
-          const seller = await prisma.seller.findUnique({
-            where: { phone: dbPhone },
-          });
-          
-          if (!seller) {
-            console.log('Seller not found for phone:', dbPhone);
-            return NextResponse.json({
-              success: false,
-              message: 'No account found with this phone number',
-            }, { status: 404 });
-          }
-          
-          // Generate tokens
-          const { accessToken, refreshToken } = generateTokens(seller.id);
-          
-          // Store refresh token
-          await storeRefreshToken(seller.id, refreshToken);
-          
-          // Set cookies - updated to use await
-          const cookieStore = cookies();
-          const isProduction = process.env.NODE_ENV === 'production';
-          
-          // Set access token cookie (short lived)
-          await cookieStore.set('accessToken', accessToken, {
-            httpOnly: true,
-            secure: isProduction,
-            sameSite: 'lax',
-            maxAge: 60 * 15, // 15 minutes in seconds
-            path: '/',
-          });
-          
-          // Set refresh token cookie (long lived)
-          await cookieStore.set('refreshToken', refreshToken, {
-            httpOnly: true,
-            secure: isProduction,
-            sameSite: 'lax',
-            maxAge: 60 * 60 * 24 * 30, // 30 days in seconds
-            path: '/',
-          });
-          
-          console.log('Login successful using local implementation');
-          
-          // Return tokens and seller data
-          return NextResponse.json({
-            success: true,
-            message: 'Login successful',
-            seller: {
-              id: seller.id,
-              phone: seller.phone,
-              shopName: seller.shopName,
-              ownerName: seller.ownerName,
-              isPhoneVerified: true,
-            },
-            accessToken,
-            refreshToken,
-          });
-        }
-        
-        // Use the basic signin response
-        return handleResponse(basicResponse);
-      }
-      
-      // Use the alternative endpoint response
-      return handleResponse(altResponse);
-    }
+    console.log(`OTP sign-in response status: ${response.status}`);
     
-    // Handle response from primary endpoint
-    return handleResponse(response);
-    
-  } catch (error) {
-    console.error('Login error:', error);
-    return NextResponse.json(
-      { success: false, message: 'Login failed', error: error.message },
-      { status: 500 }
-    );
-  }
-}
-
-// Helper function to handle response
-async function handleResponse(response) {
-  // Log response status
-  console.log(`Signin response status: ${response.status} ${response.statusText}`);
-  
-  // Handle error response
-  if (!response.ok) {
-    let errorMessage = 'Login failed';
-    try {
-      const errorData = await response.json();
-      console.error('Login error data:', errorData);
-      errorMessage = errorData.message || errorMessage;
-    } catch (e) {
-      console.error('Failed to parse error response');
+    if (!response.ok) {
+      const errorText = await response.text();
+      let errorMessage = 'Failed to sign in';
+      
       try {
-        const errorText = await response.text();
-        console.error('Error response text:', errorText);
-      } catch (textError) {
-        // Ignore if we can't get text
+        const errorData = JSON.parse(errorText);
+        errorMessage = errorData.message || errorMessage;
+      } catch (e) {
+        // If not JSON, use text as is
+        console.error('Non-JSON error response from sign-in endpoint:', errorText);
       }
+      
+      return NextResponse.json(
+        { success: false, message: errorMessage },
+        { status: response.status }
+      );
     }
     
-    return NextResponse.json(
-      { success: false, message: errorMessage },
-      { status: response.status }
-    );
-  }
-  
-  try {
-    // Parse successful response
     const data = await response.json();
-    console.log('Login successful, setting tokens');
+    console.log('OTP sign-in successful, setting tokens');
     
-    // Set cookies with auth tokens for more secure handling - updated to use await
+    // Set cookies for tokens
     const cookieStore = cookies();
     const isProduction = process.env.NODE_ENV === 'production';
     
-    // Set access token cookie (short lived)
+    // Set access token cookie
     if (data.accessToken) {
       await cookieStore.set('accessToken', data.accessToken, {
         httpOnly: true,
         secure: isProduction,
-        sameSite: 'lax', // Changed from strict to lax for better compatibility
+        sameSite: 'lax',
         maxAge: 60 * 15, // 15 minutes in seconds
         path: '/',
       });
     }
     
-    // Set refresh token cookie (long lived)
+    // Set refresh token cookie
     if (data.refreshToken) {
       await cookieStore.set('refreshToken', data.refreshToken, {
         httpOnly: true,
         secure: isProduction,
-        sameSite: 'lax', // Changed from strict to lax for better compatibility
+        sameSite: 'lax',
         maxAge: 60 * 60 * 24 * 30, // 30 days in seconds
         path: '/',
       });
     }
     
-    // Return tokens in response for client-side storage
-    return NextResponse.json({
-      success: true,
-      message: 'Login successful',
-      seller: data.seller,
-      accessToken: data.accessToken,
-      refreshToken: data.refreshToken
-    });
-  } catch (e) {
-    console.error('Failed to parse success response:', e);
-    return NextResponse.json({
-      success: false,
-      message: 'Invalid response format from server'
-    }, { status: 500 });
+    // Return the response as is - tokens will still be available to client
+    return NextResponse.json(data);
+    
+  } catch (error) {
+    console.error('OTP sign-in error:', error);
+    return NextResponse.json(
+      { success: false, message: 'Failed to sign in', error: error.message },
+      { status: 500 }
+    );
   }
 } 

@@ -414,17 +414,30 @@ const Navbar = () => {
     // Set new timeout to update URL after 300ms
     debounceTimeoutRef.current = setTimeout(() => {
       const params = new URLSearchParams(searchParams);
-      if (newValue.trim()) {
-        params.set('search', newValue.trim());
-      } else {
-        params.delete('search');
-      }
-      // Push to current pathname with updated params
-      // Only push if the relevant params actually changed to avoid unnecessary navigation
-      if (params.toString() !== searchParams.toString()) {
-         // Navigate to the products page if not already there or on the homepage
-         const targetPath = (pathname === '/' || pathname.startsWith('/products')) ? pathname : '/products';
-         router.push(`${targetPath}?${params.toString()}`);
+      const oldSearchValue = params.get('search') || '';
+      
+      // Only update if the search term has actually changed
+      if (newValue.trim() !== oldSearchValue) {
+        if (newValue.trim()) {
+          params.set('search', newValue.trim());
+        } else {
+          params.delete('search');
+        }
+        
+        // Always redirect searches to the products page for consistent experience
+        const targetPath = '/products';
+        
+        // Only navigate if we're not already at the products page with the right search term
+        const currentQueryString = searchParams.toString();
+        const newQueryString = params.toString();
+        const shouldNavigate = 
+          pathname !== targetPath || 
+          currentQueryString !== newQueryString;
+          
+        if (shouldNavigate) {
+          console.log(`Navigating to search: ${newValue.trim()}`);
+          router.push(`${targetPath}?${newQueryString}`);
+        }
       }
     }, 300);
   };
