@@ -27,8 +27,8 @@ export const USER_ENDPOINTS = {
   ADDRESS: `/api/user/address`,
   ORDERS: `${API_URL}/orders`,
   ORDER_DETAIL: (id) => `${API_URL}/orders/${id}`,
-  CART: `${API_URL}/cart`,
-  CART_ITEMS: `${API_URL}/cart/items`,
+  // CART: `${API_URL}/cart`,
+  // CART_ITEMS: `${API_URL}/cart/items`,
   WISHLIST: `${API_URL}/wishlist`,
   WISHLIST_ITEM: (id) => `${API_URL}/wishlist/${id}`,
   // WhatsApp OTP Authentication
@@ -49,10 +49,10 @@ export const PRODUCT_ENDPOINTS = {
 
 // Public endpoints
 export const PUBLIC_ENDPOINTS = {
-  PRODUCTS: `${API_URL}/public/products`,
-  ACTIVE_PRODUCTS: `${API_URL}/public/products/active`,
-  PRODUCT_DETAIL: (id) => `${API_URL}/public/products/${id}`,
-  PRODUCT_COLORS: (id) => `${API_URL}/public/products/${id}/colors`,
+  PRODUCTS: `/api/public/products`,
+  ACTIVE_PRODUCTS: `/api/public/products/active`,
+  PRODUCT_DETAIL: (id) => `/api/public/products/${id}`,
+  PRODUCT_COLORS: (id) => `/api/public/products/${id}/colors`,
 };
 
 // Token constants

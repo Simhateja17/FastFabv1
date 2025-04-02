@@ -7,9 +7,9 @@
  * @returns {number} Distance in kilometers
  */
 export function haversineDistance(lat1, lon1, lat2, lon2) {
-  // Validate coordinates
-  if (!lat1 || !lon1 || !lat2 || !lon2) {
-    console.warn('Invalid coordinates provided to haversineDistance:', { lat1, lon1, lat2, lon2 });
+  // Validate coordinates - check if they are defined and valid numbers
+  if (lat1 === undefined || lon1 === undefined || lat2 === undefined || lon2 === undefined) {
+    console.warn('Missing coordinates provided to haversineDistance:', { lat1, lon1, lat2, lon2 });
     return null;
   }
   
@@ -19,10 +19,24 @@ export function haversineDistance(lat1, lon1, lat2, lon2) {
   lat2 = parseFloat(lat2);
   lon2 = parseFloat(lon2);
   
+  console.log(`Computing haversine distance between: [${lat1}, ${lon1}] and [${lat2}, ${lon2}]`);
+  
   // Additional validation after parsing
   if (isNaN(lat1) || isNaN(lon1) || isNaN(lat2) || isNaN(lon2)) {
     console.warn('Coordinates could not be parsed to numbers:', { lat1, lon1, lat2, lon2 });
     return null;
+  }
+  
+  // Check coordinate ranges
+  if (Math.abs(lat1) > 90 || Math.abs(lat2) > 90 || Math.abs(lon1) > 180 || Math.abs(lon2) > 180) {
+    console.warn('Coordinates out of valid range:', { lat1, lon1, lat2, lon2 });
+    return null;
+  }
+  
+  // Check if coordinates are the same (zero distance)
+  if (lat1 === lat2 && lon1 === lon2) {
+    console.log('Coordinates are identical, distance is 0');
+    return 0;
   }
   
   // Convert latitude and longitude from degrees to radians
@@ -39,7 +53,9 @@ export function haversineDistance(lat1, lon1, lat2, lon2) {
   const radius = 6371; // Earth's radius in kilometers
   
   // Distance in kilometers, rounded to 1 decimal place
-  return Math.round(radius * c * 10) / 10;
+  const distance = Math.round(radius * c * 10) / 10;
+  console.log(`Calculated distance: ${distance}km`);
+  return distance;
 }
 
 /**
@@ -89,7 +105,12 @@ export function findSellersInRadius(sellers, userLat, userLon, radius = 3) {
   
   // Strict filtering based on enforced radius
   const filteredSellers = sellersWithDistance
-    .filter(seller => seller.distance !== null && seller.distance <= enforceRadius)
+    .filter(seller => 
+      seller.distance !== null && 
+      typeof seller.distance === 'number' && 
+      !isNaN(seller.distance) && 
+      seller.distance <= enforceRadius
+    )
     .sort((a, b) => a.distance - b.distance);
   
   console.log(`Found ${filteredSellers.length} sellers within ${enforceRadius}km radius`);
@@ -98,8 +119,10 @@ export function findSellersInRadius(sellers, userLat, userLon, radius = 3) {
   if (filteredSellers.length > 0) {
     console.log('Sample of sellers within radius:', 
       filteredSellers.slice(0, Math.min(5, filteredSellers.length))
-        .map(s => ({ id: s.id, distance: s.distance }))
+        .map(s => ({ id: s.id, name: s.name, distance: s.distance }))
     );
+  } else {
+    console.log('No sellers found within radius!');
   }
   
   return filteredSellers;

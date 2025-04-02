@@ -1,0 +1,4 @@
+# Migration sync_admin_api_20250401210519
+
+[migration]
+name = "sync_admin_api_20250401210519"

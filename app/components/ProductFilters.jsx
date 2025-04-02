@@ -15,10 +15,10 @@ export default function ProductFilters({
   availableSizes = ["XS", "S", "M", "L", "XL", "XXL"],
   availablePriceRanges = [
     { label: "Under ₹500", min: 0, max: 500 },
-    { label: "₹500 - ₹1000", min: 500, max: 1000 },
-    { label: "₹1000 - ₹2000", min: 1000, max: 2000 },
-    { label: "₹2000 - ₹5000", min: 2000, max: 5000 },
-    { label: "Above ₹5000", min: 5000, max: null },
+    { label: "₹500 - ₹999", min: 500, max: 1000 },
+    { label: "₹1000 - ₹1999", min: 1000, max: 2000 },
+    { label: "₹2000 - ₹4999", min: 2000, max: 5000 },
+    { label: "₹5000 & Above", min: 5000, max: null },
   ],
   sortOptions = [
     { label: "Newest", value: "newest" },
@@ -28,6 +28,7 @@ export default function ProductFilters({
   ],
 }) {
   const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false);
+  const [isClient, setIsClient] = useState(false);
   const [openSections, setOpenSections] = useState({
     category: false,
     subcategory: false,
@@ -35,6 +36,10 @@ export default function ProductFilters({
     price: false,
     sort: false,
   });
+
+  useEffect(() => {
+    setIsClient(true);
+  }, []);
 
   const toggleSection = (section) => {
     setOpenSections(prev => ({
@@ -65,12 +70,38 @@ export default function ProductFilters({
     }));
   };
 
+  // Add a useEffect to log filter changes for debugging
+  useEffect(() => {
+    console.log("Filter state updated:", filters);
+    // Validate that the price filter is correctly set
+    if (filters.minPrice === 5000 && filters.maxPrice === null) {
+      console.log("₹5000 & Above filter is active");
+    }
+  }, [filters]);
+
   const handlePriceRangeChange = (min, max) => {
-    setFilters(prev => ({
-      ...prev,
-      minPrice: min,
-      maxPrice: max,
-    }));
+    console.log("Price range change requested:", { min, max });
+    
+    // If clicking the same range, toggle it off
+    if (filters.minPrice === min && filters.maxPrice === max) {
+      console.log("Toggling off price filter");
+      setFilters(prev => ({
+        ...prev,
+        minPrice: null,
+        maxPrice: null,
+      }));
+    } else {
+      // For "₹5000 & Above", ensure max is null, not undefined
+      if (min === 5000 && max === null) {
+        console.log("Setting ₹5000 & Above filter");
+      }
+      
+      setFilters(prev => ({
+        ...prev,
+        minPrice: min,
+        maxPrice: max,
+      }));
+    }
   };
 
   const handleSortChange = (sortOption) => {
@@ -109,191 +140,188 @@ export default function ProductFilters({
 
   return (
     <>
-      {/* Mobile filter dialog */}
-      <div className={`fixed inset-0 z-40 ${mobileFiltersOpen ? 'block' : 'hidden'}`}>
-        <div className="fixed inset-0 bg-black bg-opacity-25" onClick={() => setMobileFiltersOpen(false)} />
-        <div className="relative ml-auto flex h-full w-full max-w-xs flex-col overflow-y-auto bg-white py-4 pb-12 shadow-xl">
-          <div className="flex items-center justify-between px-4 pb-4 border-b">
-            <h2 className="text-lg font-medium text-gray-900">Filters</h2>
-            <button
-              type="button"
-              className="-mr-2 flex h-10 w-10 items-center justify-center rounded-md p-2 text-gray-400 hover:bg-gray-100"
-              onClick={() => setMobileFiltersOpen(false)}
-            >
-              <FiX className="h-6 w-6" />
-            </button>
-          </div>
-
-          {/* Mobile filters */}
-          <div className="mt-4 px-4">
-            <div className="border-b pb-4">
+      {/* Mobile filter dialog - Conditionally render based on isClient to avoid hydration mismatch */}
+      {isClient && (
+        <div className={`fixed inset-0 z-40 ${mobileFiltersOpen ? 'block' : 'hidden'}`}>
+          <div className="fixed inset-0 bg-black bg-opacity-25" onClick={() => setMobileFiltersOpen(false)} />
+          <div className="relative ml-auto flex h-full w-full max-w-xs flex-col overflow-y-auto bg-white py-4 pb-12 shadow-xl">
+            <div className="flex items-center justify-between px-4 pb-4 border-b">
+              <h2 className="text-lg font-medium text-gray-900">Filters</h2>
               <button
-                onClick={() => toggleSection('category')}
-                className="flex w-full items-center justify-between py-2 text-sm text-gray-900 hover:text-gray-600"
+                type="button"
+                className="-mr-2 flex h-10 w-10 items-center justify-center rounded-md p-2 text-gray-400 hover:bg-gray-100"
+                onClick={() => setMobileFiltersOpen(false)}
               >
-                <span className="font-medium">Category</span>
-                <FiChevronDown
-                  className={`h-5 w-5 transform ${openSections.category ? 'rotate-180' : ''} transition-transform`}
-                />
+                <FiX className="h-6 w-6" />
               </button>
-              {openSections.category && (
-                <div className="space-y-2 pt-2">
-                  {availableCategories.map((category) => (
-                    <div key={category} className="flex items-center">
-                      <button
-                        onClick={() => handleCategoryChange(category)}
-                        className={`flex items-center justify-between w-full px-2 py-1.5 rounded-md ${
-                          filters.category === category ? 'bg-gray-100 text-gray-900' : 'text-gray-600'
-                        }`}
-                      >
-                        <span>{category}</span>
-                        {filters.category === category && <FiCheck className="h-4 w-4" />}
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              )}
             </div>
 
-            {filters.category && (
+            {/* Mobile filters */}
+            <div className="mt-4 px-4">
               <div className="border-b pb-4">
                 <button
-                  onClick={() => toggleSection('subcategory')}
+                  onClick={() => toggleSection('category')}
                   className="flex w-full items-center justify-between py-2 text-sm text-gray-900 hover:text-gray-600"
                 >
-                  <span className="font-medium">Subcategory</span>
+                  <span className="font-medium">Category</span>
                   <FiChevronDown
-                    className={`h-5 w-5 transform ${openSections.subcategory ? 'rotate-180' : ''} transition-transform`}
+                    className={`h-5 w-5 transform ${openSections.category ? 'rotate-180' : ''} transition-transform`}
                   />
                 </button>
-                {openSections.subcategory && (
+                {openSections.category && (
                   <div className="space-y-2 pt-2">
-                    {subcategories.map((subcategory) => (
-                      <div key={subcategory} className="flex items-center">
+                    {availableCategories.map((category) => (
+                      <div key={category} className="flex items-center">
                         <button
-                          onClick={() => handleSubcategoryChange(subcategory)}
+                          onClick={() => handleCategoryChange(category)}
                           className={`flex items-center justify-between w-full px-2 py-1.5 rounded-md ${
-                            filters.subcategory === subcategory ? 'bg-gray-100 text-gray-900' : 'text-gray-600'
+                            filters.category === category ? 'bg-gray-100 text-gray-900' : 'text-gray-600'
                           }`}
                         >
-                          <span>{subcategory}</span>
-                          {filters.subcategory === subcategory && <FiCheck className="h-4 w-4" />}
+                          <span>{category}</span>
+                          {filters.category === category && <FiCheck className="h-4 w-4" />}
                         </button>
                       </div>
                     ))}
                   </div>
                 )}
               </div>
-            )}
 
-            <div className="border-b pb-4">
-              <button
-                onClick={() => toggleSection('size')}
-                className="flex w-full items-center justify-between py-2 text-sm text-gray-900 hover:text-gray-600"
-              >
-                <span className="font-medium">Size</span>
-                <FiChevronDown
-                  className={`h-5 w-5 transform ${openSections.size ? 'rotate-180' : ''} transition-transform`}
-                />
-              </button>
-              {openSections.size && (
-                <div className="grid grid-cols-3 gap-2 pt-2">
-                  {availableSizes.map((size) => (
-                    <button
-                      key={size}
-                      onClick={() => handleSizeChange(size)}
-                      className={`inline-flex items-center justify-center rounded-md border px-3 py-2 text-sm ${
-                        filters.size === size
-                          ? 'border-gray-900 bg-gray-900 text-white'
-                          : 'border-gray-300 bg-white text-gray-900 hover:bg-gray-50'
-                      }`}
-                    >
-                      {size}
-                    </button>
-                  ))}
+              {filters.category && (
+                <div className="border-b pb-4">
+                  <button
+                    onClick={() => toggleSection('subcategory')}
+                    className="flex w-full items-center justify-between py-2 text-sm text-gray-900 hover:text-gray-600"
+                  >
+                    <span className="font-medium">Subcategory</span>
+                    <FiChevronDown
+                      className={`h-5 w-5 transform ${openSections.subcategory ? 'rotate-180' : ''} transition-transform`}
+                    />
+                  </button>
+                  {openSections.subcategory && (
+                    <div className="space-y-2 pt-2">
+                      {subcategories.map((subcategory) => (
+                        <div key={subcategory} className="flex items-center">
+                          <button
+                            onClick={() => handleSubcategoryChange(subcategory)}
+                            className={`flex items-center justify-between w-full px-2 py-1.5 rounded-md ${
+                              filters.subcategory === subcategory ? 'bg-gray-100 text-gray-900' : 'text-gray-600'
+                            }`}
+                          >
+                            <span>{subcategory}</span>
+                            {filters.subcategory === subcategory && <FiCheck className="h-4 w-4" />}
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
               )}
-            </div>
 
-            <div className="border-b pb-4">
-              <button
-                onClick={() => toggleSection('price')}
-                className="flex w-full items-center justify-between py-2 text-sm text-gray-900 hover:text-gray-600"
-              >
-                <span className="font-medium">Price</span>
-                <FiChevronDown
-                  className={`h-5 w-5 transform ${openSections.price ? 'rotate-180' : ''} transition-transform`}
-                />
-              </button>
-              {openSections.price && (
-                <div className="space-y-2 pt-2">
-                  {availablePriceRanges.map((range, index) => (
-                    <div key={index} className="flex items-center">
+              <div className="border-b pb-4">
+                <button
+                  onClick={() => toggleSection('size')}
+                  className="flex w-full items-center justify-between py-2 text-sm text-gray-900 hover:text-gray-600"
+                >
+                  <span className="font-medium">Size</span>
+                  <FiChevronDown
+                    className={`h-5 w-5 transform ${openSections.size ? 'rotate-180' : ''} transition-transform`}
+                  />
+                </button>
+                {openSections.size && (
+                  <div className="grid grid-cols-3 gap-2 pt-2">
+                    {availableSizes.map((size) => (
                       <button
-                        onClick={() => handlePriceRangeChange(range.min, range.max)}
-                        className={`flex items-center justify-between w-full px-2 py-1.5 rounded-md ${
-                          filters.minPrice === range.min && filters.maxPrice === range.max
-                            ? 'bg-gray-100 text-gray-900'
-                            : 'text-gray-600'
+                        key={size}
+                        onClick={() => handleSizeChange(size)}
+                        className={`inline-flex items-center justify-center rounded-md border px-3 py-2 text-sm ${
+                          filters.size === size
+                            ? 'border-gray-900 bg-gray-900 text-white'
+                            : 'border-gray-300 bg-white text-gray-900 hover:bg-gray-50'
                         }`}
                       >
-                        <span>{range.label}</span>
-                        {filters.minPrice === range.min && filters.maxPrice === range.max && (
-                          <FiCheck className="h-4 w-4" />
-                        )}
+                        {size}
                       </button>
-                    </div>
-                  ))}
-                </div>
-              )}
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              <div className="border-b pb-4">
+                <button
+                  onClick={() => toggleSection('price')}
+                  className="flex w-full items-center justify-between py-2 text-sm text-gray-900 hover:text-gray-600"
+                >
+                  <span className="font-medium">Price</span>
+                  <FiChevronDown
+                    className={`h-5 w-5 transform ${openSections.price ? 'rotate-180' : ''} transition-transform`}
+                  />
+                </button>
+                {openSections.price && (
+                  <div className="space-y-2 pt-2">
+                    {availablePriceRanges.map((range, index) => (
+                      <div key={index} className="flex items-center">
+                        <button
+                          onClick={() => handlePriceRangeChange(range.min, range.max)}
+                          className={`flex items-center justify-between w-full px-2 py-1.5 rounded-md ${
+                            filters.minPrice === range.min && filters.maxPrice === range.max
+                              ? 'bg-gray-100 text-gray-900'
+                              : 'text-gray-600'
+                          }`}
+                        >
+                          <span>{range.label}</span>
+                          {filters.minPrice === range.min && filters.maxPrice === range.max && (
+                            <FiCheck className="h-4 w-4" />
+                          )}
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              <div className="pb-4">
+                <button
+                  onClick={() => toggleSection('sort')}
+                  className="flex w-full items-center justify-between py-2 text-sm text-gray-900 hover:text-gray-600"
+                >
+                  <span className="font-medium">Sort By</span>
+                  <FiChevronDown
+                    className={`h-5 w-5 transform ${openSections.sort ? 'rotate-180' : ''} transition-transform`}
+                  />
+                </button>
+                {openSections.sort && (
+                  <div className="space-y-2 pt-2">
+                    {sortOptions.map((option) => (
+                      <div key={option.value} className="flex items-center">
+                        <button
+                          onClick={() => handleSortChange(option.value)}
+                          className={`flex items-center justify-between w-full px-2 py-1.5 rounded-md ${
+                            filters.sort === option.value ? 'bg-gray-100 text-gray-900' : 'text-gray-600'
+                          }`}
+                        >
+                          <span>{option.label}</span>
+                          {filters.sort === option.value && <FiCheck className="h-4 w-4" />}
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
             </div>
 
-            <div className="border-b pb-4">
-              <button
-                onClick={() => toggleSection('sort')}
-                className="flex w-full items-center justify-between py-2 text-sm text-gray-900 hover:text-gray-600"
-              >
-                <span className="font-medium">Sort By</span>
-                <FiChevronDown
-                  className={`h-5 w-5 transform ${openSections.sort ? 'rotate-180' : ''} transition-transform`}
-                />
-              </button>
-              {openSections.sort && (
-                <div className="space-y-2 pt-2">
-                  {sortOptions.map((option) => (
-                    <div key={option.value} className="flex items-center">
-                      <button
-                        onClick={() => handleSortChange(option.value)}
-                        className={`flex items-center justify-between w-full px-2 py-1.5 rounded-md ${
-                          filters.sort === option.value ? 'bg-gray-100 text-gray-900' : 'text-gray-600'
-                        }`}
-                      >
-                        <span>{option.label}</span>
-                        {filters.sort === option.value && <FiCheck className="h-4 w-4" />}
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-
-            <div className="mt-4 flex justify-between">
+            {/* Clear All Button */}
+            <div className="px-4 mt-auto pt-4 border-t">
               <button
                 onClick={clearAllFilters}
-                className="text-sm font-medium text-primary hover:text-primary-dark"
+                className="w-full rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 shadow-sm hover:bg-gray-50"
               >
-                Clear all filters
-              </button>
-              <button
-                onClick={() => setMobileFiltersOpen(false)}
-                className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary-dark"
-              >
-                Apply
+                Clear All Filters
               </button>
             </div>
           </div>
         </div>
-      </div>
+      )}
 
       {/* Desktop filters */}
       <div className="bg-white">
@@ -551,8 +579,8 @@ export default function ProductFilters({
                     {filters.minPrice === null
                       ? `Under ₹${filters.maxPrice}`
                       : filters.maxPrice === null
-                      ? `Above ₹${filters.minPrice}`
-                      : `₹${filters.minPrice} - ₹${filters.maxPrice}`}
+                      ? `₹${filters.minPrice} & Above`
+                      : `₹${filters.minPrice} - ₹${filters.maxPrice - 1}`}
                   </span>
                   <button
                     type="button"
