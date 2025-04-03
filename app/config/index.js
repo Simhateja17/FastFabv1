@@ -4,12 +4,12 @@ export const API_URL =
 
 // Auth endpoints
 export const AUTH_ENDPOINTS = {
-  SIGNIN: `${API_URL}/api/auth/signin`,
-  SIGNUP: `${API_URL}/api/auth/signup`,
-  REFRESH_TOKEN: `${API_URL}/api/auth/refresh-token`,
-  LOGOUT: `${API_URL}/api/auth/logout`,
-  PROFILE: `${API_URL}/api/auth/profile`,
-  UPDATE_DETAILS: (sellerId) => `${API_URL}/api/auth/${sellerId}/details`,
+  SIGNIN: `${API_URL}/auth/signin`,
+  SIGNUP: `${API_URL}/auth/signup`,
+  REFRESH_TOKEN: `${API_URL}/auth/refresh-token`,
+  LOGOUT: `${API_URL}/auth/logout`,
+  PROFILE: `${API_URL}/auth/profile`,
+  UPDATE_DETAILS: (sellerId) => `${API_URL}/auth/${sellerId}/details`,
 };
 
 // User endpoints
@@ -38,13 +38,13 @@ export const USER_ENDPOINTS = {
 
 // Product endpoints
 export const PRODUCT_ENDPOINTS = {
-  LIST: `${API_URL}/api/products`,
-  DETAIL: (id) => `${API_URL}/api/products/${id}`,
-  CREATE: `${API_URL}/api/seller/products`,
-  UPDATE: (id) => `${API_URL}/api/seller/products/${id}`,
-  DELETE: (id) => `${API_URL}/api/seller/products/${id}`,
-  UPLOAD_IMAGES: `${API_URL}/api/products/upload-images`,
-  PUBLIC_ACTIVE: `${API_URL}/api/products/all`,
+  LIST: `${API_URL}/products`,
+  DETAIL: (id) => `${API_URL}/products/${id}`,
+  CREATE: `${API_URL}/seller/products`,
+  UPDATE: (id) => `${API_URL}/seller/products/${id}`,
+  DELETE: (id) => `${API_URL}/seller/products/${id}`,
+  UPLOAD_IMAGES: `${API_URL}/products/upload-images`,
+  PUBLIC_ACTIVE: `${API_URL}/products/all`,
 };
 
 // Public endpoints

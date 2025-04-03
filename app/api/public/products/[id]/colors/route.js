@@ -21,6 +21,40 @@ export async function GET(request, { params }) {
       );
     }
 
+    // First check if the product exists and if the seller is visible
+    const product = await prisma.product.findUnique({
+      where: {
+        id: productId,
+      },
+      select: {
+        id: true,
+        isActive: true,
+        seller: {
+          select: {
+            isVisible: true,
+          },
+        },
+      },
+    });
+
+    // If product doesn't exist or is not active, return 404
+    if (!product || !product.isActive) {
+      console.log(`Product not found or not active for ID: ${productId}`);
+      return NextResponse.json(
+        { error: 'Product not found' },
+        { status: 404 }
+      );
+    }
+
+    // Check if seller's visibility is turned off
+    if (!product.seller?.isVisible) {
+      console.log(`Product ${productId} belongs to a seller with visibility turned off`);
+      return NextResponse.json(
+        { error: 'Product not available' },
+        { status: 404 }
+      );
+    }
+
     // Fetch color inventory for this product
     const colorInventories = await prisma.colorInventory.findMany({
       where: {

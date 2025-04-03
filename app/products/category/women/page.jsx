@@ -1,14 +1,15 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, Suspense } from "react";
 import ProductCard from "@/app/components/ProductCard";
 import LoadingSpinner from "@/app/components/LoadingSpinner";
 import { PUBLIC_ENDPOINTS } from "@/app/config";
-import { FiShoppingBag, FiMapPin } from "react-icons/fi";
+import { FiShoppingBag, FiMapPin, FiFilter } from "react-icons/fi";
 import ProductFilters from "@/app/components/ProductFilters";
 import { useLocationStore } from "@/app/lib/locationStore";
+import LocationRequiredMessage from "@/app/components/LocationRequiredMessage";
 
-export default function WomenProductsPage() {
+function WomenProductsContent() {
   const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -154,34 +155,6 @@ export default function WomenProductsPage() {
     }
   }, [userLocation, filters, fetchProducts]);
   
-  // Location error message component (similar to homepage)
-  const LocationErrorMessage = () => (
-    <div className="text-center py-12 bg-red-50 rounded-lg shadow-sm my-8">
-      <FiMapPin className="w-12 h-12 mx-auto text-red-400" />
-      <h3 className="mt-4 text-lg font-medium text-red-600">Location Required</h3>
-      <p className="mt-2 text-red-500 max-w-md mx-auto">
-        We need your location to show Women's products within 3km of your area.
-      </p>
-      <button
-        onClick={() => {
-          const locationTrigger = document.querySelector('[data-location-trigger]');
-          if (locationTrigger) {
-            console.log("Location trigger found, clicking it");
-            locationTrigger.click();
-          } else {
-            console.error("Location trigger not found");
-            // Fallback - directly open modal via localStorage
-            localStorage.setItem("forceOpenLocationModal", "true");
-            window.location.reload();
-          }
-        }}
-        className="mt-4 px-4 py-2 bg-primary text-white rounded-md hover:bg-primary-dark"
-      >
-        Set Your Location
-      </button>
-    </div>
-  );
-  
   // Error message component
   const ErrorMessage = ({ error, onRetry }) => {
     // Handle different error types
@@ -249,60 +222,77 @@ export default function WomenProductsPage() {
     );
   };
 
-  // Determine if we should show the location error
-  const showLocationError = !hasValidLocation();
-  
-  // Determine if we're still loading
-  const isLoading = loading;
-  
-  // Only show "Expanding" message after we've loaded and found no products
-  const showExpandingMessage = !isLoading && !error && !showLocationError && products.length === 0;
-
   return (
     <div className="max-w-7xl mx-auto px-4 py-6 sm:px-6 lg:px-8">
-      {/* Page Title */}
-      <div className="mb-6">
-        <h1 className="text-2xl font-bold text-text-dark">Women's Collection</h1>
-        <p className="text-text-muted">Browse our latest women's fashion</p>
-      </div>
-      
-      {/* Show location error if location is missing */}
-      {showLocationError && <LocationErrorMessage />}
-      
-      {/* Product Filters - only show if location is available */}
-      {!showLocationError && (
-        <ProductFilters 
-          filters={filters} 
-          setFilters={setFilters} 
-          availableCategories={["WOMEN"]} // Only show WOMEN category
-        />
-      )}
-
-      {/* Loading Spinner */}
-      {isLoading && (
-        <div className="min-h-[300px] flex items-center justify-center">
-          <LoadingSpinner size="large" color="secondary" />
-        </div>
-      )}
-
-      {/* Error Message */}
-      {!isLoading && error && !showLocationError && (
-        <ErrorMessage error={error} onRetry={() => fetchProducts(userLocation, filters)} />
+      {/* Show location required message if location is not set */}
+      {(!userLocation || !hasValidLocation()) && !loading && (
+        <LocationRequiredMessage />
       )}
       
-      {/* Show "Expanding" message when no products found after loading */}
-      {showExpandingMessage && (
-        <ErrorMessage error={{ type: "no_sellers" }} onRetry={() => fetchProducts(userLocation, filters)} />
-      )}
-
-      {/* Products Grid - Show only if not loading, no errors, has location, and has products */}
-      {!isLoading && !error && !showLocationError && products.length > 0 && (
-        <div className="mt-6 grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-3 md:gap-6">
-          {products.map((product) => (
-            <ProductCard key={product.id} product={product} />
-          ))}
-        </div>
+      {/* Only show content if location is set */}
+      {hasValidLocation() && (
+        <>
+          {/* Page Title */}
+          <div className="mb-6">
+            <h1 className="text-2xl font-bold text-text-dark">Women's Collection</h1>
+            <p className="text-text-muted">Browse our latest women's fashion</p>
+          </div>
+          
+          {/* Filters and Products Section using Grid */}
+          <div className="lg:grid lg:grid-cols-4 lg:gap-8">
+            {/* Filters - Takes up 1 column on large screens */}
+            <div className="lg:col-span-1">
+              <ProductFilters
+                filters={filters}
+                setFilters={setFilters}
+                availableCategories={["WOMEN"]} 
+              />
+            </div>
+            
+            {/* Products - Takes up 3 columns on large screens */}
+            <div className="lg:col-span-3 mt-6 lg:mt-0">
+              {loading ? (
+                <div className="flex justify-center py-20">
+                  <LoadingSpinner size="large" color="secondary" />
+                </div>
+              ) : error ? (
+                <ErrorMessage 
+                  error={error} 
+                  onRetry={() => fetchProducts(userLocation, filters)} 
+                />
+              ) : products.length > 0 ? (
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 md:gap-6">
+                  {products.map((product) => (
+                    <ProductCard key={product.id} product={product} />
+                  ))}
+                </div>
+              ) : (
+                <div className="text-center py-12 bg-white rounded-lg shadow-sm">
+                  <FiShoppingBag className="w-12 h-12 mx-auto text-gray-400" />
+                  <h3 className="mt-4 text-lg font-medium text-gray-900">
+                    No Products Found
+                  </h3>
+                  <p className="mt-2 text-gray-500 max-w-md mx-auto">
+                    There are no women's products matching your filters. Try changing your filters or check back later.
+                  </p>
+                </div>
+              )}
+            </div>
+          </div>
+        </>
       )}
     </div>
   );
-} 
+}
+
+export default function WomenProductsPage() {
+  return (
+    <Suspense fallback={
+      <div className="flex justify-center items-center min-h-screen">
+        <LoadingSpinner size="large" color="primary" />
+      </div>
+    }>
+      <WomenProductsContent />
+    </Suspense>
+  );
+}

@@ -584,11 +584,13 @@ export default function AddProduct() {
 
     setUploading(true);
     try {
+      const backendApiUrl = process.env.NEXT_PUBLIC_SELLER_SERVICE_URL || 'http://localhost:8000/api'; // Define backend URL
+      
       // Create FormData
       const formData = new FormData();
       
       // Log the number of files being uploaded for debugging
-      console.log(`Uploading ${variantFiles.length} files for this variant`);
+      console.log(`Uploading ${variantFiles.length} files for this variant to ${backendApiUrl}/products/upload-images`);
       
       // Append files with unique names to prevent overwrites
       variantFiles.forEach((file, index) => {
@@ -604,11 +606,13 @@ export default function AddProduct() {
       
       while (retries <= maxRetries) {
         try {
+          // Use the correct backend URL for image uploads
           response = await authFetch(
-            PRODUCT_ENDPOINTS.UPLOAD_IMAGES,
+            `${backendApiUrl}/products/upload-images`, // Use correct backend URL
             {
               method: "POST",
               body: formData,
+              // Content-Type is set automatically for FormData by the browser/fetch
             }
           );
           break; // If successful, break out of the retry loop
@@ -622,8 +626,15 @@ export default function AddProduct() {
       }
 
       if (!response || !response.ok) {
-        const error = await response?.json?.() || { message: "Upload failed" };
-        throw new Error(error.message || "Failed to upload images");
+        // Check if the response is JSON or HTML
+        const contentType = response?.headers?.get('content-type') || '';
+        if (contentType.includes('text/html')) {
+          console.error("Received HTML response instead of JSON. Server may be returning an error page.");
+          throw new Error("Server returned an HTML error page instead of JSON. Please try again.");
+        }
+        
+        const errorData = await response?.json?.() || { message: "Upload failed" };
+        throw new Error(errorData.message || "Failed to upload images");
       }
 
       const data = await response.json();
@@ -631,7 +642,7 @@ export default function AddProduct() {
       return data.imageUrls || [];
     } catch (error) {
       console.error("Error uploading variant images:", error);
-      toast.error("Failed to upload variant images: " + error.message);
+      toast.error(`Failed to upload images: ${error.message || "Unknown error"}`);
       return [];
     } finally {
       setUploading(false);
@@ -701,6 +712,8 @@ export default function AddProduct() {
     setLoading(true);
     
     try {
+      const backendApiUrl = process.env.NEXT_PUBLIC_SELLER_SERVICE_URL || 'http://localhost:8000/api'; // Define backend URL
+      
       // Process each page as a separate product
       for (let i = 0; i < productPages.length; i++) {
         const page = productPages[i];
@@ -754,8 +767,11 @@ export default function AddProduct() {
           colorInventories: [colorInventory]
         };
         
+        console.log(`Creating product for page ${i + 1} at: ${backendApiUrl}/products`);
+        
+        // Use the correct backend URL for product creation
         const response = await authFetch(
-          PRODUCT_ENDPOINTS.CREATE,
+          `${backendApiUrl}/products`, // Corrected: Mount path is /api/products, route is /
           {
             method: "POST",
             headers: {

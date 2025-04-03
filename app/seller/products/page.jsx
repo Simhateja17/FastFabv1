@@ -32,26 +32,38 @@ function ProductsListContent() {
   const fetchProducts = async () => {
     try {
       setLoading(true);
-      // Get only the current seller's products by adding /seller/products endpoint
+      const backendApiUrl = process.env.NEXT_PUBLIC_SELLER_SERVICE_URL || 'http://localhost:8000/api'; // Define backend URL
+      
+      // Call the correct backend endpoint directly
+      console.log(`Fetching products from: ${backendApiUrl}/products`); // Add log
       const response = await authFetch(
-        `${process.env.NEXT_PUBLIC_API_URL}/api/seller/products`
+        `${backendApiUrl}/products` // Corrected endpoint
       );
 
+      // Check if response is not OK
       if (!response.ok) {
-        throw new Error("Failed to fetch products");
+        // Check for HTML responses
+        const contentType = response.headers.get('content-type') || '';
+        if (contentType.includes('text/html')) {
+          throw new Error("Server error occurred. Please try again later.");
+        }
+        throw new Error(`Failed to fetch products: ${response.status} ${response.statusText}`);
       }
 
       const data = await response.json();
       
       // Check if the response contains the products array
       const productsArray = data.products || [];
+      console.log(`Received ${productsArray.length} products`); // Add log
 
       // Fetch color inventories for each product
       const productsWithColors = await Promise.all(
         productsArray.map(async (product) => {
           try {
+            // Use correct backend URL for fetching colors
+            console.log(`Fetching colors for product ${product.id} from: ${backendApiUrl}/products/${product.id}/colors`); // Add log
             const colorResponse = await authFetch(
-              `${process.env.NEXT_PUBLIC_API_URL}/api/seller/products/${product.id}/colors`
+              `${backendApiUrl}/products/${product.id}/colors` // Corrected endpoint
             );
 
             if (colorResponse.ok) {
@@ -61,20 +73,22 @@ function ProductsListContent() {
                 colorInventories: colorData.colorInventories || [],
               };
             }
-            return product;
+            console.warn(`Failed to fetch colors for product ${product.id}: ${colorResponse.status}`); // Add log
+            return product; // Return product even if colors fail
           } catch (error) {
             console.error(
               `Error fetching colors for product ${product.id}:`,
               error
             );
-            return product;
+            return product; // Return product even if colors fail
           }
         })
       );
 
       setProducts(productsWithColors);
     } catch (error) {
-      toast.error("Error fetching products: " + error.message);
+      console.error("Product fetch error:", error);
+      toast.error(error.message || "Error fetching products");
     } finally {
       setLoading(false);
     }
@@ -86,15 +100,25 @@ function ProductsListContent() {
     }
 
     try {
+      const backendApiUrl = process.env.NEXT_PUBLIC_SELLER_SERVICE_URL || 'http://localhost:8000/api'; // Define backend URL
+      
+      // Use correct backend URL for deleting product
+      console.log(`Deleting product ${productId} at: ${backendApiUrl}/products/${productId}`); // Add log
       const response = await authFetch(
-        PRODUCT_ENDPOINTS.DELETE(productId),
+        `${backendApiUrl}/products/${productId}`, // Corrected endpoint
         {
           method: "DELETE",
         }
       );
 
       if (!response.ok) {
-        throw new Error("Failed to delete product");
+        // Try parsing error response
+        let errorMsg = "Failed to delete product";
+        try {
+          const errorData = await response.json();
+          errorMsg = errorData.message || errorMsg;
+        } catch (e) { /* Ignore parsing error */ }
+        throw new Error(errorMsg);
       }
 
       // Parse the response to check if it was actually deleted or just deactivated
@@ -108,7 +132,8 @@ function ProductsListContent() {
       
       fetchProducts(); // Refresh the list
     } catch (error) {
-      toast.error("Error deleting product: " + error.message);
+      console.error("Error deleting product:", error); // Add log
+      toast.error(`Error deleting product: ${error.message}`);
     }
   };
 

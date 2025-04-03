@@ -228,7 +228,7 @@ export function AuthProvider({ children }) {
 
     // Add timeout and retry logic
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 15000); // 15 second timeout
+    const timeoutId = setTimeout(() => controller.abort(), 15000);
     
     const makeRequest = async (token = accessToken, retryCount = 0) => {
       try {
@@ -247,7 +247,22 @@ export function AuthProvider({ children }) {
 
         // Log response status and content type for debugging
         console.log(`Response: ${response.status} ${response.statusText}`);
-        console.log(`Content-Type: ${response.headers.get('content-type')}`);
+        const contentType = response.headers.get('content-type') || '';
+        console.log(`Content-Type: ${contentType}`);
+
+        // Special handling for HTML responses (likely error pages)
+        if (contentType.includes('text/html')) {
+          console.error("Received HTML response instead of JSON. Server may be returning an error page.");
+          const htmlContent = await response.text();
+          console.error("HTML content preview:", htmlContent.substring(0, 200) + "...");
+          
+          // If this is likely a server error page, treat it as a 500
+          if (htmlContent.includes('<!DOCTYPE') || htmlContent.includes('<html>')) {
+            const error = new Error("Server returned an HTML error page");
+            error.htmlResponse = true;
+            throw error;
+          }
+        }
 
         // If unauthorized and we have a refresh token, try to refresh
         if (response.status === 401 && retryCount === 0) {
