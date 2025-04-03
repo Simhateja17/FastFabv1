@@ -180,15 +180,36 @@ const checkSellerExists = async (phoneNumber) => {
   // Make sure Prisma is initialized
   const db = await initPrisma();
   
-  const existingSeller = await db.seller.findUnique({
-    where: { phone: dbPhone }
-  });
-  
-  if (existingSeller) {
-    return { exists: true, sellerId: existingSeller.id };
+  try {
+    // Use select to only get needed fields to avoid schema mismatches
+    const existingSeller = await db.seller.findUnique({
+      where: { phone: dbPhone },
+      select: { 
+        id: true,
+        phone: true,
+        shopName: true,
+        ownerName: true 
+      }
+    });
+    
+    console.log('Seller lookup result:', existingSeller ? 'Found' : 'Not found');
+    
+    if (existingSeller) {
+      console.log('Found existing seller with phone number:', phoneNumber);
+      return { 
+        exists: true, 
+        sellerId: existingSeller.id,
+        isComplete: !!(existingSeller.shopName && existingSeller.ownerName)
+      };
+    }
+    
+    console.log('No existing seller found with phone number:', phoneNumber);
+    return { exists: false };
+  } catch (error) {
+    console.error('Error checking seller existence:', error);
+    // Return false to avoid blocking the OTP flow on schema errors
+    return { exists: false, error: error.message };
   }
-  
-  return { exists: false };
 };
 
 /**

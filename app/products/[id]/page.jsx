@@ -141,31 +141,8 @@ export default function ProductDetails({ params }) {
 
     try {
       setPaymentLoading(true);
-<<<<<<< HEAD
       
       // Prepare the order data - Now include user details if available
-=======
-
-      // Check if user is logged in and get tokens from localStorage
-      const accessToken = localStorage.getItem("accessToken");
-      const userData = localStorage.getItem("user")
-        ? JSON.parse(localStorage.getItem("user"))
-        : null;
-
-      // Store auth data explicitly before redirect to ensure it persists
-      if (accessToken && userData) {
-        // Re-store the tokens to refresh their lifetime
-        localStorage.setItem("accessToken", accessToken);
-        localStorage.setItem("user", JSON.stringify(userData));
-
-        console.log("User authentication preserved before payment", {
-          user: userData?.name || "Anonymous",
-          isAuthenticated: !!accessToken,
-        });
-      }
-
-      // Prepare the order data
->>>>>>> df6b3e7bc68afbac4146fc6dfc27d34aaacf15d9
       const orderData = {
         amount: product.sellingPrice,
         customer_id: user.id, // Use logged-in user's ID
@@ -177,128 +154,31 @@ export default function ProductDetails({ params }) {
           price: product.sellingPrice,
           size: selectedSize,
           color: selectedColor,
-<<<<<<< HEAD
           quantity: 1
         }
-=======
-          quantity: 1,
-        },
-        // Include authentication data to preserve it
-        auth: {
-          isAuthenticated: !!accessToken,
-          user_id: userData?.id,
-        },
->>>>>>> df6b3e7bc68afbac4146fc6dfc27d34aaacf15d9
       };
 
       // Call your payment creation API
       const response = await fetch("/api/create-payment-order", {
         method: "POST",
         headers: {
-<<<<<<< HEAD
           'Content-Type': 'application/json',
-=======
-          "Content-Type": "application/json",
-          // Add authorization header if user is logged in
-          ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
->>>>>>> df6b3e7bc68afbac4146fc6dfc27d34aaacf15d9
         },
         body: JSON.stringify(orderData),
       });
 
       if (!response.ok) {
         const errorData = await response.json();
-<<<<<<< HEAD
         throw new Error(errorData.message || "Failed to create payment");
-=======
-        console.error("Payment API error:", errorData);
-        throw new Error(
-          errorData.details?.error_description ||
-            errorData.message ||
-            "Failed to create payment"
-        );
->>>>>>> df6b3e7bc68afbac4146fc6dfc27d34aaacf15d9
       }
 
       // Get the payment session from the response
       const paymentData = await response.json();
-<<<<<<< HEAD
       
       // Use router.push for client-side navigation
       if (paymentData.payment_session_id) {
         toast.success("Proceeding to checkout...");
         router.push(`/checkout?session_id=${paymentData.payment_session_id}&order_id=${paymentData.order_id}`);
-=======
-      console.log("Payment session created:", paymentData);
-
-      // Use window.location to redirect to Cashfree's hosted payment page
-      if (paymentData.payment_link) {
-        // If we have a direct payment link, use that instead
-        console.log("Redirecting to payment link:", paymentData.payment_link);
-        window.location.href = paymentData.payment_link;
-      } else if (paymentData.payment_session_id) {
-        // Store payment session info along with auth state
-        localStorage.setItem(
-          "payment_session",
-          JSON.stringify({
-            session_id: paymentData.payment_session_id,
-            order_id: paymentData.order_id,
-            auth: {
-              isAuthenticated: !!accessToken,
-              user_id: userData?.id,
-            },
-          })
-        );
-
-        // Before redirecting, ensure Cashfree SDK is loaded
-        const loadCashfreeSDK = async () => {
-          return new Promise((resolve) => {
-            if (window.Cashfree) {
-              return resolve(window.Cashfree);
-            }
-
-            // Load Cashfree SDK dynamically
-            const script = document.createElement("script");
-            script.src = "https://sdk.cashfree.com/js/v3/cashfree.js";
-            script.onload = () => resolve(window.Cashfree);
-            document.body.appendChild(script);
-          });
-        };
-
-        // Load SDK and initiate payment directly
-        toast.success("Payment initiated! Preparing payment gateway...");
-        const Cashfree = await loadCashfreeSDK();
-
-        try {
-          const cashfree = new Cashfree({
-            mode: "production", // Force production mode explicitly
-          });
-
-          cashfree.checkout({
-            paymentSessionId: paymentData.payment_session_id,
-            redirectTarget: "_self", // Open in the same window
-            onSuccess: (data) => {
-              console.log("Payment success", data);
-              // Redirect will happen automatically to return_url
-            },
-            onFailure: (data) => {
-              console.log("Payment failed", data);
-              // Redirect will happen automatically to return_url
-            },
-            onClose: () => {
-              // Handle user closing the payment popup
-              console.log("Payment window closed");
-              setPaymentLoading(false);
-            },
-          });
-        } catch (sdkError) {
-          console.error("Cashfree SDK error:", sdkError);
-
-          // Fallback - redirect to checkout page if SDK fails
-          console.log("Falling back to checkout page redirect");
-          window.location.href = `/checkout?session_id=${paymentData.payment_session_id}&order_id=${paymentData.order_id}`;
-        }
->>>>>>> df6b3e7bc68afbac4146fc6dfc27d34aaacf15d9
       } else {
         throw new Error("Payment initialization failed: No session ID received");
       }
@@ -378,7 +258,7 @@ export default function ProductDetails({ params }) {
     <div className="bg-background min-h-screen">
       {/* Breadcrumb */}
       <div className="bg-background-alt border-b border-ui-border">
-        <div className="max-w-7xl mx-auto px-4 py-3 sm:px-6 lg:px-8">
+        <div className="max-w-7xl mx-auto px-4 py-2 sm:px-6 lg:px-8">
           <div className="flex items-center text-sm text-text-muted">
             <Link href="/" className="text-primary">
               Home
@@ -654,13 +534,7 @@ export default function ProductDetails({ params }) {
                   onClick={handleBuyNow}
                   disabled={!isInStock || paymentLoading || authLoading}
                   className={`w-full flex items-center justify-center bg-primary hover:bg-primary-dark text-white py-3 px-4 rounded-md transition-all ${
-<<<<<<< HEAD
                     !isInStock || paymentLoading || authLoading ? "opacity-50 cursor-not-allowed" : ""
-=======
-                    !isInStock || paymentLoading
-                      ? "opacity-50 cursor-not-allowed"
-                      : ""
->>>>>>> df6b3e7bc68afbac4146fc6dfc27d34aaacf15d9
                   }`}
                 >
                   {authLoading ? (

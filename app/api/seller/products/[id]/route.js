@@ -46,77 +46,65 @@ async function handleProductIdRequest(request, method, productId) {
 
     // Forward request to seller service
     const apiUrl = process.env.SELLER_SERVICE_URL || 'http://localhost:8000';
-    
-    // Try different potential endpoint patterns
-    const endpoints = [
-      `/api/products/${productId}`,
-      `/api/seller/products/${productId}`,
-      `/api/products/seller/${productId}`
-    ];
+    const targetEndpoint = `/api/products/${productId}`; // Correct endpoint on the seller service
+
+    console.log(`Forwarding ${method} request for product ${productId} to: ${apiUrl}${targetEndpoint}`);
     
     let response = null;
-    let foundEndpoint = null;
-    
-    for (const endpoint of endpoints) {
-      console.log(`Trying to ${method} product ${productId} at: ${apiUrl}${endpoint}`);
-      
-      try {
-        response = await fetch(`${apiUrl}${endpoint}`, {
-          method,
-          headers: {
-            'Authorization': `Bearer ${accessToken}`,
-            ...(body && !(body instanceof FormData) ? {
-              'Content-Type': 'application/json'
-            } : {})
-          },
-          body: method !== 'GET' && method !== 'DELETE' ? 
-            (body instanceof FormData ? body : JSON.stringify(body)) : 
-            undefined
-        });
-        
-        console.log(`Endpoint ${endpoint} response: ${response.status}`);
-        
-        if (response.status !== 404) {
-          foundEndpoint = endpoint;
-          break;
-        }
-      } catch (error) {
-        console.error(`Error trying endpoint ${endpoint}:`, error);
-      }
-    }
-    
-    if (!foundEndpoint) {
-      console.error(`All product endpoints returned 404 for ${method} operation on product ${productId}`);
-      return NextResponse.json(
-        { 
-          message: `Failed to ${method.toLowerCase()} product`, 
-          error: 'Product API endpoints not available'
+    try {
+      response = await fetch(`${apiUrl}${targetEndpoint}`, {
+        method,
+        headers: {
+          'Authorization': `Bearer ${accessToken}`,
+          ...(body && !(body instanceof FormData) ? {
+            'Content-Type': 'application/json'
+          } : {})
         },
-        { status: 404 }
+        body: method !== 'GET' && method !== 'DELETE' ? 
+          (body instanceof FormData ? body : JSON.stringify(body)) : 
+          undefined
+      });
+
+      console.log(`Seller service response status: ${response.status}`);
+
+      if (!response) {
+        throw new Error('No response received from seller service');
+      }
+
+    } catch (error) {
+      console.error(`Error forwarding request to ${apiUrl}${targetEndpoint}:`, error);
+      return NextResponse.json(
+        { message: `Error connecting to seller service`, error: error.message },
+        { status: 502 } // Bad Gateway
       );
     }
     
-    console.log(`Using product endpoint for ${method} on product ${productId}: ${foundEndpoint}`);
-    
     // Process the response
     if (!response.ok) {
-      let errorMessage = `Failed to ${method.toLowerCase()} product`;
+      let errorMessage = `Failed to ${method.toLowerCase()} product via seller service`;
+      let errorDetails = null;
       try {
-        const errorData = await response.json();
-        console.error(`Product ${method} error data:`, errorData);
-        errorMessage = errorData.message || errorMessage;
+        // Try to parse JSON error first
+        errorDetails = await response.json();
+        console.error(`Seller service error data (${response.status}):`, errorDetails);
+        errorMessage = errorDetails.message || errorMessage;
       } catch (e) {
+        // If not JSON, try to get text
         try {
           const errorText = await response.text();
-          console.error(`Error response text for ${method}:`, errorText);
+          console.error(`Seller service error text (${response.status}):`, errorText);
+          // Use text as details if available and not too long
+          if (errorText && errorText.length < 500) {
+             errorDetails = { errorText };
+          }
         } catch (textError) {
-          // Ignore text errors
+          console.error('Failed to parse error response as JSON or text');
         }
       }
       
       return NextResponse.json(
-        { message: errorMessage },
-        { status: response.status }
+        { message: errorMessage, details: errorDetails },
+        { status: response.status } // Use the status code from the seller service
       );
     }
 
@@ -127,22 +115,25 @@ async function handleProductIdRequest(request, method, productId) {
       
       return NextResponse.json(data);
     } catch (e) {
-      // For DELETE operations, an empty response might be fine
-      if (method === 'DELETE') {
-        return NextResponse.json({ success: true });
+      // For DELETE operations, an empty 2xx response (like 204 No Content) is often successful
+      // Check if the status is successful (2xx) before treating empty body as error
+      if (method === 'DELETE' && response.status >= 200 && response.status < 300) {
+        console.log(`Product DELETE operation successful for ID ${productId} with status ${response.status}`);
+        // Return a standard success response as the body might be empty
+        return NextResponse.json({ message: "Product deleted successfully", success: true }); 
       }
       
-      console.error(`Failed to parse ${method} response:`, e);
+      console.error(`Failed to parse successful ${method} response:`, e);
       return NextResponse.json(
-        { message: 'Operation completed but received invalid response format' },
-        { status: 200 }
+        { message: 'Operation completed but received invalid response format from seller service' },
+        { status: 502 } // Bad Gateway, as the downstream service sent unexpected success response
       );
     }
     
   } catch (error) {
-    console.error(`Error in product ${method} operation for ID ${productId}:`, error);
+    console.error(`Unhandled error in product ${method} operation for ID ${productId}:`, error);
     return NextResponse.json(
-      { message: `Failed to ${method.toLowerCase()} product`, error: error.message },
+      { message: `Internal server error while processing product ${method}`, error: error.message },
       { status: 500 }
     );
   }

@@ -1,54 +1,71 @@
 import { NextResponse } from 'next/server';
+import jwt from 'jsonwebtoken';
 import { cookies } from 'next/headers';
 
 export async function GET(request) {
   try {
-    // Get token from cookies or authorization header - updated to use async cookies API
-    const cookieStore = cookies();
-    let accessToken = (await cookieStore.get('accessToken'))?.value;
+    console.log('Profile request received');
     
-    // Try to get from authorization header if not in cookies
-    if (!accessToken && request.headers.has('authorization')) {
-      const authHeader = request.headers.get('authorization');
-      if (authHeader && authHeader.startsWith('Bearer ')) {
-        accessToken = authHeader.substring(7);
+    // Extract token from Authorization header or cookies
+    let token;
+    const authHeader = request.headers.get('authorization');
+    
+    if (authHeader && authHeader.startsWith('Bearer ')) {
+      token = authHeader.substring(7);
+      console.log('Using token from Authorization header');
+    } else {
+      // Try to get from cookies
+      const cookieStore = cookies();
+      const accessTokenCookie = cookieStore.get('accessToken');
+      
+      if (accessTokenCookie) {
+        token = accessTokenCookie.value;
+        console.log('Using token from cookies');
       }
     }
     
-    if (!accessToken) {
+    if (!token) {
+      console.error('No token provided');
       return NextResponse.json(
         { message: 'Authentication required' },
         { status: 401 }
       );
     }
-
-    // Forward request to seller service
-    const apiUrl = process.env.SELLER_SERVICE_URL || 'http://localhost:8000';
-    console.log(`Fetching seller profile from: ${apiUrl}/api/auth/profile`);
     
-    const response = await fetch(`${apiUrl}/api/auth/profile`, {
+    // Forward the request to the seller service
+    const apiUrl = process.env.SELLER_SERVICE_URL || 'http://localhost:8000';
+    const endpoint = `${apiUrl}/api/sellers/profile`;
+    
+    console.log(`Forwarding profile request to: ${endpoint}`);
+    
+    const response = await fetch(endpoint, {
       method: 'GET',
       headers: {
-        'Authorization': `Bearer ${accessToken}`
+        'Authorization': `Bearer ${token}`
       }
     });
-
-    console.log(`Profile response status: ${response.status} ${response.statusText}`);
+    
+    console.log(`Profile response status: ${response.status}`);
     
     if (!response.ok) {
+      if (response.status === 401) {
+        // Token expired or invalid
+        return NextResponse.json(
+          { message: 'Unauthorized' },
+          { status: 401 }
+        );
+      }
+      
+      // Other error
+      const errorText = await response.text();
       let errorMessage = 'Failed to fetch profile';
+      
       try {
-        const errorData = await response.json();
-        console.error('Profile error data:', errorData);
+        const errorData = JSON.parse(errorText);
         errorMessage = errorData.message || errorMessage;
       } catch (e) {
-        console.error('Failed to parse error response from profile endpoint');
-        try {
-          const errorText = await response.text();
-          console.error('Error response text:', errorText);
-        } catch (textError) {
-          // Ignore if we can't get text
-        }
+        // If not JSON, use text as is
+        console.error('Non-JSON error response from profile endpoint:', errorText);
       }
       
       return NextResponse.json(
@@ -56,14 +73,14 @@ export async function GET(request) {
         { status: response.status }
       );
     }
-
+    
     const data = await response.json();
-    console.log('Profile fetched successfully');
+    console.log('Profile fetch successful');
     
     return NextResponse.json(data);
     
   } catch (error) {
-    console.error('Error fetching profile:', error);
+    console.error('Profile fetch error:', error);
     return NextResponse.json(
       { message: 'Failed to fetch profile', error: error.message },
       { status: 500 }

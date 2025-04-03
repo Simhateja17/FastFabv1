@@ -2,8 +2,19 @@
 
 import Link from "next/link";
 import Image from "next/image";
+import { Suspense } from "react";
 
 export default function ShippingPolicy() {
+  return (
+    <Suspense fallback={<div className="flex justify-center items-center min-h-screen">
+      <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500"></div>
+    </div>}>
+      <ShippingPolicyContent />
+    </Suspense>
+  );
+}
+
+function ShippingPolicyContent() {
   return (
     <div className="bg-background min-h-screen">
       {/* Hero Section */}

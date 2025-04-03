@@ -3,73 +3,21 @@ import { PrismaClient } from '@prisma/client';
 import axios from 'axios';
 import crypto from 'crypto';
 
-// Create a more reliable Prisma client with reconnection
-let prisma;
-let connectionAttempts = 0;
-const MAX_ATTEMPTS = 5; // Increased to give more chances to connect
+// Initialize Prisma with a connection pool to handle connection issues gracefully
+const prisma = new PrismaClient({
+  log: ['error', 'warn'],
+  errorFormat: 'pretty',
+  datasources: {
+    db: {
+      url: process.env.DATABASE_URL
+    }
+  }
+});
 
-const initPrisma = async () => {
-  // Reset the connection if it was previously terminated
-  if (prisma) {
-    try {
-      // Test if the connection is still alive
-      await prisma.$queryRaw`SELECT 1`;
-      return prisma; // Connection is good
-    } catch (e) {
-      // Check if it's a termination error (E57P01)
-      if (e.message && (e.message.includes('E57P01') || e.message.includes('terminating connection'))) {
-        console.log('Previous connection was terminated, creating a new one...');
-        await prisma.$disconnect().catch(() => {}); // Ignore errors from disconnect
-        prisma = null; // Reset so we create a new client
-        connectionAttempts = 0; // Reset attempts counter
-      } else {
-        throw e; // Re-throw unknown errors
-      }
-    }
-  }
-  
-  try {
-    connectionAttempts++;
-    console.log(`Initializing PrismaClient (attempt ${connectionAttempts}/${MAX_ATTEMPTS})...`);
-    
-    // Create a new PrismaClient instance with better timeout settings
-    const newPrisma = new PrismaClient({
-      log: ['error', 'warn'],
-      errorFormat: 'pretty'
-    });
-    
-    // Test the connection
-    await newPrisma.$connect();
-    console.log('PrismaClient connected successfully to database');
-    
-    prisma = newPrisma;
-    return prisma;
-  } catch (e) {
-    console.error('Failed to initialize PrismaClient:', e);
-    
-    // Special handling for known database termination errors
-    if (e.message && (e.message.includes('E57P01') || e.message.includes('terminating connection'))) {
-      console.log('Connection was terminated by administrator command. Retrying...');
-      if (connectionAttempts < MAX_ATTEMPTS) {
-        console.log(`Retrying connection in 2 seconds... (${connectionAttempts}/${MAX_ATTEMPTS})`);
-        // Wait 2 seconds before retrying
-        await new Promise(resolve => setTimeout(resolve, 2000));
-        return initPrisma(); // Recursive retry
-      }
-    } else if (connectionAttempts < MAX_ATTEMPTS) {
-      console.log(`Retrying connection in 1 second... (${connectionAttempts}/${MAX_ATTEMPTS})`);
-      // Wait 1 second before retrying
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      return initPrisma(); // Recursive retry
-    }
-    
-    // No fallback to in-memory storage, just throw the error
-    throw new Error('Failed to connect to database after maximum retry attempts');
-  }
+// Function to generate a unique ID
+const generateUniqueId = () => {
+  return crypto.randomUUID();
 };
-
-// Initialize Prisma on module load
-initPrisma().catch(e => console.error('Initial Prisma connection failed:', e));
 
 /**
  * Format 10-digit phone number to E.164 format with +91 prefix
@@ -81,11 +29,6 @@ const formatPhoneNumber = (phoneNumber) => {
   const digits = phoneNumber.replace(/\D/g, "");
   
   // If it's already in E.164 format, return as is
-  if (phoneNumber.startsWith("+")) {
-    return phoneNumber;
-  }
-  
-  // If it's already a plus format, return as is
   if (phoneNumber.startsWith("+")) {
     return phoneNumber;
   }
@@ -116,71 +59,122 @@ const SRC_NAME = process.env.GUPSHUP_SRC_NAME;
 const TEMPLATE_ID = process.env.GUPSHUP_TEMPLATE_ID;
 const GUPSHUP_API_URL = process.env.GUPSHUP_API_URL;
 
-// Log additional information about environment setup
-const debugApiSetup = () => {
-  console.log('===== WhatsApp OTP API Debug Info =====');
-  console.log('API Key present:', !!API_KEY);
-  console.log('Source number:', SOURCE_NUMBER);
-  console.log('Source name:', SRC_NAME);
-  console.log('Template ID:', TEMPLATE_ID);
-  console.log('API URL:', GUPSHUP_API_URL);
-  console.log('Database connected:', !!prisma);
-  console.log('===== End Debug Info =====');
+// Send OTP via WhatsApp using Gupshup API
+const sendWhatsAppMessage = async (phoneNumber, otpCode) => {
+  if (!API_KEY || !SOURCE_NUMBER || !TEMPLATE_ID || !GUPSHUP_API_URL) {
+    throw new Error('Missing Gupshup API configuration');
+  }
+
+  // Format message variables for template
+  const templateParams = {
+    "1": otpCode,
+    "2": "10" // OTP validity in minutes
+  };
+
+  // Format destination phone number (remove '+' prefix)
+  const destination = phoneNumber.startsWith('+') 
+    ? phoneNumber.substring(1) 
+    : phoneNumber;
+
+  try {
+    const response = await axios({
+      method: 'post',
+      url: GUPSHUP_API_URL,
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+        'apikey': API_KEY
+      },
+      data: new URLSearchParams({
+        source: SOURCE_NUMBER,
+        destination: destination,
+        template: {
+          id: TEMPLATE_ID,
+          params: JSON.stringify(templateParams)
+        },
+        src: SRC_NAME,
+        channel: 'whatsapp'
+      })
+    });
+
+    if (response.status === 202 || response.status === 200) {
+      console.log('WhatsApp OTP sent successfully', { phoneNumber });
+      return { success: true, messageId: response.data.messageId };
+    } else {
+      console.error('Failed to send WhatsApp OTP', response.data);
+      throw new Error(`Failed to send OTP: ${response.data.message || 'Unknown error'}`);
+    }
+  } catch (error) {
+    console.error('Error sending WhatsApp OTP', error.message);
+    throw error;
+  }
 };
 
 /**
- * Store OTP in database - no fallback to memory
+ * Store OTP in database with proper error handling
  */
 const storeOTP = async (phoneNumber, otpCode, expiresAt) => {
-  // Make sure Prisma is initialized
-  const db = await initPrisma();
-  // If we get here, we have a database connection
-  
-  console.log('Storing OTP in database');
-  
   try {
-    const otp = await db.whatsAppOTP.create({
-      data: {
+    // Check for existing OTP for this phone number
+    const existingOTP = await prisma.whatsAppOTP.findFirst({
+      where: { 
         phoneNumber,
-        otpCode,
-        expiresAt,
-        updatedAt: new Date(), // Explicitly set updatedAt to ensure compatibility
+        expiresAt: { 
+          gt: new Date() // Not expired
+        } 
       },
+      orderBy: { createdAt: 'desc' }
     });
-    
-    console.log('OTP stored in database with ID:', otp.id);
-    return { success: true, id: otp.id };
+
+    if (existingOTP) {
+      // Update existing OTP
+      const updated = await prisma.whatsAppOTP.update({
+        where: { id: existingOTP.id },
+        data: {
+          otpCode,
+          expiresAt,
+          verified: false,
+          updatedAt: new Date()
+        }
+      });
+      
+      return { success: true, id: updated.id, updated: true };
+    } else {
+      // Create new OTP
+      const otp = await prisma.whatsAppOTP.create({
+        data: {
+          id: generateUniqueId(),
+          phoneNumber,
+          otpCode,
+          expiresAt,
+          verified: false,
+          createdAt: new Date(),
+          updatedAt: new Date()
+        }
+      });
+      
+      return { success: true, id: otp.id, created: true };
+    }
   } catch (error) {
     console.error('Failed to store OTP in database:', error);
-    console.error('Error code:', error.code);
-    console.error('Error name:', error.name);
-    console.error('Error message:', error.message);
     
-    // If it's a Prisma error with a specific code we can handle
+    // Try to handle specific database errors
     if (error.code === 'P2002') {
-      // This is a unique constraint violation
-      console.log('Unique constraint violation, trying to update existing record instead');
-      
-      // Try to update an existing record instead
+      // Unique constraint violation - try update instead
       try {
-        const updatedOtp = await db.whatsAppOTP.updateMany({
-          where: { 
-            phoneNumber,
-            expiresAt: { gt: new Date() } // Only update non-expired OTPs
-          },
+        const updatedOtp = await prisma.whatsAppOTP.updateMany({
+          where: { phoneNumber },
           data: {
             otpCode,
             expiresAt,
-            updatedAt: new Date(),
-          },
+            verified: false,
+            updatedAt: new Date()
+          }
         });
         
-        if (updatedOtp.count > 0) {
-          console.log(`Updated ${updatedOtp.count} existing OTP record(s)`);
-          return { success: true, updated: true, count: updatedOtp.count };
-        }
+        return { success: true, updated: true, count: updatedOtp.count };
       } catch (updateError) {
         console.error('Failed to update existing OTP:', updateError);
+        throw updateError;
       }
     }
     
@@ -190,18 +184,6 @@ const storeOTP = async (phoneNumber, otpCode, expiresAt) => {
 
 export async function POST(request) {
   try {
-    // Run debug checks
-    debugApiSetup();
-    
-    // Debug environment variables
-    console.log('GUPSHUP ENV VARS:', {
-      API_KEY: API_KEY ? 'Present (hidden)' : 'Missing',
-      SOURCE_NUMBER: SOURCE_NUMBER,
-      SRC_NAME: SRC_NAME,
-      TEMPLATE_ID: TEMPLATE_ID,
-      GUPSHUP_API_URL: GUPSHUP_API_URL
-    });
-    
     const body = await request.json();
     let { phoneNumber } = body;
     
@@ -216,6 +198,7 @@ export async function POST(request) {
     if (!phoneNumber || !phoneNumber.match(/^\+[1-9]\d{1,14}$/)) {
       console.log('Invalid phone number format:', phoneNumber);
       return NextResponse.json({ 
+        success: false,
         message: 'Invalid phone number. Please provide a valid 10-digit phone number.'
       }, { status: 400 });
     }
@@ -227,102 +210,45 @@ export async function POST(request) {
     // Calculate expiration time (10 minutes from now)
     const expiresAt = new Date(Date.now() + 10 * 60 * 1000);
 
-    // Store OTP in database only
+    // Store OTP in database
     try {
       const storageResult = await storeOTP(phoneNumber, otpCode, expiresAt);
       console.log('OTP storage result:', storageResult);
     } catch (dbError) {
       console.error('Failed to store OTP in database:', dbError);
       return NextResponse.json({
+        success: false,
         message: 'Database error. Please try again later.'
       }, { status: 500 });
     }
 
-    // Format destination phone number (remove '+' prefix)
-    const destination = phoneNumber.substring(1);
-    console.log('Formatted destination phone number:', destination);
-
-    // Check if Gupshup credentials are present
-    if (!API_KEY || !SOURCE_NUMBER || !TEMPLATE_ID || !GUPSHUP_API_URL) {
-      console.log('Gupshup credentials missing, cannot send WhatsApp OTP');
-      return NextResponse.json({
-        message: 'OTP generated but cannot be sent to WhatsApp. Please contact support.',
-        expiresAt
-      }, { status: 500 });
-    }
-
-    // Prepare request to Gupshup API
+    // Send OTP via WhatsApp
     try {
-      // Prepare the request body as a URLSearchParams object like the working implementation
-      const requestBody = new URLSearchParams();
-      requestBody.append('source', SOURCE_NUMBER);
-      if (SRC_NAME) {
-        requestBody.append('source.name', SRC_NAME);
-      }
-      requestBody.append('destination', destination);
-      const templateData = JSON.stringify({
-        id: TEMPLATE_ID,
-        params: [otpCode]
-      });
-      requestBody.append('template', templateData);
-
-      console.log('Sending to Gupshup API with params:', {
-        source: SOURCE_NUMBER,
-        sourceName: SRC_NAME,
-        destination,
-        templateData,
-        apiUrl: GUPSHUP_API_URL
-      });
-
-      // Call the Gupshup API with format matching the working implementation
-      const response = await axios.post(
-        GUPSHUP_API_URL,
-        requestBody,
-        {
-          headers: {
-            'Cache-Control': 'no-cache',
-            'Content-Type': 'application/x-www-form-urlencoded',
-            'Apikey': API_KEY
-          }
-        }
-      );
+      const messageResult = await sendWhatsAppMessage(phoneNumber, otpCode);
+      console.log('WhatsApp message result:', messageResult);
       
-      console.log('Gupshup API response status:', response.status);
-
-      if (response.status >= 200 && response.status < 300) {
-        // Return success response
-        return NextResponse.json({
-          message: 'OTP sent successfully to your WhatsApp number',
-          expiresAt
-        }, { status: 200 });
-      } else {
-        console.error('Gupshup API returned non-success status:', response.status);
-        console.error('Gupshup API response data:', response.data);
-        // Even if WhatsApp delivery fails, return partial success since OTP is stored
-        return NextResponse.json({
-          message: 'OTP generated but WhatsApp delivery may be delayed',
-          expiresAt,
-          error: response.data || 'Unknown API error', 
-          code: 'GUPSHUP_ERROR'
-        }, { status: 200 });
-      }
-    } catch (apiError) {
-      console.error('Error calling Gupshup API:', apiError.message);
-      console.error('API Error details:', apiError.response?.data || 'No response data');
-      
-      // Even if WhatsApp delivery fails, return partial success since OTP is stored
       return NextResponse.json({
-        message: 'OTP generated but WhatsApp delivery may be delayed',
+        success: true,
+        message: 'OTP sent successfully via WhatsApp',
+        expiresAt
+      });
+    } catch (whatsappError) {
+      console.error('Failed to send WhatsApp message:', whatsappError);
+      
+      // Return success even if WhatsApp fails, as we have the OTP stored
+      // This helps with debugging in production while not blocking the flow
+      return NextResponse.json({
+        success: true,
+        message: 'OTP generated but could not be sent via WhatsApp. Please try again or contact support.',
         expiresAt,
-        error: apiError.message || 'Unknown API error',
-        code: 'GUPSHUP_REQUEST_FAILED'
+        error: whatsappError.message
       }, { status: 200 });
     }
   } catch (error) {
-    console.error('Overall error in OTP generation:', error);
-    
+    console.error('Error processing OTP request:', error);
     return NextResponse.json({
-      message: 'Failed to generate OTP. Please try again later.'
+      success: false,
+      message: 'Internal server error. Please try again later.'
     }, { status: 500 });
   }
 }

@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import Image from "next/image";
+import { Suspense } from "react";
 import {
   FiClock,
   FiTruck,
@@ -12,7 +13,7 @@ import {
   FiInfo,
 } from "react-icons/fi";
 
-export default function AboutUs() {
+function AboutUsContent() {
   return (
     <div className="bg-background min-h-screen">
       {/* Hero Section */}
@@ -176,5 +177,17 @@ export default function AboutUs() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function AboutUs() {
+  return (
+    <Suspense fallback={
+      <div className="flex justify-center items-center min-h-screen">
+        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-secondary"></div>
+      </div>
+    }>
+      <AboutUsContent />
+    </Suspense>
   );
 }

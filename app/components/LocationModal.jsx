@@ -5,58 +5,49 @@ import { FiMapPin, FiX } from "react-icons/fi";
 import { useUserAuth } from "@/app/context/UserAuthContext";
 import { SafeLocationConsumer } from "./SafeLocationWrapper";
 import { USER_ENDPOINTS } from "@/app/config";
+import { useLocationStore } from "@/app/lib/locationStore";
 
-// Main component with minimal hooks
-const LocationModal = ({ isOpen, onClose, setCurrentLocation }) => {
-  // Only return early, no hooks before this point
-  if (!isOpen) return null;
-
-  // Render the SafeLocationConsumer, passing context to inner component
-  return (
-    <SafeLocationConsumer>
-      {(locationContext) => (
-        <LocationModalContent 
-          isOpen={isOpen} 
-          onClose={onClose} 
-          setCurrentLocation={setCurrentLocation} 
-          locationContext={locationContext}
-        />
-      )}
-    </SafeLocationConsumer>
-  );
+// Main component doesn't need isOpen or setCurrentLocation anymore
+const LocationModal = ({ onClose }) => {
+  // The check "if (!isOpen) return null;" is removed.
+  // The parent component (Navbar) already controls rendering.
+  
+  // Pass only onClose to the content component
+  return <LocationModalContent onClose={onClose} />;
 };
 
 // Inner component that handles all the hooks in a consistent order
-function LocationModalContent({ isOpen, onClose, setCurrentLocation, locationContext }) {
-  // Extract methods from context safely - now we know context will always have these properties
-  // thanks to our default context values
-  const { updateUserLocation } = locationContext || {};
+function LocationModalContent({ onClose }) {
+  // Use location store instead of context
+  const setUserLocation = useLocationStore(state => state.setUserLocation);
   
-  // Safety check to ensure we update localStorage even if context methods fail
+  // Safety check to ensure we update location state properly
   const safeUpdateLocation = (locationData) => {
     let success = false;
     
-    // Try to use the context method first
-    if (typeof updateUserLocation === 'function') {
+    // Try to use the store method
+    if (typeof setUserLocation === 'function') {
       try {
-        success = updateUserLocation(locationData);
+        success = setUserLocation(locationData);
       } catch (err) {
-        console.error("Error calling updateUserLocation:", err);
+        console.error("Error calling setUserLocation:", err);
       }
     }
     
-    // If context method failed or isn't available, fall back to localStorage
+    // If store method failed, fall back to localStorage
     if (!success) {
       console.warn("Using localStorage fallback for location storage");
       try {
         localStorage.setItem("userLocation", JSON.stringify(locationData));
-        // Set a flag to indicate location has been set by the user
-        localStorage.setItem("locationSet", "true");
         success = true;
       } catch (err) {
         console.error("Failed to store location in localStorage:", err);
       }
     }
+    
+    // For backward compatibility - always update these flags
+    localStorage.setItem("locationSet", "true");
+    localStorage.setItem("refreshMensProducts", "true");
     
     return success;
   };
@@ -140,8 +131,6 @@ function LocationModalContent({ isOpen, onClose, setCurrentLocation, locationCon
   
   // Load Google Maps API and initialize autocomplete
   useEffect(() => {
-    if (!isOpen) return;
-    
     const checkGoogleMapsLoaded = () => {
       // Check if Google Maps API is already loaded
       if (window.google && window.google.maps && window.google.maps.places) {
@@ -165,11 +154,11 @@ function LocationModalContent({ isOpen, onClose, setCurrentLocation, locationCon
     
     // Clean up interval on unmount
     return () => clearInterval(intervalId);
-  }, [isOpen]);
+  }, []);
   
   // Initialize autocomplete when maps script is loaded
   useEffect(() => {
-    if (!isOpen || !mapsScriptLoaded || !searchInputRef.current) return;
+    if (!mapsScriptLoaded || !searchInputRef.current) return;
     
     try {
       // Create autocomplete instance
@@ -196,26 +185,45 @@ function LocationModalContent({ isOpen, onClose, setCurrentLocation, locationCon
         // Update location context with new location
         const locationName = place.name || place.formatted_address.split(",")[0];
         
-        // Use our safer update method
-        safeUpdateLocation({
+        // Create a complete location object with all necessary data
+        const newLocationData = {
           latitude,
           longitude,
           label: locationName,
           source: "placeSearch",
           timestamp: new Date().toISOString()
-        });
-
-        // Set the selected location
-        setCurrentLocation(locationName);
+        };
         
+        console.log("Setting new location:", newLocationData);
+        
+        // Use our safer update method
+        const success = safeUpdateLocation(newLocationData);
+        
+        if (success) {
+          console.log("Successfully updated location");
+        } else {
+          console.error("Failed to update location via store, falling back");
+          // Direct update to localStorage as backup
+          localStorage.setItem("userLocation", JSON.stringify(newLocationData));
+          localStorage.setItem("locationLastUpdated", new Date().toISOString());
+        }
+
         // Set a flag to indicate location has been set by the user
         // This helps prevent the location modal from showing repeatedly
         localStorage.setItem("locationSet", "true");
+        localStorage.setItem("refreshMensProducts", "true");
         
         // Remove the justLoggedIn flag to prevent the modal from showing again on refresh
         localStorage.removeItem("justLoggedIn");
         
+        // Close the modal before reload to prevent flickering
         onClose();
+        
+        // Force refresh to ensure location is properly recognized by components
+        // Use a small delay to ensure storage operations complete
+        setTimeout(() => {
+          window.location.reload();
+        }, 100);
       });
     } catch (error) {
       console.error("Error initializing Google Places Autocomplete:", error);
@@ -228,7 +236,7 @@ function LocationModalContent({ isOpen, onClose, setCurrentLocation, locationCon
         autocompleteRef.current = null;
       }
     };
-  }, [isOpen, mapsScriptLoaded, setCurrentLocation, onClose, updateUserLocation, safeUpdateLocation]);
+  }, [mapsScriptLoaded, onClose, setUserLocation, safeUpdateLocation]);
 
   // Handle input changes without interfering with Google autocomplete
   const handleInputChange = (e) => {
@@ -248,23 +256,25 @@ function LocationModalContent({ isOpen, onClose, setCurrentLocation, locationCon
     if (navigator.geolocation) {
       navigator.geolocation.getCurrentPosition(
         (position) => {
+          // Success callback
           const latitude = position.coords.latitude;
           const longitude = position.coords.longitude;
           
-          console.log(`Current location: Lat ${latitude}, Lng ${longitude}`);
+          console.log(`Current position: Latitude ${latitude}, Longitude ${longitude}`);
           
-          // Use reverse geocoding to get address
+          // Reverse geocode to get a readable address
           const geocoder = new window.google.maps.Geocoder();
-          geocoder.geocode({ location: { lat: latitude, lng: longitude } }, (results, status) => {
-            setLoading(false);
-            
-            if (status === 'OK' && results[0]) {
-              console.log('Geocoder results:', results);
+          const latlng = { lat: latitude, lng: longitude };
+          
+          geocoder.geocode({ location: latlng }, (results, status) => {
+            if (status === "OK" && results[0]) {
+              // Get the readable address
+              const address = results[0].formatted_address;
+              const locationName = address.split(",")[0];
               
-              const address = results[0];
-              const locationName = address.formatted_address.split(",")[0];
+              console.log(`Current location: ${address}`);
               
-              // Store the location and update UI
+              // Update in location context
               safeUpdateLocation({
                 latitude,
                 longitude,
@@ -272,35 +282,56 @@ function LocationModalContent({ isOpen, onClose, setCurrentLocation, locationCon
                 source: "geolocation",
                 timestamp: new Date().toISOString()
               });
-
-              // Set location as chosen by user
-              localStorage.setItem("locationSet", "true");
               
-              // Remove the justLoggedIn flag
-              localStorage.removeItem("justLoggedIn");
-              
-              setCurrentLocation(locationName);
-              onClose();
-
-              // If user is logged in, store in server
+              // If user is logged in, store in the database
               if (user?.id) {
                 storeUserLocation(user.id, latitude, longitude);
               }
+
+              // Close modal and reload page
+              onClose();
+              setTimeout(() => {
+                window.location.reload();
+              }, 100);
+
             } else {
-              console.error("Geocoder failed:", status);
-              alert("Could not determine your address. Please try again or enter it manually.");
+              console.error("Geocoder failed due to: " + status);
+              alert("Failed to get your location address. Please try searching instead.");
             }
+            setLoading(false);
           });
         },
         (error) => {
-          setLoading(false);
+          // Error callback
           console.error("Geolocation error:", error);
-          alert("Error accessing your location: " + error.message);
+          setLoading(false);
+          
+          let message = "Unable to get your location.";
+          
+          switch(error.code) {
+            case error.PERMISSION_DENIED:
+              message = "Please enable location access in your browser settings to use this feature.";
+              break;
+            case error.POSITION_UNAVAILABLE:
+              message = "Location information is unavailable.";
+              break;
+            case error.TIMEOUT:
+              message = "Request to get your location timed out.";
+              break;
+          }
+          
+          alert(message);
+        },
+        // Options
+        {
+          enableHighAccuracy: true,
+          timeout: 10000,
+          maximumAge: 0
         }
       );
     } else {
+      alert("Geolocation is not supported by this browser.");
       setLoading(false);
-      alert("Geolocation is not supported by your browser.");
     }
   };
 
