@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, Suspense } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/app/context/AuthContext";
 import Link from "next/link";
@@ -9,7 +9,7 @@ import { toast } from "react-hot-toast";
 import SellerTermsModal from "@/app/components/SellerTermsModal";
 import LoadingButton from "@/app/components/LoadingButton";
 
-export default function SellerSignup() {
+function SellerSignupContent() {
   const [step, setStep] = useState(1); // Step 1: Phone entry, Step 2: OTP verification
   const [formData, setFormData] = useState({
     phone: "",
@@ -352,5 +352,13 @@ export default function SellerSignup() {
         onAccept={handleTermsAccept}
       />
     </div>
+  );
+}
+
+export default function SellerSignup() {
+  return (
+    <Suspense fallback={<div className="flex justify-center items-center min-h-screen"><div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary"></div></div>}>
+      <SellerSignupContent />
+    </Suspense>
   );
 }

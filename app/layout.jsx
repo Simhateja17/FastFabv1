@@ -8,6 +8,7 @@ import { AuthProvider } from "./context/AuthContext";
 import { Inter } from "next/font/google";
 import { Analytics } from "@vercel/analytics/react";
 import Script from "next/script";
+import LocationPermissionHandler from "./components/LocationPermissionHandler";
 
 // Load Inter font
 const inter = Inter({
@@ -39,7 +40,11 @@ export default function RootLayout({ children }) {
             <UserAuthProvider>
               <LocationProvider>
                 <Navbar />
-                <main className="flex-grow">{children}</main>
+                <main className="flex-grow">
+                  <LocationPermissionHandler>
+                    {children}
+                  </LocationPermissionHandler>
+                </main>
                 <Footer />
               </LocationProvider>
             </UserAuthProvider>

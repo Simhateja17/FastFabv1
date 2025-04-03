@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, Suspense } from "react";
 import Link from "next/link";
 import { useSearchParams } from 'next/navigation';
 import ProductCard from "@/app/components/ProductCard";
@@ -9,8 +9,10 @@ import { FiShoppingBag, FiMapPin, FiCompass } from "react-icons/fi";
 import LoadingSpinner from "@/app/components/LoadingSpinner";
 import SellerBanner from "@/app/components/SellerBanner";
 import { SafeLocationConsumer } from "@/app/components/SafeLocationWrapper";
+import LocationRequiredMessage from "@/app/components/LocationRequiredMessage";
+import { useLocationStore } from "@/app/lib/locationStore";
 
-export default function Home() {
+function HomeContent() {
   const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [filteredProducts, setFilteredProducts] = useState([]);
@@ -18,6 +20,7 @@ export default function Home() {
   const [categories, setCategories] = useState([]);
   const [locationError, setLocationError] = useState(false);
   const [lastUserLocation, setLastUserLocation] = useState(null);
+  const { userLocation, hasValidLocation } = useLocationStore();
 
   // Get search term from URL
   const searchParams = useSearchParams();
@@ -165,18 +168,21 @@ export default function Home() {
 
   return (
     <SafeLocationConsumer>
-      {({ userLocation, loading: locationLoading }) => {
+      {({ userLocation: contextLocation, loading: locationLoading }) => {
         // Use useEffect to update local state when location changes
         // instead of doing it during render
         useEffect(() => {
-          if (userLocation && 
+          if (contextLocation && 
              (!lastUserLocation || 
-              lastUserLocation.latitude !== userLocation.latitude || 
-              lastUserLocation.longitude !== userLocation.longitude)) {
-            console.log('Updating lastUserLocation with:', userLocation);
-            setLastUserLocation(userLocation);
+              lastUserLocation.latitude !== contextLocation.latitude || 
+              lastUserLocation.longitude !== contextLocation.longitude)) {
+            console.log('Updating lastUserLocation with:', contextLocation);
+            setLastUserLocation(contextLocation);
           }
-        }, [userLocation, lastUserLocation]);
+        }, [contextLocation, lastUserLocation]);
+
+        // Check if location is set
+        const isLocationSet = userLocation?.latitude && userLocation?.longitude;
 
         return (
           <main className="min-h-screen bg-background">
@@ -201,70 +207,82 @@ export default function Home() {
             
             {/* Products by Category */}
             <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 space-y-16">
-              {/* Only show location error if no products AND not loading AND no search term */ }
-              {!loading && !locationLoading && products.length === 0 && !searchTerm && <LocationErrorMessage />}
+              {/* Show location required message if location is not set */}
+              {!isLocationSet && !loading && !locationLoading && <LocationRequiredMessage />}
               
-              {loading || locationLoading ? (
+              {/* Only show the rest of the content if location is set */}
+              {(loading || locationLoading) ? (
                 <div className="flex justify-center items-center py-20">
                   <LoadingSpinner size="large" color="secondary" />
                 </div>
-              ) : filteredProducts.length > 0 ? (
-                 searchTerm.trim() !== "" ? (
-                  // Search results view
-                  <section>
-                    <h2 className="text-2xl font-semibold text-primary mb-8">
-                      Search Results for "{searchTerm}" 
-                    </h2>
-                    <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-3 md:gap-6">
-                      {filteredProducts.map((product) => (
-                        <ProductCard key={product.id} product={product} />
-                      ))}
-                    </div>
-                  </section>
-                ) : (
-                  // Category view (only show if no search term active)
-                  categories.map((category) => (
-                    <section key={category}>
-                      <div className="flex items-center justify-between mb-8">
-                        <h2 className="text-2xl font-semibold text-primary">
-                          {category}
-                        </h2>
-                        <Link
-                          href={`/products/category/${category.toLowerCase()}`}
-                          className="text-sm text-secondary hover:text-secondary-dark font-medium"
-                        >
-                          View All →
-                        </Link>
-                      </div>
+              ) : isLocationSet && (
+                filteredProducts.length > 0 ? (
+                  searchTerm.trim() !== "" ? (
+                    // Search results view
+                    <section>
+                      <h2 className="text-2xl font-semibold text-primary mb-8">
+                        Search Results for "{searchTerm}" 
+                      </h2>
                       <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-3 md:gap-6">
-                        {groupedProducts[category].map((product) => (
+                        {filteredProducts.map((product) => (
                           <ProductCard key={product.id} product={product} />
                         ))}
                       </div>
                     </section>
-                  ))
+                  ) : (
+                    // Category view (only show if no search term active)
+                    categories.map((category) => (
+                      <section key={category}>
+                        <div className="flex items-center justify-between mb-8">
+                          <h2 className="text-2xl font-semibold text-primary">
+                            {category}
+                          </h2>
+                          <Link
+                            href={`/products/category/${category.toLowerCase()}`}
+                            className="text-sm text-secondary hover:text-secondary-dark font-medium"
+                          >
+                            View All →
+                          </Link>
+                        </div>
+                        <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-3 md:gap-6">
+                          {groupedProducts[category].map((product) => (
+                            <ProductCard key={product.id} product={product} />
+                          ))}
+                        </div>
+                      </section>
+                    ))
+                  )
+                ) : (
+                  locationError ? <LocationErrorMessage /> : (
+                    searchTerm.trim() !== "" ? (
+                      // No results found for search term
+                      <div className="text-center py-12 bg-background-card rounded-lg shadow-sm">
+                        <FiShoppingBag className="w-12 h-12 mx-auto text-gray-400" />
+                        <h3 className="mt-4 text-lg font-medium text-gray-900">No Products Found</h3>
+                        <p className="mt-2 text-gray-500 max-w-md mx-auto">
+                          We couldn't find any products matching "{searchTerm}". Please try a different search term.
+                        </p>
+                      </div>
+                    ) : null
+                  )
                 )
-              ) : (
-                 searchTerm.trim() !== "" ? (
-                   // No results found for search term
-                   <div className="text-center py-12 bg-background-card rounded-lg shadow-sm">
-                     <FiShoppingBag className="w-12 h-12 mx-auto text-text-muted" />
-                     <h3 className="mt-4 text-lg font-medium text-text-dark">
-                       No Products Found
-                     </h3>
-                     <p className="mt-2 text-text-muted">
-                       No products match your search term "{searchTerm}". Try different keywords.
-                     </p>
-                   </div>
-                 ) : ( 
-                   // No products available at location (and no search term) - Covered by LocationErrorMessage now
-                   null 
-                 )
               )}
             </div>
           </main>
         );
       }}
     </SafeLocationConsumer>
+  );
+}
+
+export default function Home() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen flex items-center justify-center">
+        <LoadingSpinner size="large" color="primary" />
+      </div>
+    }>
+      <HomeContent />
+    </Suspense>
   );
 }

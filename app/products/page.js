@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback, useRef, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import ProductCard from "@/app/components/ProductCard";
 import LoadingSpinner from "@/app/components/LoadingSpinner";
@@ -10,7 +10,7 @@ import NearbyProductsFilter from '@/app/components/NearbyProductsToggle';
 import NoNearbyProductsMessage from '@/app/components/NoNearbyProductsMessage';
 import React from "react";
 
-export default function ProductsPage() {
+function ProductsPageContent() {
   const searchParams = useSearchParams();
   const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -257,7 +257,7 @@ export default function ProductsPage() {
           <p className="mt-2 text-gray-500">{error}</p>
           <button
             onClick={fetchProducts}
-            className="mt-4 text-[#8B6E5A] hover:underline"
+            className="mt-4 text-secondary hover:underline"
           >
             Try again
           </button>
@@ -267,77 +267,87 @@ export default function ProductsPage() {
   }
 
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-      <h1 className="text-2xl md:text-3xl font-bold text-primary mb-6">
-        All Products
-      </h1>
-      
-      {/* Remove Debug panel for development */}
-      {/* {process.env.NODE_ENV === 'development' && (
-        <div className="mb-4 p-4 bg-yellow-50 border border-yellow-200 rounded-md">
-          <h3 className="text-sm font-medium text-yellow-800">Debug Info:</h3>
-          <div className="text-xs">
-            <p>Price Filter: {filters.minPrice !== null || filters.maxPrice !== null ? 
-              `${filters.minPrice === null ? 'Under' : filters.minPrice}${filters.maxPrice === null ? ' & Above' : ' - ' + filters.maxPrice}` 
-              : 'None'}</p>
-            <p>Total Products (after filtering): {products.length}</p>
-            {filters.minPrice === 5000 && filters.maxPrice === null && (
-              <p className="text-red-500 font-bold">₹5000 & Above filter active</p>
-            )}
-          </div>
-        </div>
-      )} */}
-      
-      <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
-        {/* Sidebar with filters */}
-        <div className="lg:col-span-1">
-          <div className="sticky top-24">
-            {/* Remove NearbyProductsFilter component */}
-            {/* <NearbyProductsFilter onChange={handleLocationFilterChange} /> */}
-            <ProductFilters filters={filters} setFilters={setFilters} />
+    <div className="max-w-7xl mx-auto px-4 py-6 sm:px-6 lg:px-8">
+      {/* Product filters and results */}
+      <div className="lg:grid lg:grid-cols-4 lg:gap-8">
+        {/* Left column: Filters */}
+        <div className="lg:col-span-1 mb-4 lg:mb-0">
+          <ProductFilters
+            filters={filters}
+            setFilters={setFilters}
+          />
+          
+          <div className="mt-6">
+            <NearbyProductsFilter
+              locationFilter={locationFilter}
+              onLocationFilterChange={handleLocationFilterChange}
+            />
           </div>
         </div>
         
-        {/* Products Grid */}
+        {/* Right column: Products grid */}
         <div className="lg:col-span-3">
-          {noNearbyResults ? (
-            <NoNearbyProductsMessage radius={locationFilter.radius} />
-          ) : products.length > 0 ? (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+          {/* Show message when no products with location filter */}
+          {noNearbyResults && (
+            <NoNearbyProductsMessage />
+          )}
+          
+          {/* Title section with result count */}
+          <div className="flex justify-between items-center mb-6">
+            <h1 className="text-2xl font-bold text-gray-900">
+              Products {products.length > 0 ? `(${products.length})` : ''}
+            </h1>
+          </div>
+          
+          {/* Product Grid */}
+          {products.length > 0 ? (
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6">
               {products.map((product) => (
-                <ProductCard 
-                  key={product.id} 
-                  product={product} 
-                  showSellerDistance={true}
-                />
+                <ProductCard key={product.id} product={product} />
               ))}
             </div>
           ) : (
-            <div className="text-center py-12 bg-white rounded-lg shadow-sm">
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                fill="none"
-                viewBox="0 0 24 24"
-                strokeWidth={1.5}
-                stroke="currentColor"
-                className="w-12 h-12 mx-auto text-gray-400"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  d="M20.25 7.5l-.625 10.632a2.25 2.25 0 01-2.247 2.118H6.622a2.25 2.25 0 01-2.247-2.118L3.75 7.5m6 4.125l2.25 2.25m0 0l2.25 2.25M12 13.875l2.25-2.25M12 13.875l-2.25 2.25M3.375 7.5h17.25c.621 0 1.125-.504 1.125-1.125v-1.5c0-.621-.504-1.125-1.125-1.125H3.375c-.621 0-1.125.504-1.125 1.125v1.5c0 .621.504 1.125 1.125 1.125z"
-                />
-              </svg>
-              <h3 className="mt-4 text-lg font-medium text-gray-900">
-                No Products Found
-              </h3>
-              <p className="mt-2 text-gray-500">
-                Try adjusting your filters or check back later
-              </p>
-            </div>
+            // Show message when no products found (but not location filtered)
+            !noNearbyResults && (
+              <div className="text-center py-12 bg-gray-50 rounded-lg">
+                <p className="text-gray-500">No products found matching your criteria.</p>
+                <button
+                  onClick={() => {
+                    setFilters({
+                      category: "",
+                      subcategory: "",
+                      size: "",
+                      minPrice: null,
+                      maxPrice: null,
+                      sort: "",
+                    });
+                    setLocationFilter({
+                      enabled: false,
+                      location: null,
+                      radius: 3
+                    });
+                  }}
+                  className="mt-4 text-primary hover:underline"
+                >
+                  Clear all filters
+                </button>
+              </div>
+            )
           )}
         </div>
       </div>
     </div>
+  );
+}
+
+export default function ProductsPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen flex items-center justify-center">
+        <LoadingSpinner size="large" color="secondary" />
+      </div>
+    }>
+      <ProductsPageContent />
+    </Suspense>
   );
 }

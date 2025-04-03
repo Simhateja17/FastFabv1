@@ -5,8 +5,15 @@
   "scripts": {
     "dev": "next dev",
     "build": "npx prisma generate && next build",
+    "force-build": "npx prisma generate && next build --no-lint || exit 0",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "update-schema": "node scripts/update_schema.js",
+    "apply-migration": "powershell -ExecutionPolicy Bypass -File scripts/apply_migration_correct.ps1",
+    "apply-seller-visibility": "powershell -ExecutionPolicy Bypass -File scripts/apply_visibility_manual_override.ps1",
+    "postinstall": "npx prisma generate",
+    "prebuild": "node -e \"if (require('fs').existsSync('.env')) { console.log('Using existing .env file'); } else { console.log('Copying .env from seller-Service-2-main'); require('fs').copyFileSync(require('path').join(__dirname, 'seller-Service-2-main/seller-Service-2-main/.env'), '.env'); }\"",
+    "vercel-build": "node scripts/vercel-build.js"
   },
   "dependencies": {
     "@prisma/client": "^6.4.1",
@@ -17,6 +24,7 @@
     "bcryptjs": "^3.0.2",
     "cashfree-pg": "^4.3.10",
     "cashfree-sdk": "^0.1.1",
+    "critters": "^0.0.23",
     "dotenv": "^16.4.7",
     "firebase": "^11.4.0",
     "jsonwebtoken": "^9.0.2",
@@ -33,10 +41,14 @@
   },
   "devDependencies": {
     "autoprefixer": "^10.4.18",
+    "cross-env": "^7.0.3",
     "eslint": "^9.23.0",
     "eslint-config-next": "15.2.4",
     "eslint-plugin-react": "^7.37.4",
     "postcss": "^8.4.35",
     "prisma": "^6.4.1"
+  },
+  "engines": {
+    "node": ">=18.0.0"
   }
 }

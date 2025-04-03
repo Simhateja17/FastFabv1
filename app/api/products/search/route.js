@@ -55,10 +55,9 @@ export async function GET(request) {
       return NextResponse.json(cachedResult.data);
     }
     
-    // Build the base query
+    // Using PublicProducts view for search
     const whereClause = {
       AND: [
-        { isActive: true },
         {
           OR: [
             { name: { contains: searchQuery, mode: 'insensitive' } },
@@ -99,55 +98,122 @@ export async function GET(request) {
     // Calculate pagination
     const skip = (page - 1) * limit;
     
-    // Execute the query
-    const [products, totalCount] = await Promise.all([
-      prisma.product.findMany({
-        where: whereClause,
-        include: {
-          seller: {
-            select: {
-              id: true,
-              shopName: true,
-              city: true,
-              state: true,
+    try {
+      // Try using the PublicProducts view first
+      const [products, totalCount] = await Promise.all([
+        prisma.publicProducts.findMany({
+          where: whereClause,
+          include: {
+            seller: {
+              select: {
+                id: true,
+                shopName: true,
+                city: true,
+                state: true,
+              },
             },
+            colorInventory: true
           },
-          colorInventory: true
-        },
-        orderBy: {
-          createdAt: 'desc',
-        },
-        skip,
-        take: limit,
-      }),
-      prisma.product.count({ where: whereClause })
-    ]);
-    
-    // Calculate total pages
-    const totalPages = Math.ceil(totalCount / limit);
-    
-    console.log(`Search found ${totalCount} results for "${searchQuery}"`);
-    
-    // Prepare the response
-    const responseData = {
-      products,
-      query: searchQuery,
-      totalProducts: totalCount,
-      totalPages,
-      currentPage: page,
-    };
-    
-    // Cache the result
-    searchCache.set(cacheKey, {
-      data: responseData,
-      timestamp: Date.now()
-    });
-    
-    // Clean up old cache entries
-    cleanupCache();
-    
-    return NextResponse.json(responseData);
-    
+          orderBy: {
+            createdAt: 'desc',
+          },
+          skip,
+          take: limit,
+        }),
+        prisma.publicProducts.count({ where: whereClause })
+      ]);
+      
+      // Calculate total pages
+      const totalPages = Math.ceil(totalCount / limit);
+      
+      console.log(`Search found ${totalCount} results for "${searchQuery}"`);
+      
+      // Prepare the response
+      const responseData = {
+        products,
+        query: searchQuery,
+        totalProducts: totalCount,
+        totalPages,
+        currentPage: page,
+      };
+      
+      // Cache the result
+      searchCache.set(cacheKey, {
+        data: responseData,
+        timestamp: Date.now()
+      });
+      
+      // Clean up old cache entries
+      cleanupCache();
+      
+      return NextResponse.json(responseData);
+    } catch (viewError) {
+      // If the view doesn't exist, fall back to the old method
+      if (viewError.message && viewError.message.includes('relation "PublicProducts" does not exist')) {
+        console.log("PublicProducts view not available, falling back to manual filtering");
+        
+        // Add visibility filters for the fallback approach
+        whereClause.AND.push({ isActive: true });
+        whereClause.AND.push({ 
+          seller: {
+            isVisible: true 
+          }
+        });
+        
+        // Execute with fallback
+        const [products, totalCount] = await Promise.all([
+          prisma.product.findMany({
+            where: whereClause,
+            include: {
+              seller: {
+                select: {
+                  id: true,
+                  shopName: true,
+                  city: true,
+                  state: true,
+                },
+              },
+              colorInventory: true
+            },
+            orderBy: {
+              createdAt: 'desc',
+            },
+            skip,
+            take: limit,
+          }),
+          prisma.product.count({ where: whereClause })
+        ]);
+        
+        // Calculate total pages
+        const totalPages = Math.ceil(totalCount / limit);
+        
+        console.log(`Search found ${totalCount} results for "${searchQuery}" (fallback method)`);
+        
+        // Prepare the response
+        const responseData = {
+          products,
+          query: searchQuery,
+          totalProducts: totalCount,
+          totalPages,
+          currentPage: page,
+        };
+        
+        // Cache the result
+        searchCache.set(cacheKey, {
+          data: responseData,
+          timestamp: Date.now()
+        });
+        
+        // Clean up old cache entries
+        cleanupCache();
+        
+        return NextResponse.json(responseData);
+      } else {
+        // If it's a different error, log and throw
+        console.error(`Error in search API using PublicProducts view: ${viewError.message}`);
+        throw viewError;
+      }
+    }
   } catch (error) {
     console.error(`Error in search API: ${error.message}`);
     return NextResponse.json(

@@ -21,8 +21,9 @@ export async function GET(request, { params }) {
       );
     }
 
-    // Fetch the product with its details including color inventory
-    const product = await prisma.product.findUnique({
+    // Fetch the product from the PublicProducts view, which only includes products from visible sellers
+    // Also include related color inventory and seller details
+    const product = await prisma.publicProducts.findUnique({
       where: {
         id: productId,
       },
@@ -34,18 +35,24 @@ export async function GET(request, { params }) {
             shopName: true,
             city: true,
             state: true,
+            // isVisible is no longer needed here as the view handles filtering
           },
         },
       },
     });
 
     if (!product) {
-      console.log(`Product not found for ID: ${productId}`);
+      // This condition now handles both product not found and product belonging to a hidden seller
+      console.log(`Product not found or not available (seller hidden) for ID: ${productId}`);
       return NextResponse.json(
-        { error: 'Product not found' },
+        { error: 'Product not found or not available' },
         { status: 404 }
       );
     }
+
+    // The check for seller visibility is no longer needed here,
+    // as querying PublicProducts handles this automatically.
+    // if (!product.seller?.isVisible) { ... } // Removed this block
 
     // Return the product details
     return NextResponse.json(product);

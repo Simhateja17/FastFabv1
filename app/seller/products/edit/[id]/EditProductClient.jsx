@@ -175,7 +175,7 @@ export default function EditProductClient({ productId }) {
       // Fetch color inventories if available
       try {
         const colorResponse = await authFetch(
-          `${API_URL}/api/seller/products/${productId}/colors`
+          `${API_URL}/seller/products/${productId}/colors`
         );
 
         if (colorResponse.ok) {

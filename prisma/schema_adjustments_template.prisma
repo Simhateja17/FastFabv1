@@ -1,0 +1,44 @@
+// Template for manual schema adjustments after running npx prisma db pull
+// Copy and adapt these blocks as needed to modify your pulled schema
+
+// Example: Adding relation fields to a view model
+/// This view represents products that are active and from visible sellers
+model PublicProducts {
+  id             String           @id 
+  name           String
+  description    String?
+  mrpPrice       Float
+  sellingPrice   Float
+  images         String[]         @default([])
+  category       String?
+  subcategory    String?
+  sizeQuantities Json
+  isActive       Boolean          @default(true)
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+  sellerId       String
+  variantGroupId String?
+  isReturnable   Boolean          @default(true)
+  
+  // Add relation fields
+  seller         Seller           @relation(fields: [sellerId], references: [id], map: "PublicProducts_seller_fkey")
+  colorInventory ColorInventory[]
+
+  @@map("PublicProducts")
+}
+
+// Example: Adding relation from other models to the view
+model Seller {
+  // ... existing fields from db pull
+
+  // Add this relation field
+  publicProducts  PublicProducts[] 
+}
+
+model ColorInventory {
+  // ... existing fields from db pull
+
+  // Add these relation fields with map name to avoid conflicts
+  product      Product         @relation(fields: [productId], references: [id], onDelete: Cascade, map: "ColorInventory_productId_product_fkey")
+  publicProduct PublicProducts? @relation(fields: [productId], references: [id], map: "ColorInventory_productId_publicProduct_fkey")
+} 

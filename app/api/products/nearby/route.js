@@ -66,7 +66,8 @@ export async function GET(request) {
     const baseQueryOptions = {
       where: {
         AND: [
-          { isActive: true } // Using isActive instead of isAvailable and isApproved
+          { isActive: true }, // Using isActive instead of isAvailable and isApproved
+          { seller: { isVisible: true } } // ADDED: Ensure seller is visible
         ]
       },
       include: {

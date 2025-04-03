@@ -8,123 +8,8 @@ datasource db {
   relationMode = "prisma"
 }
 
-model Seller {
-  id              String         @id @default(uuid())
-  phone           String         @unique
-  password        String?
-  shopName        String?
-  ownerName       String?
-  address         String?
-  city            String?
-  state           String?
-  pincode         String?
-  openTime        String?
-  closeTime       String?
-  categories      String[]       @default([])
-  createdAt       DateTime       @default(now())
-  updatedAt       DateTime       @updatedAt
-  latitude        Float?
-  longitude       Float?
-  isPhoneVerified Boolean        @default(false)
-  gstNumber       String?
-  products        Product[]
-  refreshTokens   RefreshToken[]
-}
-
-model SuperAdmin {
-  id          String              @id @default(uuid())
-  email       String              @unique
-  password    String
-  name        String?
-  createdAt   DateTime            @default(now())
-  updatedAt   DateTime            @updatedAt
-  adminTokens AdminRefreshToken[]
-}
-
-model AdminRefreshToken {
-  id         String     @id @default(uuid())
-  token      String     @unique
-  adminId    String
-  expiresAt  DateTime
-  createdAt  DateTime   @default(now())
-  superAdmin SuperAdmin @relation(fields: [adminId], references: [id], onDelete: Cascade)
-}
-
-model RefreshToken {
-  id        String   @id @default(uuid())
-  token     String   @unique
-  sellerId  String
-  expiresAt DateTime
-  createdAt DateTime @default(now())
-  seller    Seller   @relation(fields: [sellerId], references: [id], onDelete: Cascade)
-}
-
-model Product {
-  id             String           @id @default(uuid())
-  name           String
-  description    String?
-  mrpPrice       Float
-  sellingPrice   Float
-  images         String[]         @default([])
-  category       String?
-  subcategory    String?
-  sizeQuantities Json
-  isActive       Boolean          @default(true)
-  createdAt      DateTime         @default(now())
-  updatedAt      DateTime         @updatedAt
-  sellerId       String
-  seller         Seller           @relation(fields: [sellerId], references: [id])
-  colorInventory ColorInventory[]
-}
-
-model ColorInventory {
-  id        String   @id @default(uuid())
-  productId String
-  color     String
-  inventory Json
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  colorCode String   @default("")
-  product   Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
-
-  @@unique([productId, color])
-}
-
-model User {
-  id                 String               @id @default(uuid())
-  email              String?              @unique
-  phone              String?              @unique
-  password           String
-  name               String?
-  profilePicture     String?
-  isVerified         Boolean              @default(false)
-  verificationToken  String?
-  passwordResetToken String?
-  resetTokenExpiry   DateTime?
-  createdAt          DateTime             @default(now())
-  updatedAt          DateTime             @updatedAt
-  isPhoneVerified    Boolean              @default(false)
-  lastLoginAt        DateTime?
-  role               UserRole             @default(USER)
-  tokenVersion       Int                  @default(0)
-  addresses          Address[]
-  orders             Order[]
-  carts              Cart[]
-  refreshTokens      UserRefreshToken[]
-  payments           PaymentTransaction[]
-}
-
-model UserRefreshToken {
-  id        String   @id @default(uuid())
-  token     String   @unique
-  userId    String
-  expiresAt DateTime
-  createdAt DateTime @default(now())
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-}
-
 model Address {
-  id        String   @id @default(uuid())
+  id        String   @id
   userId    String
   name      String
   phone     String
@@ -138,22 +23,26 @@ model Address {
   latitude  Float?
   longitude Float?
   createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  orders    Order[]
+  updatedAt DateTime
+}
+
+model AdminRefreshToken {
+  id        String   @id
+  token     String   @unique
+  adminId   String
+  expiresAt DateTime
+  createdAt DateTime @default(now())
 }
 
 model Cart {
-  id        String     @id @default(uuid())
+  id        String   @id
   userId    String
-  createdAt DateTime   @default(now())
-  updatedAt DateTime   @updatedAt
-  user      User       @relation(fields: [userId], references: [id], onDelete: Cascade)
-  items     CartItem[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime
 }
 
 model CartItem {
-  id        String   @id @default(uuid())
+  id        String   @id
   cartId    String
   productId String
   quantity  Int      @default(1)
@@ -161,38 +50,57 @@ model CartItem {
   color     String?
   price     Float
   createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  cart      Cart     @relation(fields: [cartId], references: [id], onDelete: Cascade)
+  updatedAt DateTime
+}
+
+model ColorInventory {
+  id          String   @id
+  productId   String
+  color       String
+  inventory   Json
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime
+  colorCode   String   @default("")
+  stockNumber String?
+
+  @@unique([productId, color])
+}
+
+model OTP {
+  id          String   @id
+  phoneNumber String
+  otpCode     String
+  createdAt   DateTime @default(now())
+  expiresAt   DateTime
+  verified    Boolean  @default(false)
+
+  @@index([phoneNumber])
 }
 
 model Order {
-  id                String               @id @default(uuid())
-  orderNumber       String               @unique
+  id                String        @id
+  orderNumber       String        @unique
   userId            String
   totalAmount       Float
-  status            OrderStatus          @default(PENDING)
-  paymentStatus     PaymentStatus        @default(PENDING)
-  paymentMethod     PaymentMethod        @default(COD)
+  status            OrderStatus   @default(PENDING)
+  paymentStatus     PaymentStatus @default(PENDING)
+  paymentMethod     PaymentMethod @default(COD)
   addressId         String?
-  discount          Float                @default(0)
-  shippingFee       Float                @default(0)
-  tax               Float                @default(0)
+  discount          Float         @default(0)
+  shippingFee       Float         @default(0)
+  tax               Float         @default(0)
   notes             String?
   deliveryNotes     String?
   estimatedDelivery DateTime?
   trackingNumber    String?
   deliveredAt       DateTime?
   cancelledAt       DateTime?
-  createdAt         DateTime             @default(now())
-  updatedAt         DateTime             @updatedAt
-  user              User                 @relation(fields: [userId], references: [id])
-  items             OrderItem[]
-  shippingAddress   Address?             @relation(fields: [addressId], references: [id])
-  transactions      PaymentTransaction[]
+  createdAt         DateTime      @default(now())
+  updatedAt         DateTime
 }
 
 model OrderItem {
-  id          String   @id @default(uuid())
+  id          String   @id
   orderId     String
   productId   String
   productName String
@@ -203,12 +111,11 @@ model OrderItem {
   price       Float
   discount    Float    @default(0)
   createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-  order       Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  updatedAt   DateTime
 }
 
 model PaymentTransaction {
-  id                String        @id @default(uuid())
+  id                String        @id
   userId            String
   orderId           String?
   amount            Float
@@ -220,41 +127,129 @@ model PaymentTransaction {
   paymentLink       String?
   paymentLinkExpiry DateTime?
   createdAt         DateTime      @default(now())
-  updatedAt         DateTime      @updatedAt
-  user              User          @relation(fields: [userId], references: [id])
-  order             Order?        @relation(fields: [orderId], references: [id])
+  updatedAt         DateTime
+}
+
+model Product {
+  id             String   @id
+  name           String
+  description    String?
+  mrpPrice       Float
+  sellingPrice   Float
+  images         String[] @default([])
+  category       String?
+  subcategory    String?
+  sizeQuantities Json
+  isActive       Boolean  @default(true)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime
+  sellerId       String
+  variantGroupId String?
+  isReturnable   Boolean  @default(true)
+
+  @@index([isActive, sellerId], map: "idx_product_active_seller")
+}
+
+model ProductVariantGroup {
+  id           String   @id
+  name         String
+  description  String?
+  category     String?
+  subcategory  String?
+  basePrice    Float
+  sellingPrice Float
+  sellerId     String
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime
+}
+
+model RefreshToken {
+  id        String   @id
+  token     String   @unique
+  sellerId  String
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  @@index([expiresAt])
+  @@index([token])
+}
+
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model Seller {
+  id              String   @id
+  phone           String   @unique
+  password        String?
+  shopName        String?
+  ownerName       String?
+  address         String?
+  city            String?
+  state           String?
+  pincode         String?
+  openTime        String?
+  closeTime       String?
+  categories      String[] @default([])
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime
+  latitude        Float?
+  longitude       Float?
+  isPhoneVerified Boolean  @default(false)
+  gstNumber       String?
+  isVisible       Boolean  @default(true)
+  manuallyHidden  Boolean  @default(false)
+
+  @@index([manuallyHidden], map: "idx_seller_manually_hidden")
+  @@index([isVisible], map: "idx_seller_visibility")
+}
+
+model SuperAdmin {
+  id        String   @id
+  email     String   @unique
+  password  String
+  name      String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime
+}
+
+model User {
+  id                 String    @id
+  email              String?   @unique
+  phone              String?   @unique
+  password           String
+  name               String?
+  profilePicture     String?
+  isVerified         Boolean   @default(false)
+  verificationToken  String?
+  passwordResetToken String?
+  resetTokenExpiry   DateTime?
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime
+  isPhoneVerified    Boolean   @default(false)
+  lastLoginAt        DateTime?
+  role               UserRole  @default(USER)
+  tokenVersion       Int       @default(0)
+}
+
+model UserRefreshToken {
+  id        String   @id
+  token     String   @unique
+  userId    String
+  expiresAt DateTime
+  createdAt DateTime @default(now())
 }
 
 model WhatsAppOTP {
-  id          String   @id @default(uuid())
+  id          String   @id
   phoneNumber String
   otpCode     String
   verified    Boolean  @default(false)
   expiresAt   DateTime
   createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  updatedAt   DateTime
   name        String?
   email       String?
   isNewUser   Boolean? @default(false)
 
   @@index([phoneNumber, expiresAt])
-}
-
-model OTP {
-  id          String   @id @default(uuid())
-  phoneNumber String
-  otpCode     String
-  createdAt   DateTime @default(now())
-  expiresAt   DateTime
-  verified    Boolean  @default(false)
-
-  @@index([phoneNumber])
-}
-
-enum ProductCategory {
-  MEN
-  WOMEN
-  KIDS
 }
 
 enum OrderStatus {
@@ -266,13 +261,6 @@ enum OrderStatus {
   RETURNED
 }
 
-enum PaymentStatus {
-  PENDING
-  SUCCESSFUL
-  FAILED
-  REFUNDED
-}
-
 enum PaymentMethod {
   COD
   CREDIT_CARD
@@ -280,6 +268,19 @@ enum PaymentMethod {
   UPI
   WALLET
   NET_BANKING
+}
+
+enum PaymentStatus {
+  PENDING
+  SUCCESSFUL
+  FAILED
+  REFUNDED
+}
+
+enum ProductCategory {
+  MEN
+  WOMEN
+  KIDS
 }
 
 enum UserRole {
