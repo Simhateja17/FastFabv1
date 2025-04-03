@@ -1,126 +1,62 @@
 import { NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
+import { auth } from "@/app/lib/auth";
+import { createErrorResponse, createSuccessResponse } from '@/app/api/error';
 
 export async function GET(request) {
   try {
-    // Get token from cookies or authorization header - updated to use async cookies API
-    const cookieStore = cookies();
-    let accessToken = (await cookieStore.get('accessToken'))?.value;
+    const authResult = await auth(request);
     
-    // Try to get from authorization header if not in cookies
-    if (!accessToken && request.headers.has('authorization')) {
-      const authHeader = request.headers.get('authorization');
-      if (authHeader && authHeader.startsWith('Bearer ')) {
-        accessToken = authHeader.substring(7);
-      }
+    if (!authResult.success) {
+      return createErrorResponse(authResult.message, 401);
     }
     
-    if (!accessToken) {
-      return NextResponse.json(
-        { message: 'Authentication required' },
-        { status: 401 }
-      );
-    }
-
-    // Forward request to seller service
-    const apiUrl = process.env.SELLER_SERVICE_URL || 'http://localhost:8000';
+    const sellerId = authResult.sellerId;
     
-    // Try different endpoints that might exist in the seller service
-    const endpoints = [
-      '/api/products', 
-      '/api/seller/products',
-      '/api/products/seller'
-    ];
-    
-    let response = null;
-    let foundEndpoint = null;
-    
-    // Try each endpoint until one works
-    for (const endpoint of endpoints) {
-      console.log(`Trying to fetch seller products from: ${apiUrl}${endpoint}`);
-      
-      try {
-        response = await fetch(`${apiUrl}${endpoint}`, {
-          method: 'GET',
-          headers: {
-            'Authorization': `Bearer ${accessToken}`
-          },
-          // Add any query parameters from the original request
-          // This preserves filters, pagination, etc.
-          ...(request.url.includes('?') ? { 
-            next: { revalidate: 0 } // Ensure we don't cache
-          } : {})
-        });
-        
-        console.log(`Endpoint ${endpoint} response: ${response.status}`);
-        
-        // If we got a successful response or a meaningful error (not 404), use this endpoint
-        if (response.status !== 404) {
-          foundEndpoint = endpoint;
-          break;
-        }
-      } catch (error) {
-        console.error(`Error trying endpoint ${endpoint}:`, error);
-      }
-    }
-    
-    // If no endpoints worked, return an error
-    if (!foundEndpoint) {
-      console.error('All product endpoints returned 404, no valid endpoint found');
-      return NextResponse.json(
-        { 
-          message: 'Failed to fetch products', 
-          error: 'Product API endpoints not available'
-        },
-        { status: 404 }
-      );
-    }
-    
-    console.log(`Using product endpoint: ${foundEndpoint}`);
-    
-    // Process the response from the successful endpoint
-    if (!response.ok) {
-      let errorMessage = 'Failed to fetch products';
-      try {
-        const errorData = await response.json();
-        console.error('Product fetch error data:', errorData);
-        errorMessage = errorData.message || errorMessage;
-      } catch (e) {
-        console.error('Failed to parse error response from products endpoint');
-        try {
-          const errorText = await response.text();
-          console.error('Error response text:', errorText);
-        } catch (textError) {
-          // Ignore if we can't get text
-        }
-      }
-      
-      return NextResponse.json(
-        { message: errorMessage },
-        { status: response.status }
-      );
-    }
-
-    // Handle successful response
     try {
-      const data = await response.json();
-      console.log('Products fetched successfully, count:', 
-        data.products ? data.products.length : 'unknown');
+      const apiUrl = `${process.env.NEXT_PUBLIC_API_URL}/seller/products`;
       
-      return NextResponse.json(data);
-    } catch (e) {
-      console.error('Failed to parse products response:', e);
-      return NextResponse.json(
-        { message: 'Invalid response format from server' },
-        { status: 500 }
-      );
+      const response = await fetch(apiUrl, {
+        headers: {
+          'Authorization': `Bearer ${authResult.token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+      
+      if (!response.ok) {
+        const contentType = response.headers.get('content-type') || '';
+        
+        // For HTML responses (error pages), return a clean error
+        if (contentType.includes('text/html')) {
+          throw new Error('Server error occurred while fetching products');
+        }
+        
+        // Try to get detailed error message from the response
+        try {
+          const errorData = await response.json();
+          return createErrorResponse(
+            errorData.message || `Error fetching products: ${response.status}`,
+            response.status
+          );
+        } catch (e) {
+          return createErrorResponse(`Error fetching products: ${response.status}`, response.status);
+        }
+      }
+      
+      const data = await response.json();
+      return createSuccessResponse(data);
+    } catch (error) {
+      console.error('Error in seller products API:', error);
+      return createErrorResponse(error.message || 'Failed to fetch products');
     }
-    
   } catch (error) {
-    console.error('Error fetching seller products:', error);
+    console.error('Error in seller products API GET handler:', error);
     return NextResponse.json(
-      { message: 'Failed to fetch products', error: error.message },
-      { status: 500 }
+      { 
+        error: true, 
+        message: error.message || 'An unexpected error occurred'
+      },
+      { status: error.status || 500 }
     );
   }
 }

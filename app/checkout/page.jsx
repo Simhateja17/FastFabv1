@@ -18,7 +18,7 @@ export default function Checkout() {
 
   useEffect(() => {
     // If we don't have a session ID or order ID, redirect to home
-    if (!sessionId || !orderId) {
+    if (!sessionId && !orderId) {
       router.push("/");
       return;
     }
@@ -28,7 +28,7 @@ export default function Checkout() {
 
     // For now, use a dummy order details
     setOrderDetails({
-      orderId: orderId,
+      orderId: orderId || "unknown",
       amount: "Loading...",
       currency: "INR",
       status: "pending",
@@ -251,12 +251,11 @@ export default function Checkout() {
                       />
                     </div>
                     <div>
-                      <p className="font-medium">Credit/Debit Cards</p>
-                      <p className="text-xs text-gray-500">
-                        Visa, Mastercard, RuPay
-                      </p>
+                      <span className="block font-medium">Credit / Debit Card</span>
+                      <span className="text-xs text-gray-500">All major cards accepted</span>
                     </div>
                   </div>
+
                   <div className="p-3 border rounded-md flex items-center">
                     <div className="w-12 h-8 flex items-center justify-center mr-3">
                       <Image
@@ -268,86 +267,58 @@ export default function Checkout() {
                         onError={(e) => {
                           e.target.onerror = null;
                           e.target.src =
-                            "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M22 9.5V6a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-3.5'%3E%3C/path%3E%3Cpath d='M14 15V9'%3E%3C/path%3E%3Cpath d='M18 13l-4 4-4-4'%3E%3C/path%3E%3C/svg%3E";
+                            "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M16 2v6h6'%3E%3C/path%3E%3Cpath d='M8 2v12h12'%3E%3C/path%3E%3Cpath d='M2 22l14-14'%3E%3C/path%3E%3C/svg%3E";
                         }}
                       />
                     </div>
                     <div>
-                      <p className="font-medium">UPI</p>
-                      <p className="text-xs text-gray-500">
-                        Google Pay, PhonePe, Paytm
-                      </p>
+                      <span className="block font-medium">UPI Payment</span>
+                      <span className="text-xs text-gray-500">GPay, PhonePe, Paytm & more</span>
                     </div>
                   </div>
+
                   <div className="p-3 border rounded-md flex items-center">
                     <div className="w-12 h-8 flex items-center justify-center mr-3">
                       <Image
-                        src="/wallet.svg"
-                        alt="Wallet"
+                        src="/net-banking.svg"
+                        alt="Net Banking"
                         width={32}
                         height={32}
                         className="object-contain"
                         onError={(e) => {
                           e.target.onerror = null;
                           e.target.src =
-                            "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='1' y='4' width='22' height='16' rx='2' ry='2'%3E%3C/rect%3E%3Crect x='1' y='4' width='22' height='16' rx='2' ry='2'%3E%3C/rect%3E%3Cpath d='M17 10h4'%3E%3C/path%3E%3C/svg%3E";
+                            "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='3' y='3' width='18' height='18' rx='2' ry='2'%3E%3C/rect%3E%3Crect x='7' y='7' width='10' height='10' rx='2' ry='2'%3E%3C/rect%3E%3Cpath d='M17 17v.01'%3E%3C/path%3E%3C/svg%3E";
                         }}
                       />
                     </div>
                     <div>
-                      <p className="font-medium">Wallets</p>
-                      <p className="text-xs text-gray-500">
-                        Paytm, PhonePe, Amazon Pay
-                      </p>
+                      <span className="block font-medium">Net Banking</span>
+                      <span className="text-xs text-gray-500">All Indian banks supported</span>
                     </div>
                   </div>
                 </div>
               </div>
-            </div>
-
-            <div className="text-center">
-              <Link
-                href="/"
-                className="text-gray-500 hover:text-gray-700 text-sm"
-              >
-                <FiArrowLeft className="inline mr-1" /> Cancel and return to
-                shopping
-              </Link>
             </div>
           </div>
         );
     }
   };
 
-  return renderContent();
-}
-
-// Main component with Suspense boundary
-export default function Checkout() {
   return (
-    <div className="min-h-screen bg-gray-50 py-8">
-      <div className="max-w-4xl mx-auto px-4">
-        <div className="text-center mb-8">
-          <Link href="/" className="inline-block">
-            <Image
-              src="/logo.svg"
-              alt="Fast&Fab Logo"
-              width={160}
-              height={50}
-              className="mx-auto mb-4"
-              onError={(e) => {
-                e.target.onerror = null;
-                e.target.src =
-                  "data:image/svg+xml,%3Csvg width='160' height='50' viewBox='0 0 160 50' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Crect width='160' height='50' fill='%23333'/%3E%3Ctext x='80' y='25' font-family='Arial' font-size='18' text-anchor='middle' fill='white'%3EFast&amp;Fab%3C/text%3E%3C/svg%3E";
-              }}
-            />
+    <div className="min-h-screen bg-gray-50 py-6 sm:py-12">
+      <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="mb-8 flex items-center justify-between">
+          <Link href="/" className="flex items-center text-gray-600 hover:text-gray-800">
+            <FiArrowLeft className="mr-2" />
+            Back to Shopping
           </Link>
           <h1 className="text-2xl font-bold text-gray-800">Checkout</h1>
+          <div className="w-24"></div> {/* Spacer for alignment */}
         </div>
 
-        <Suspense fallback={<LoadingFallback />}>
-          <CheckoutContent />
-        </Suspense>
+        {/* Render the appropriate content based on payment status */}
+        {renderContent()}
       </div>
     </div>
   );

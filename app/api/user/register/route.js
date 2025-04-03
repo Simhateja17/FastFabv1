@@ -49,11 +49,12 @@ export async function POST(request) {
     }
 
     console.log("Creating new user...");
-    // Create the new user - make email optional by providing empty string if not provided
+    // Create the new user - email is now optional
     const newUser = await prisma.user.create({
       data: {
         name,
         phone,
+        email: null, // Explicitly set email to null
         password: "phone-auth-" + Math.random().toString(36).substring(2, 15), // Generate a random password for phone auth users
         isPhoneVerified: isPhoneVerified || false,
       },

@@ -3,7 +3,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { useState } from "react";
-import { FiMapPin } from "react-icons/fi";
+import { FiMapPin, FiShoppingBag } from "react-icons/fi";
 
 export default function ProductCard({ product, showSellerDistance = false }) {
   const [imageError, setImageError] = useState(false);
@@ -29,149 +29,81 @@ export default function ProductCard({ product, showSellerDistance = false }) {
   const distance = product.distance || (product.seller && product.seller.distance);
 
   return (
-    <Link href={`/products/${product.id}`}>
-      <div className="group relative bg-background-card rounded-lg shadow-sm overflow-hidden hover:shadow-md transition-shadow">
+    <Link href={`/products/${product.id}`} className="block group">
+      <div className="bg-background-card rounded-lg shadow-sm overflow-hidden transition-shadow group-hover:shadow-md border border-ui-border">
         {/* Product Image */}
-        <div className="aspect-square relative overflow-hidden bg-background-alt">
-          {firstImage && !imageError ? (
+        <div className="relative aspect-square overflow-hidden bg-background-alt">
+          {product.images && product.images.length > 0 ? (
             <Image
-              src={firstImage}
+              src={product.images[0]}
               alt={product.name}
               fill
-              sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 25vw"
-              priority
-              className="object-cover group-hover:scale-105 transition-transform duration-200"
-              onError={() => setImageError(true)}
+              sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 25vw"
+              className="object-cover group-hover:scale-105 transition-transform"
             />
           ) : (
-            <div className="w-full h-full bg-background-alt flex items-center justify-center">
-              <svg
-                className="w-12 h-12 text-text-muted"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"
-                />
-              </svg>
-            </div>
-          )}
-
-          {/* Category Badge */}
-          {product.category && (
-            <div className="absolute top-2 left-2 bg-primary text-white px-2 py-1 rounded-md text-xs font-medium">
-              {product.category}
+            <div className="w-full h-full flex items-center justify-center bg-background-alt">
+              <FiShoppingBag className="w-12 h-12 text-text-muted" />
             </div>
           )}
 
           {/* Discount Badge */}
           {discountPercentage > 0 && (
-            <div className="absolute top-2 right-2 bg-accent text-white px-2 py-1 rounded-md text-sm font-medium">
+            <div className="absolute top-2 left-2 bg-accent text-white text-xs px-2 py-1 rounded-full font-medium">
               {discountPercentage}% OFF
-            </div>
-          )}
-
-          {/* Distance Badge */}
-          {showSellerDistance && distance && (
-            <div className="absolute bottom-2 left-2 bg-white bg-opacity-90 px-2 py-1 rounded-full text-xs flex items-center">
-              <FiMapPin className="mr-1 text-primary" size={12} />
-              <span>{distance} km</span>
-            </div>
-          )}
-
-          {/* Out of Stock Badge */}
-          {totalQuantity === 0 && (
-            <div className="absolute inset-0 bg-black bg-opacity-50 flex items-center justify-center">
-              <span className="text-white font-medium text-lg">
-                Out of Stock
-              </span>
             </div>
           )}
         </div>
 
         {/* Product Info */}
-        <div className="p-4">
-          <h3 className="text-sm font-medium text-text-dark truncate">
+        <div className="p-3 sm:p-4">
+          {/* Name */}
+          <h3 className="text-sm sm:text-base font-medium text-text-dark mb-1 line-clamp-2">
             {product.name}
           </h3>
 
-          {/* Category and Subcategory */}
-          <div className="mt-1 flex items-center text-xs text-text-muted">
-            {product.category && (
-              <>
-                <span className="inline-flex items-center">
-                  <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    className="h-3 w-3 mr-1"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                    stroke="currentColor"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z"
-                    />
-                  </svg>
-                  {product.category}
-                </span>
-                {product.subcategory && (
-                  <>
-                    <span className="mx-1">•</span>
-                    <span>{product.subcategory}</span>
-                  </>
-                )}
-              </>
-            )}
-          </div>
-
-          {/* Seller Info */}
-          {product.seller && (
-            <div className="mt-1 text-xs text-text-muted flex items-center justify-between">
-              <div className="truncate">
-                <span className="font-medium">{product.seller.shopName || product.seller.name}</span>
-                {product.seller.city && (
-                  <span className="ml-1">
-                    • {product.seller.city}
-                    {product.seller.state && `, ${product.seller.state}`}
-                  </span>
-                )}
-                {!showSellerDistance && distance && (
-                  <span className="ml-1 flex items-center inline-flex">
-                    • <FiMapPin className="mx-1 text-primary" size={10} />
-                    {distance} km
-                  </span>
-                )}
-              </div>
+          {/* Category & Subcategory */}
+          {(product.category || product.subcategory) && (
+            <div className="flex items-start flex-wrap mb-2">
+              <span className="text-xs text-text-muted">
+                {product.category}
+                {product.subcategory && ` • ${product.subcategory}`}
+              </span>
             </div>
           )}
 
-          <div className="mt-2 flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-primary">
-                ₹{product.sellingPrice}
-              </p>
-              {product.mrpPrice > product.sellingPrice && (
-                <p className="text-xs text-text-muted line-through">
-                  ₹{product.mrpPrice}
-                </p>
-              )}
-            </div>
-
-            {/* Available Sizes */}
-            <div className="text-xs text-text-muted">
-              {product.sizeQuantities &&
-                Object.entries(product.sizeQuantities)
-                  .filter(([_, quantity]) => quantity > 0)
-                  .map(([size]) => size)
-                  .join(", ")}
-            </div>
+          {/* Price */}
+          <div className="flex items-baseline">
+            <span className="text-sm sm:text-base font-semibold text-secondary">
+              ₹{product.sellingPrice}
+            </span>
+            {product.mrpPrice > product.sellingPrice && (
+              <span className="ml-2 text-xs sm:text-sm text-text-muted line-through">
+                ₹{product.mrpPrice}
+              </span>
+            )}
+            {discountPercentage > 0 && (
+              <span className="ml-2 text-xs text-accent">
+                {discountPercentage}% off
+              </span>
+            )}
           </div>
+
+          {/* Available Sizes */}
+          {product.sizeQuantities && (
+            <div className="mt-2 flex flex-wrap gap-1">
+              {Object.entries(product.sizeQuantities)
+                .filter(([_, quantity]) => quantity > 0)
+                .map(([size]) => (
+                  <span
+                    key={size}
+                    className="inline-block px-1.5 py-0.5 text-xs bg-background-alt rounded border border-ui-border"
+                  >
+                    {size}
+                  </span>
+                ))}
+            </div>
+          )}
         </div>
       </div>
     </Link>

@@ -1,11 +1,27 @@
 import { NextResponse } from 'next/server';
 import { PrismaClient } from '@prisma/client';
-import { findSellersInRadius } from '@/app/api/utils/haversine';
+import { findSellersInRadius, haversineDistance } from '@/app/api/utils/haversine';
 
-const prisma = new PrismaClient();
+// Initialize Prisma with error handling
+let prisma;
+try {
+  prisma = new PrismaClient();
+} catch (err) {
+  console.error("Failed to initialize Prisma client:", err);
+  // Continue with the code - we'll check prisma before use
+}
 
 export async function GET(request) {
   try {
+    console.log("API Request received for nearby products");
+    if (!prisma) {
+      console.error("Prisma client is not initialized");
+      return NextResponse.json(
+        { error: 'Database connection error', details: 'Failed to initialize database connection' },
+        { status: 500 }
+      );
+    }
+
     const { searchParams } = new URL(request.url);
     const latitude = parseFloat(searchParams.get('latitude'));
     const longitude = parseFloat(searchParams.get('longitude'));
@@ -13,35 +29,59 @@ export async function GET(request) {
     const page = parseInt(searchParams.get('page') || '1');
     const limit = parseInt(searchParams.get('limit') || '20');
     const category = searchParams.get('category');
+    const subcategory = searchParams.get('subcategory');
     const searchQuery = searchParams.get('search');
+    const minPrice = parseFloat(searchParams.get('minPrice'));
+    const maxPrice = parseFloat(searchParams.get('maxPrice'));
+    
+    // Debug: Log the raw fetchAll parameter value
+    console.log(`Raw searchParams.get('fetchAll'):`, searchParams.get('fetchAll')); 
+    
+    const fetchAll = searchParams.get('fetchAll') === 'true'; // Read fetchAll param
+    
+    console.log(`API Request - Nearby Products:`, {
+      coordinates: { latitude, longitude },
+      radius,
+      category,
+      subcategory,
+      page,
+      limit,
+      fetchAll, // Log fetchAll
+      minPrice: isNaN(minPrice) ? undefined : minPrice, // Log parsed price
+      maxPrice: isNaN(maxPrice) ? undefined : maxPrice  // Log parsed price
+    });
+    
+    // Validate essential parameters
+    if (!latitude || !longitude || isNaN(latitude) || isNaN(longitude)) {
+      console.error("Invalid coordinates:", { latitude, longitude });
+      return NextResponse.json(
+        { error: 'Invalid coordinates', details: 'Latitude and longitude must be valid numbers' },
+        { status: 400 }
+      );
+    }
     
     const skip = (page - 1) * limit;
     
-    // Base query filters
-    const filters = {
+    // Base query options (excluding pagination)
+    const baseQueryOptions = {
       where: {
         AND: [
-          { isAvailable: true },
-          { isApproved: true }
+          { isActive: true }, // Using isActive instead of isAvailable and isApproved
+          { seller: { isVisible: true } } // ADDED: Ensure seller is visible
         ]
       },
       include: {
-        images: true,
-        category: true,
         seller: {
           select: {
             id: true,
-            name: true,
-            email: true,
+            shopName: true,
             phone: true,
-            profileImage: true,
             latitude: true,
             longitude: true
           }
-        }
+        },
+        colorInventory: true
       },
-      skip,
-      take: limit,
       orderBy: {
         createdAt: 'desc'
       }
@@ -49,21 +89,65 @@ export async function GET(request) {
     
     // Add category filter if provided
     if (category) {
-      filters.where.AND.push({
-        category: {
-          slug: category
-        }
-      });
+      try {
+        baseQueryOptions.where.AND.push({
+          category: category // Direct equality check since category is a string field
+        });
+        console.log(`Applying category filter: ${category}`);
+      } catch (error) {
+        console.error("Error adding category filter:", error);
+        // Continue without category filter
+      }
+    }
+    
+    // Add subcategory filter if provided
+    if (subcategory) {
+      try {
+        baseQueryOptions.where.AND.push({
+          subcategory: subcategory // Direct equality check for subcategory
+        });
+        console.log(`Applying subcategory filter: ${subcategory}`);
+      } catch (error) {
+        console.error("Error adding subcategory filter:", error);
+        // Continue without subcategory filter
+      }
+    }
+    
+    // Add price filter if provided
+    if (!isNaN(minPrice) || !isNaN(maxPrice)) {
+      const priceCondition = {};
+      if (!isNaN(minPrice)) {
+        priceCondition.gte = minPrice; // Greater than or equal to minPrice
+        console.log(`Applying minPrice filter: >= ${minPrice}`);
+      }
+      if (!isNaN(maxPrice)) {
+        priceCondition.lt = maxPrice;  // Less than maxPrice (as per client-side logic)
+        console.log(`Applying maxPrice filter: < ${maxPrice}`);
+      }
+      
+      if (Object.keys(priceCondition).length > 0) {
+         try {
+            baseQueryOptions.where.AND.push({ sellingPrice: priceCondition });
+         } catch (error) {
+            console.error("Error adding price filter:", error);
+            // Continue without price filter
+         }
+      }
     }
     
     // Add search query if provided
     if (searchQuery) {
-      filters.where.AND.push({
-        OR: [
-          { name: { contains: searchQuery, mode: 'insensitive' } },
-          { description: { contains: searchQuery, mode: 'insensitive' } }
-        ]
-      });
+      try {
+        baseQueryOptions.where.AND.push({
+          OR: [
+            { name: { contains: searchQuery, mode: 'insensitive' } },
+            { description: { contains: searchQuery, mode: 'insensitive' } }
+          ]
+        });
+      } catch (error) {
+        console.error("Error adding search filter:", error);
+        // Continue without search filter
+      }
     }
     
     // If location is provided, first get all seller IDs within radius
@@ -78,100 +162,177 @@ export async function GET(request) {
       const enforceRadius = Math.min(radius, 3);
       console.log(`Finding sellers within ${enforceRadius}km of coordinates [${latitude}, ${longitude}] (original request radius: ${radius}km, enforced to 3km max)`);
       
-      // Get all sellers with valid coordinates
-      const sellers = await prisma.user.findMany({
-        where: {
-          role: 'SELLER',
-          NOT: {
-            OR: [
-              { latitude: null },
-              { longitude: null }
-            ]
+      try {
+        // Get all sellers with valid coordinates - NOTE: Using the seller model instead of user
+        const sellers = await prisma.seller.findMany({
+          where: {
+            NOT: {
+              OR: [
+                { latitude: null },
+                { longitude: null }
+              ]
+            }
+          },
+          select: {
+            id: true,
+            shopName: true, // Using shopName from seller model
+            latitude: true,
+            longitude: true
           }
-        },
-        select: {
-          id: true,
-          latitude: true,
-          longitude: true
-        }
-      });
-      
-      console.log(`Found ${sellers.length} sellers with valid coordinates`);
-      
-      // Filter sellers within radius with strict 3km limit
-      nearbySellers = findSellersInRadius(sellers, latitude, longitude, enforceRadius);
-      console.log(`Found ${nearbySellers.length} sellers within ${enforceRadius}km radius`);
-      
-      // Debug: Log seller distances to identify any issues
-      console.log(`Nearby sellers and distances: ${JSON.stringify(nearbySellers.map(s => ({id: s.id, distance: s.distance})))}`);
-      
-      if (nearbySellers.length > 0) {
-        // Get seller IDs
-        const sellerIds = nearbySellers.map(seller => seller.id);
+        });
         
-        // Add seller filter to query
-        filters.where.AND.push({
-          sellerId: {
-            in: sellerIds
-          }
-        });
-      } else {
-        // No nearby sellers found
-        return NextResponse.json({
-          products: [],
-          isLocationFilter: true,
-          totalProducts: 0,
-          totalPages: 0,
-          currentPage: page,
-          message: "No sellers found within the specified radius"
-        });
+        console.log(`Found ${sellers.length} sellers with valid coordinates`);
+        
+        try {
+          // Convert seller objects for compatibility with the findSellersInRadius function
+          const adaptedSellers = sellers.map(seller => ({
+            id: seller.id,
+            name: seller.shopName,
+            latitude: seller.latitude,
+            longitude: seller.longitude
+          }));
+          
+          // Filter sellers within radius with strict 3km limit
+          nearbySellers = findSellersInRadius(adaptedSellers, latitude, longitude, enforceRadius);
+          console.log(`Found ${nearbySellers.length} sellers within ${enforceRadius}km radius`);
+          
+          // Extra debug logging for distances (for all sellers)
+          nearbySellers.forEach(seller => {
+            console.log(`Seller '${seller.name}' distance: ${seller.distance}km from user location [${latitude}, ${longitude}]`);
+          });
+          
+          // STRICT VALIDATION: Only allow sellers that are definitively within the radius
+          nearbySellers = nearbySellers.filter(seller => 
+            seller.distance !== null && 
+            !isNaN(seller.distance) && 
+            seller.distance <= enforceRadius
+          );
+          
+          console.log(`After strict distance validation: ${nearbySellers.length} sellers within ${enforceRadius}km radius`);
+          
+          // Debug: Log seller distances to identify any issues
+          console.log(`Nearby sellers and distances: ${JSON.stringify(nearbySellers.map(s => ({id: s.id, name: s.name, distance: s.distance})))}`);
+        } catch (radiusError) {
+          console.error("Error finding sellers in radius:", radiusError);
+          nearbySellers = []; // Reset to empty array on error
+        }
+        
+        // Add seller filter to query if nearby sellers found
+        if (nearbySellers.length > 0) {
+          const sellerIds = nearbySellers.map(seller => seller.id);
+          baseQueryOptions.where.AND.push({
+            sellerId: {
+              in: sellerIds
+            }
+          });
+        } else {
+          // No nearby sellers found
+          console.log("No sellers found within radius, returning empty product list");
+          return NextResponse.json({
+            products: [],
+            isLocationFilter: true,
+            totalProducts: 0,
+            totalPages: 0,
+            currentPage: page,
+            message: "No sellers found within the specified radius"
+          });
+        }
+      } catch (sellerError) {
+        console.error("Error processing sellers:", sellerError);
+        return NextResponse.json(
+          { error: 'Seller processing error', details: sellerError.message },
+          { status: 500 }
+        );
       }
     }
     
-    // Execute query
-    const [products, totalProducts] = await Promise.all([
-      prisma.product.findMany(filters),
-      prisma.product.count({ where: filters.where })
-    ]);
-    
-    // Calculate total pages
-    const totalPages = Math.ceil(totalProducts / limit);
-    
-    // Add distance to products if location filter was applied
-    if (isLocationFilter) {
-      // Create a map of seller distances for quick lookup
-      const sellerDistanceMap = new Map(
-        nearbySellers.map(seller => [seller.id, seller.distance])
-      );
+    try {
+      // Construct final arguments for findMany
+      const findManyArgs = {
+        ...baseQueryOptions
+      };
       
-      // Add distance to each product
-      productsWithDistance = products.map(product => {
-        const distance = sellerDistanceMap.get(product.sellerId) || null;
-        return {
-          ...product,
-          distance,
-          seller: {
-            ...product.seller,
-            distance
-          }
-        };
+      // When location filter is applied (3km radius), ensure we get ALL products
+      // by using a very high take value instead of the default 20
+      if (isLocationFilter) {
+        // We already filtered by seller IDs within 3km radius in the WHERE clause
+        // so setting a high take value ensures we get ALL products from those nearby sellers
+        findManyArgs.skip = 0;
+        findManyArgs.take = 10000; // High value to ensure all products are returned
+        console.log("Location-based search: Using high take value to return all products within 3km");
+      } else {
+        // For non-location searches, use normal pagination
+        findManyArgs.skip = skip;
+        findManyArgs.take = limit;
+      }
+      
+      // Execute query with updated fields
+      console.log("Final product query arguments:", JSON.stringify(findManyArgs, null, 2));
+
+      const [products, totalProducts] = await Promise.all([
+        prisma.product.findMany(findManyArgs), // Pass correctly structured args
+        prisma.product.count({ where: baseQueryOptions.where }) // Count uses only where clause
+      ]);
+      
+      console.log(`Query returned ${products.length} products, total count: ${totalProducts}`);
+      
+      // Calculate total pages
+      const totalPages = fetchAll ? 1 : Math.ceil(totalProducts / limit);
+      
+      // Add distance to products if location filter was applied
+      if (isLocationFilter) {
+        try {
+          // Create a map of seller distances for quick lookup
+          const sellerDistanceMap = new Map(
+            nearbySellers.map(seller => [seller.id, seller.distance])
+          );
+          
+          // Add distance to each product
+          productsWithDistance = products.map(product => {
+            const distance = sellerDistanceMap.get(product.sellerId) || null;
+            return {
+              ...product,
+              distance,
+              seller: {
+                ...product.seller,
+                distance
+              }
+            };
+          });
+          
+          // Sort by distance if location filter applied
+          productsWithDistance.sort((a, b) => (a.distance || Infinity) - (b.distance || Infinity));
+        } catch (distanceMapError) {
+          console.error("Error adding distances to products:", distanceMapError);
+          // Fall back to unsorted products without distance
+          productsWithDistance = products;
+        }
+      }
+      
+      return NextResponse.json({
+        products: isLocationFilter ? productsWithDistance : products,
+        isLocationFilter,
+        totalProducts,
+        // Adjust pagination response based on fetchAll
+        totalPages: fetchAll ? 1 : totalPages,
+        currentPage: fetchAll ? 1 : page
       });
-      
-      // Sort by distance if location filter applied
-      productsWithDistance.sort((a, b) => (a.distance || Infinity) - (b.distance || Infinity));
+    } catch (queryError) {
+      console.error("Error executing product query:", queryError);
+      return NextResponse.json(
+        { error: 'Product query error', details: queryError.message },
+        { status: 500 }
+      );
     }
-    
-    return NextResponse.json({
-      products: isLocationFilter ? productsWithDistance : products,
-      isLocationFilter,
-      totalProducts,
-      totalPages,
-      currentPage: page
-    });
   } catch (error) {
     console.error('Error fetching nearby products:', error);
+    // Return more detailed error information
     return NextResponse.json(
-      { error: 'Failed to fetch products', details: error.message },
+      { 
+        error: 'Failed to fetch products', 
+        details: error.message,
+        stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
+      },
       { status: 500 }
     );
   }

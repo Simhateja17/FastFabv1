@@ -1,0 +1,12 @@
+# Allow all crawlers
+User-agent: *
+Allow: /
+
+# Block certain paths
+Disallow: /api/
+Disallow: /admin/
+Disallow: /seller/dashboard/
+Disallow: /profile/
+
+# Sitemap location
+Sitemap: https://fastandfab.in/sitemap.xml 

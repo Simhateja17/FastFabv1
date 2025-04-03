@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, Suspense } from "react";
 import { useRouter } from "next/navigation";
 import { useUserAuth } from "@/app/context/UserAuthContext";
 import { USER_ENDPOINTS } from "@/app/config";
@@ -15,6 +15,16 @@ import {
 } from "react-icons/fi";
 
 export default function Orders() {
+  return (
+    <Suspense fallback={<div className="flex justify-center items-center min-h-screen">
+      <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500"></div>
+    </div>}>
+      <OrdersContent />
+    </Suspense>
+  );
+}
+
+function OrdersContent() {
   const router = useRouter();
   const { user, userAuthFetch, loading: authLoading } = useUserAuth();
   const [orders, setOrders] = useState([]);
