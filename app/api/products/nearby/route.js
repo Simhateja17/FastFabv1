@@ -65,27 +65,41 @@ export async function GET(request) {
     // Base query options (excluding pagination)
     const baseQueryOptions = {
       where: {
-        AND: [
-          { isActive: true }, // Using isActive instead of isAvailable and isApproved
-          { seller: { isVisible: true } } // ADDED: Ensure seller is visible
-        ]
-      },
-      include: {
-        seller: {
-          select: {
-            id: true,
-            shopName: true,
-            phone: true,
-            latitude: true,
-            longitude: true
-          }
-        },
-        colorInventory: true
+        AND: [],
       },
       orderBy: {
         createdAt: 'desc'
       }
     };
+    
+    // Add isActive filter by default
+    baseQueryOptions.where.AND.push({ isActive: true });
+    
+    // Remove the incorrect seller relation filter
+    // Instead, we need to join with the seller table to filter
+    try {
+      // First, get all visible sellers
+      const visibleSellers = await prisma.seller.findMany({
+        where: {
+          isVisible: true
+        },
+        select: {
+          id: true
+        }
+      });
+      
+      // Add the seller ID filter using the IN operator
+      baseQueryOptions.where.AND.push({
+        sellerId: {
+          in: visibleSellers.map(seller => seller.id)
+        }
+      });
+      
+      console.log(`Applied visible seller filter with ${visibleSellers.length} visible sellers`);
+    } catch (error) {
+      console.error("Error filtering by visible sellers:", error);
+      // If we can't filter by visible sellers, we'll just continue without this filter
+    }
     
     // Add category filter if provided
     if (category) {
@@ -249,14 +263,13 @@ export async function GET(request) {
     try {
       // Construct final arguments for findMany
       const findManyArgs = {
-        ...baseQueryOptions
+        where: baseQueryOptions.where,
+        orderBy: baseQueryOptions.orderBy,
       };
       
       // When location filter is applied (3km radius), ensure we get ALL products
       // by using a very high take value instead of the default 20
       if (isLocationFilter) {
-        // We already filtered by seller IDs within 3km radius in the WHERE clause
-        // so setting a high take value ensures we get ALL products from those nearby sellers
         findManyArgs.skip = 0;
         findManyArgs.take = 10000; // High value to ensure all products are returned
         console.log("Location-based search: Using high take value to return all products within 3km");
@@ -276,6 +289,65 @@ export async function GET(request) {
       
       console.log(`Query returned ${products.length} products, total count: ${totalProducts}`);
       
+      // Get all unique seller IDs from the products
+      const sellerIds = [...new Set(products.map(product => product.sellerId))];
+      
+      // Fetch seller details separately if there are products
+      let sellerMap = new Map();
+      if (sellerIds.length > 0) {
+        const sellers = await prisma.seller.findMany({
+          where: {
+            id: {
+              in: sellerIds
+            }
+          },
+          select: {
+            id: true,
+            shopName: true,
+            phone: true,
+            latitude: true,
+            longitude: true
+          }
+        });
+        
+        // Create a map of seller details by ID for quick lookups
+        sellerMap = new Map(sellers.map(seller => [seller.id, seller]));
+      }
+      
+      // Fetch color inventory data separately if there are products
+      let colorInventoryMap = new Map();
+      if (products.length > 0) {
+        const productIds = products.map(product => product.id);
+        
+        const colorInventories = await prisma.colorInventory.findMany({
+          where: {
+            productId: {
+              in: productIds
+            }
+          }
+        });
+        
+        // Group color inventories by product ID
+        colorInventories.forEach(inventory => {
+          if (!colorInventoryMap.has(inventory.productId)) {
+            colorInventoryMap.set(inventory.productId, []);
+          }
+          colorInventoryMap.get(inventory.productId).push(inventory);
+        });
+      }
+      
+      // Add seller information and color inventory to each product
+      const productsWithData = products.map(product => {
+        const seller = sellerMap.get(product.sellerId) || null;
+        const colorInventory = colorInventoryMap.get(product.id) || [];
+        
+        return {
+          ...product,
+          seller: seller,
+          colorInventory: colorInventory
+        };
+      });
+      
       // Calculate total pages
       const totalPages = fetchAll ? 1 : Math.ceil(totalProducts / limit);
       
@@ -288,15 +360,15 @@ export async function GET(request) {
           );
           
           // Add distance to each product
-          productsWithDistance = products.map(product => {
+          productsWithDistance = productsWithData.map(product => {
             const distance = sellerDistanceMap.get(product.sellerId) || null;
             return {
               ...product,
               distance,
-              seller: {
+              seller: product.seller ? {
                 ...product.seller,
                 distance
-              }
+              } : null
             };
           });
           
@@ -305,12 +377,12 @@ export async function GET(request) {
         } catch (distanceMapError) {
           console.error("Error adding distances to products:", distanceMapError);
           // Fall back to unsorted products without distance
-          productsWithDistance = products;
+          productsWithDistance = productsWithData;
         }
       }
       
       return NextResponse.json({
-        products: isLocationFilter ? productsWithDistance : products,
+        products: isLocationFilter ? productsWithDistance : productsWithData,
         isLocationFilter,
         totalProducts,
         // Adjust pagination response based on fetchAll
