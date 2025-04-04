@@ -544,15 +544,17 @@ export default function AddProduct() {
       return;
     }
 
-    // Clear previous files for this variant to ensure only these images are used
-    // This helps prevent confusion between variants
-    const previousPreviews = [...previewImages];
-    previousPreviews.forEach(url => URL.revokeObjectURL(url)); // Clean up
-    
     // Create preview URLs for new valid files
     const newPreviewUrls = validFiles.map((file) => URL.createObjectURL(file));
     
-    // Replace (not add to) existing files and previews
+    // Clear previous preview URLs to prevent memory leaks
+    previewImages.forEach(url => {
+      if (typeof url === 'string' && url.startsWith('blob:')) {
+        URL.revokeObjectURL(url);
+      }
+    });
+    
+    // Set the new files and previews
     setSelectedFiles(validFiles);
     setPreviewImages(newPreviewUrls);
     
@@ -568,6 +570,9 @@ export default function AddProduct() {
         images: newPreviewUrls
       };
       setProductPages(updatedProductPages);
+      
+      // Auto-save the changes
+      saveCurrentPageData();
     }
     
     console.log(`Updated variant ${currentPage} with ${validFiles.length} images`);
@@ -578,7 +583,7 @@ export default function AddProduct() {
 
   const uploadVariantImages = async (variantFiles) => {
     if (!variantFiles || variantFiles.length === 0) {
-      toast.error("No files provided for this variant");
+      console.warn("No files provided for upload");
       return [];
     }
 
@@ -681,7 +686,14 @@ export default function AddProduct() {
         break;
       }
       
-      if (!page.images || page.images.length === 0) {
+      // Check for images - consider both images array and files array for validation
+      const hasImages = 
+        (page.files && page.files.length > 0) || 
+        (page.images && page.images.length > 0 && 
+         typeof page.images[0] === 'string' && 
+         page.images[0].startsWith('http'));
+         
+      if (!hasImages) {
         isValid = false;
         errorPage = i + 1;
         console.error(`Missing product images on page ${i + 1}:`, page);
@@ -719,21 +731,24 @@ export default function AddProduct() {
         const page = productPages[i];
         setCurrentPage(i + 1);
         
-        // IMPORTANT: Use the files specifically from this page variant
-        // instead of using the current state which might have been changed
-        const variantFiles = page.files || [];
+        // Get image URLs for this variant
+        let variantImageUrls = [];
         
-        if (variantFiles.length === 0) {
-          throw new Error(`No files selected for variant on page ${i + 1}`);
+        // If the page has files to upload, upload them
+        if (page.files && page.files.length > 0) {
+          console.log(`Uploading ${page.files.length} images for variant ${i + 1}`);
+          variantImageUrls = await uploadVariantImages(page.files);
+        } 
+        // If the page already has image URLs, use those
+        else if (page.images && page.images.length > 0 && 
+                typeof page.images[0] === 'string' && 
+                page.images[0].startsWith('http')) {
+          console.log(`Using existing ${page.images.length} image URLs for variant ${i + 1}`);
+          variantImageUrls = page.images;
         }
         
-        console.log(`Uploading ${variantFiles.length} images for variant ${i + 1}`);
-        
-        // Upload images for this specific variant
-        const imageUrls = await uploadVariantImages(variantFiles);
-        
-        if (imageUrls.length === 0) {
-          throw new Error(`Failed to upload images for variant on page ${i + 1}`);
+        if (!variantImageUrls || variantImageUrls.length === 0) {
+          throw new Error(`No valid images available for variant on page ${i + 1}`);
         }
         
         // Convert size quantities array to object format
@@ -759,7 +774,7 @@ export default function AddProduct() {
           description: page.description,
           mrpPrice: parseFloat(page.mrpPrice),
           sellingPrice: parseFloat(page.sellingPrice),
-          images: imageUrls,
+          images: variantImageUrls,
           category: page.category,
           subcategory: page.subcategory,
           isReturnable: page.isReturnable,
@@ -771,7 +786,7 @@ export default function AddProduct() {
         
         // Use the correct backend URL for product creation
         const response = await authFetch(
-          `${backendApiUrl}/products`, // Corrected: Mount path is /api/products, route is /
+          `${backendApiUrl}/products`,
           {
             method: "POST",
             headers: {
