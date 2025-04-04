@@ -9,8 +9,13 @@ import ProductFilters from "@/app/components/ProductFilters";
 import NearbyProductsFilter from '@/app/components/NearbyProductsToggle';
 import NoNearbyProductsMessage from '@/app/components/NoNearbyProductsMessage';
 import React from "react";
+import { toast } from "react-hot-toast";
+import ProductGrid from "../components/ProductGrid";
+import FilterSidebar from "../components/FilterSidebar";
+import { FiSearch } from "react-icons/fi";
+import PageHero from "../components/PageHero";
 
-function ProductsPageContent() {
+function ProductsContent() {
   const searchParams = useSearchParams();
   const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -21,18 +26,16 @@ function ProductsPageContent() {
     radius: 3
   });
   const [filters, setFilters] = useState({
-    category: "",
-    subcategory: "",
-    size: "",
-    minPrice: null,
-    maxPrice: null,
-    sort: "",
+    category: searchParams.get("category") || "",
+    priceRange: [0, 10000],
+    sortBy: "latest",
   });
+  const [searchTerm, setSearchTerm] = useState(searchParams.get("search") || "");
   
   const [noNearbyResults, setNoNearbyResults] = useState(false);
   
   // Helper function to normalize price data
-  const normalizePrice = (priceValue) => {
+  const normalizePrice = useCallback((priceValue) => {
     if (priceValue === null || priceValue === undefined) return 0;
     if (typeof priceValue === 'number') return priceValue;
     if (typeof priceValue === 'string') {
@@ -47,18 +50,18 @@ function ProductsPageContent() {
     // If it's neither number nor string, log a warning
     console.warn(`normalizePrice: Unexpected price type: ${typeof priceValue}, value:`, priceValue, `. Returning 0.`);
     return 0;
-  };
+  }, []);
 
   // Stable fetch function for the 'Try Again' button
   const fetchProducts = useCallback(async () => {
-    // Fetch logic identical to the one inside useEffect below
-    // This ensures clicking 'Try Again' re-runs the fetch with current state
     try {
       setLoading(true);
       setError(null);
-      setNoNearbyResults(false);
-      
+
+      // Get search term from URL
       const searchTerm = searchParams.get('search') || '';
+
+      // Create query params
       const queryParams = new URLSearchParams();
       if (searchTerm.trim()) queryParams.append("search", searchTerm.trim());
       if (filters.category) queryParams.append("category", filters.category);
@@ -71,22 +74,23 @@ function ProductsPageContent() {
         queryParams.append("longitude", locationFilter.location.longitude);
         queryParams.append("radius", locationFilter.radius);
       }
-
+      
       let endpoint;
-      if (searchTerm.trim()) endpoint = `/api/products/search`;
-      else if (hasLocationData) endpoint = `/api/products/nearby`;
-      else endpoint = PUBLIC_ENDPOINTS.PRODUCTS;
-
+      if (searchTerm.trim()) {
+        endpoint = `/api/products/search`;
+      } else if (hasLocationData) {
+        endpoint = `/api/products/nearby`;
+      } else {
+        endpoint = PUBLIC_ENDPOINTS.PRODUCTS;
+      }
+      
       const response = await fetch(`${endpoint}?${queryParams.toString()}`);
       if (!response.ok) throw new Error(`Failed to fetch products: ${response.status}`);
       let data = await response.json();
-      if (hasLocationData && data.isLocationFilter && data.products.length === 0) {
-        setNoNearbyResults(true);
-        return;
-      }
+
       let productList = Array.isArray(data) ? data : (data.products || []);
       
-      // Apply client-side filtering (same logic as before)
+      // Apply client-side filtering
       if (filters.subcategory) {
           productList = productList.filter(p => p.subcategory?.toLowerCase() === filters.subcategory.toLowerCase());
       }
@@ -116,7 +120,7 @@ function ProductsPageContent() {
     } finally {
       setLoading(false);
     }
-  }, []); // Empty dependencies for stable identity needed for button
+  }, [filters, locationFilter, searchParams, normalizePrice]);
 
   // Define stable keys from the state objects OUTSIDE the useEffect
   const currentSearchTerm = searchParams.get('search') || '';
@@ -126,7 +130,8 @@ function ProductsPageContent() {
 
   // This useEffect triggers the fetch based *only* on stable keys derived from state/props
   useEffect(() => {
-    console.log(`[Effect Trigger] Params: ${searchParamsString}, Filters: ${filtersKey}, Location: ${locationFilterKey}`);
+    // Log the current search parameters and filters inside the effect
+    console.log(`[Effect Trigger] Fetch products with current parameters`);
 
     // Define and call the async fetch logic directly inside the effect
     const fetchData = async () => {
@@ -135,10 +140,10 @@ function ProductsPageContent() {
             setError(null);
             setNoNearbyResults(false);
             
-            // Get search term from URL (using the stable key is fine here too)
-            const searchTerm = currentSearchTerm;
+            // Get search term from URL
+            const searchTerm = searchParams.get('search') || '';
             
-            // Create query params (using state directly is fine here as effect reruns when they change)
+            // Create query params
             const queryParams = new URLSearchParams();
             if (searchTerm.trim()) queryParams.append("search", searchTerm.trim());
             if (filters.category) queryParams.append("category", filters.category);
@@ -218,7 +223,7 @@ function ProductsPageContent() {
 
     fetchData(); // Execute the fetch logic
 
-  }, [searchParamsString, filtersKey, locationFilterKey]); // Depend on stringified params and filters
+  }, [searchParams, filters, locationFilter, normalizePrice]);
 
   // Handler for location filter changes - Memoize this handler
   const handleLocationFilterChange = useCallback((newLocationFilter) => {
@@ -267,73 +272,56 @@ function ProductsPageContent() {
   }
 
   return (
-    <div className="max-w-7xl mx-auto px-4 py-6 sm:px-6 lg:px-8">
-      {/* Product filters and results */}
-      <div className="lg:grid lg:grid-cols-4 lg:gap-8">
-        {/* Left column: Filters */}
-        <div className="lg:col-span-1 mb-4 lg:mb-0">
-          <ProductFilters
-            filters={filters}
-            setFilters={setFilters}
-          />
-          
-          <div className="mt-6">
-            <NearbyProductsFilter
-              locationFilter={locationFilter}
-              onLocationFilterChange={handleLocationFilterChange}
+    <div>
+      <PageHero title="All Products" subtitle="Discover our collection" />
+      
+      <div className="container mx-auto px-4 py-8">
+        <div className="flex flex-col md:flex-row gap-6">
+          <div className="w-full md:w-1/4">
+            <FilterSidebar 
+              filters={filters}
+              onFilterChange={handleLocationFilterChange}
             />
           </div>
-        </div>
-        
-        {/* Right column: Products grid */}
-        <div className="lg:col-span-3">
-          {/* Show message when no products with location filter */}
-          {noNearbyResults && (
-            <NoNearbyProductsMessage />
-          )}
           
-          {/* Title section with result count */}
-          <div className="flex justify-between items-center mb-6">
-            <h1 className="text-2xl font-bold text-gray-900">
-              Products {products.length > 0 ? `(${products.length})` : ''}
-            </h1>
-          </div>
-          
-          {/* Product Grid */}
-          {products.length > 0 ? (
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6">
-              {products.map((product) => (
-                <ProductCard key={product.id} product={product} />
-              ))}
-            </div>
-          ) : (
-            // Show message when no products found (but not location filtered)
-            !noNearbyResults && (
-              <div className="text-center py-12 bg-gray-50 rounded-lg">
-                <p className="text-gray-500">No products found matching your criteria.</p>
-                <button
-                  onClick={() => {
-                    setFilters({
-                      category: "",
-                      subcategory: "",
-                      size: "",
-                      minPrice: null,
-                      maxPrice: null,
-                      sort: "",
-                    });
-                    setLocationFilter({
-                      enabled: false,
-                      location: null,
-                      radius: 3
-                    });
-                  }}
-                  className="mt-4 text-primary hover:underline"
+          <div className="w-full md:w-3/4">
+            <div className="mb-6 flex flex-col sm:flex-row gap-4">
+              <div className="relative flex-grow">
+                <input
+                  type="text"
+                  placeholder="Search products..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary"
+                />
+                <button 
+                  onClick={handleSearch}
+                  className="absolute right-2 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-primary"
                 >
-                  Clear all filters
+                  <FiSearch size={20} />
                 </button>
               </div>
-            )
-          )}
+              
+              <select
+                value={filters.sortBy}
+                onChange={(e) => handleLocationFilterChange({ ...locationFilter, sortBy: e.target.value })}
+                className="px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary"
+              >
+                <option value="latest">Latest</option>
+                <option value="price-low-high">Price: Low to High</option>
+                <option value="price-high-low">Price: High to Low</option>
+                <option value="popular">Most Popular</option>
+              </select>
+            </div>
+            
+            <ProductGrid 
+              products={products} 
+              loading={loading}
+              error={error}
+              onRetry={fetchProducts}
+            />
+          </div>
         </div>
       </div>
     </div>
@@ -344,10 +332,10 @@ export default function ProductsPage() {
   return (
     <Suspense fallback={
       <div className="min-h-screen flex items-center justify-center">
-        <LoadingSpinner size="large" color="secondary" />
+        <div className="w-12 h-12 border-4 border-primary border-solid rounded-full border-t-transparent animate-spin"></div>
       </div>
     }>
-      <ProductsPageContent />
+      <ProductsContent />
     </Suspense>
   );
 }

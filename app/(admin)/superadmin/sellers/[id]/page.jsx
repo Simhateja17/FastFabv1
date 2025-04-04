@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import axios from "axios";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import Image from 'next/image';
 
 // API endpoint
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000";
@@ -610,12 +611,19 @@ export default function SellerDetailPage({ params }) {
                     <tr key={product.id} className="hover:bg-background-alt">
                       <td className="px-6 py-4 whitespace-nowrap">
                         <div className="flex items-center">
-                          <div className="flex-shrink-0 h-10 w-10 bg-background-alt rounded-md overflow-hidden">
+                          <div className="flex-shrink-0 h-10 w-10 bg-background-alt rounded-md overflow-hidden relative">
                             {product.images && product.images.length > 0 ? (
-                              <img
+                              <Image
                                 src={product.images[0]}
-                                alt={product.name}
-                                className="h-10 w-10 object-cover"
+                                alt={product.name || 'Product image'}
+                                fill
+                                className="object-cover"
+                                onError={(e) => {
+                                  e.target.onerror = null;
+                                  e.target.src =
+                                    "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='40' height='40' viewBox='0 0 40 40' fill='%23eee'%3E%3Ctext x='50%' y='50%' dominant-baseline='middle' text-anchor='middle' font-size='10' fill='%23aaa'%3ENoImg%3C/text%3E%3C/svg%3E";
+                                }}
+                                sizes="40px"
                               />
                             ) : (
                               <div className="h-10 w-10 flex items-center justify-center text-text-muted">

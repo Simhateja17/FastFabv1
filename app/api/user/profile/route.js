@@ -24,10 +24,17 @@ const initPrisma = async () => {
  */
 const verifyToken = (token) => {
   try {
-    return jwt.verify(
+    const decoded = jwt.verify(
       token,
       process.env.JWT_SECRET || 'fallback-secret-key-for-development'
     );
+    
+    // Check if we have a userId field, and if not, check for sub claim which is standard JWT
+    if (!decoded.userId && decoded.sub) {
+      decoded.userId = decoded.sub;
+    }
+    
+    return decoded;
   } catch (error) {
     console.error('Token verification failed:', error.message);
     return null;
@@ -35,18 +42,32 @@ const verifyToken = (token) => {
 };
 
 /**
- * Middleware to extract user ID from authorization header
+ * Middleware to extract user ID from cookies or authorization header
  */
 const extractUserIdFromToken = (request) => {
-  // Get the authorization header from the request
+  // First try to get the token from cookies
+  const cookies = request.cookies;
+  const accessTokenFromCookie = cookies.get('accessToken')?.value;
+  
+  // If we have a token from cookies, use it
+  if (accessTokenFromCookie) {
+    console.log('Found access token in cookies');
+    const decoded = verifyToken(accessTokenFromCookie);
+    if (decoded) {
+      console.log('Successfully verified token from cookies');
+      return decoded.userId;
+    }
+  }
+  
+  // If no valid token in cookies, check the authorization header as fallback
   const authHeader = request.headers.get('authorization');
   
   if (!authHeader || !authHeader.startsWith('Bearer ')) {
-    console.log('Missing or invalid authorization header');
+    console.log('No token in cookies and missing or invalid authorization header');
     return null;
   }
   
-  // Extract the token
+  // Extract the token from the header
   const token = authHeader.split(' ')[1];
   
   // Verify the token
@@ -99,7 +120,10 @@ export async function GET(request) {
     }
     
     // Return user profile
-    return NextResponse.json(user, { status: 200 });
+    return NextResponse.json({
+      success: true,
+      user
+    }, { status: 200 });
   } catch (error) {
     console.error('Error fetching user profile:', error);
     return NextResponse.json({

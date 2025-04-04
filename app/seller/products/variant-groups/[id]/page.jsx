@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/app/context/AuthContext";
 import Link from "next/link";
@@ -26,11 +26,7 @@ export default function VariantGroupDetails({ params }) {
   const [error, setError] = useState("");
   const [variantGroup, setVariantGroup] = useState(null);
 
-  useEffect(() => {
-    fetchVariantGroup();
-  }, []);
-
-  const fetchVariantGroup = async () => {
+  const fetchVariantGroup = useCallback(async () => {
     setLoading(true);
     try {
       const response = await authFetch(`/api/products/variant-group/${groupId}`, {
@@ -50,7 +46,11 @@ export default function VariantGroupDetails({ params }) {
     } finally {
       setLoading(false);
     }
-  };
+  }, [groupId, authFetch]);
+
+  useEffect(() => {
+    fetchVariantGroup();
+  }, [fetchVariantGroup]);
 
   const handleDeleteVariant = async (productId) => {
     if (!confirm("Are you sure you want to delete this variant?")) {

@@ -3,15 +3,18 @@ import { cookies } from 'next/headers';
 
 // Handles GET, PUT, DELETE for a specific product by ID
 export async function GET(request, { params }) {
-  return handleProductIdRequest(request, 'GET', params.id);
+  const { id } = params;
+  return handleProductIdRequest(request, 'GET', id);
 }
 
 export async function PUT(request, { params }) {
-  return handleProductIdRequest(request, 'PUT', params.id);
+  const { id } = params;
+  return handleProductIdRequest(request, 'PUT', id);
 }
 
 export async function DELETE(request, { params }) {
-  return handleProductIdRequest(request, 'DELETE', params.id);
+  const { id } = params;
+  return handleProductIdRequest(request, 'DELETE', id);
 }
 
 async function handleProductIdRequest(request, method, productId) {
@@ -24,12 +27,14 @@ async function handleProductIdRequest(request, method, productId) {
       const authHeader = request.headers.get('authorization');
       if (authHeader && authHeader.startsWith('Bearer ')) {
         accessToken = authHeader.substring(7);
+        console.log('Using access token from Authorization header');
       }
     }
     
     if (!accessToken) {
+      console.error('No access token found in cookies or auth header');
       return NextResponse.json(
-        { message: 'Authentication required' },
+        { message: 'Authentication required. Please login again.' },
         { status: 401 }
       );
     }
@@ -66,6 +71,9 @@ async function handleProductIdRequest(request, method, productId) {
       });
 
       console.log(`Seller service response status: ${response.status}`);
+      // Log content type for debugging
+      const contentType = response.headers.get('content-type') || 'unknown';
+      console.log(`Seller service response content type: ${contentType}`);
 
       if (!response) {
         throw new Error('No response received from seller service');
@@ -83,6 +91,26 @@ async function handleProductIdRequest(request, method, productId) {
     if (!response.ok) {
       let errorMessage = `Failed to ${method.toLowerCase()} product via seller service`;
       let errorDetails = null;
+      const contentType = response.headers.get('content-type') || 'unknown';
+      
+      // Check if response is HTML instead of JSON
+      if (contentType.includes('text/html')) {
+        const htmlContent = await response.text();
+        console.error(`Received HTML error page from seller service:`, htmlContent.substring(0, 200) + '...');
+        
+        return NextResponse.json(
+          { 
+            message: "Server returned an HTML error page", 
+            details: { 
+              contentType,
+              statusCode: response.status,
+              preview: htmlContent.substring(0, 200) + '...'
+            }
+          },
+          { status: 502 } // Bad Gateway
+        );
+      }
+      
       try {
         // Try to parse JSON error first
         errorDetails = await response.json();
@@ -95,7 +123,11 @@ async function handleProductIdRequest(request, method, productId) {
           console.error(`Seller service error text (${response.status}):`, errorText);
           // Use text as details if available and not too long
           if (errorText && errorText.length < 500) {
-             errorDetails = { errorText };
+             errorDetails = { 
+               errorText,
+               contentType,
+               statusCode: response.status
+             };
           }
         } catch (textError) {
           console.error('Failed to parse error response as JSON or text');
@@ -110,6 +142,13 @@ async function handleProductIdRequest(request, method, productId) {
 
     // Handle successful response
     try {
+      const contentType = response.headers.get('content-type') || 'unknown';
+      
+      // Check if successful response is not JSON
+      if (!contentType.includes('application/json')) {
+        console.warn(`Unexpected content type in successful response: ${contentType}`);
+      }
+      
       const data = await response.json();
       console.log(`Product ${method.toLowerCase()} operation successful for ID ${productId}`);
       
@@ -123,9 +162,21 @@ async function handleProductIdRequest(request, method, productId) {
         return NextResponse.json({ message: "Product deleted successfully", success: true }); 
       }
       
-      console.error(`Failed to parse successful ${method} response:`, e);
+      const contentType = response.headers.get('content-type') || 'unknown';
+      console.error(`Failed to parse successful ${method} response:`, e, `Content-Type: ${contentType}`);
+      
+      try {
+        const text = await response.text();
+        console.log(`Response body preview: ${text.substring(0, 200)}`);
+      } catch (textError) {
+        console.log('Could not read response text');
+      }
+      
       return NextResponse.json(
-        { message: 'Operation completed but received invalid response format from seller service' },
+        { 
+          message: 'Operation completed but received invalid response format from seller service',
+          details: { contentType, status: response.status }
+        },
         { status: 502 } // Bad Gateway, as the downstream service sent unexpected success response
       );
     }
@@ -133,7 +184,7 @@ async function handleProductIdRequest(request, method, productId) {
   } catch (error) {
     console.error(`Unhandled error in product ${method} operation for ID ${productId}:`, error);
     return NextResponse.json(
-      { message: `Internal server error while processing product ${method}`, error: error.message },
+      { message: `Internal server error while processing product ${method}`, error: error.message, stack: error.stack },
       { status: 500 }
     );
   }

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
 import { toast } from "react-hot-toast";
@@ -134,33 +134,40 @@ export default function EditProductClient({ productId }) {
     images: [],
   });
 
-  useEffect(() => {
-    if (productId) {
-      fetchProduct();
-    }
-  }, [productId]);
-
-  const fetchProduct = async () => {
+  // Function to fetch color inventories separately
+  const fetchColorInventories = useCallback(async (pid) => {
     try {
-      console.log("Fetching product with ID:", productId);
-
-      const response = await authFetch(
-        PRODUCT_ENDPOINTS.DETAIL(productId)
+      const colorResponse = await authFetch(
+        `${API_URL}/seller/products/${pid}/colors`
       );
 
-      console.log("Fetch response status:", response.status);
-
-      if (!response.ok) {
-        const errorText = await response.text();
-        console.error("Error response:", errorText);
-        throw new Error(
-          `Failed to fetch product: ${response.status} ${errorText}`
-        );
+      if (colorResponse.ok) {
+        const colorData = await colorResponse.json();
+        setColorInventories(colorData.colorInventories || []);
+      } else if (colorResponse.status === 401) {
+        console.error("Authentication error while fetching color inventories");
+        toast.error("Please login again to continue.");
+        setTimeout(() => {
+          router.push("/signin");
+        }, 2000);
+      } else {
+        console.warn(`Failed to fetch color inventories: ${colorResponse.status}`);
+        // Continue with the product data we have
       }
+    } catch (colorError) {
+      console.error("Error fetching color inventories:", colorError);
+      // Don't throw, just continue with the product data we have
+      if (colorError.message.includes("Authentication required")) {
+        toast.error("Please login again to continue.");
+        setTimeout(() => {
+          router.push("/signin");
+        }, 2000);
+      }
+    }
+  }, [authFetch, router]);
 
-      const product = await response.json();
-      console.log("Fetched product data:", product);
-
+  // Helper function to process product data
+  const processProductData = useCallback((product) => {
       // Update subcategories based on category
       const categoryData = CATEGORIES.find((c) => c.name === product.category);
       setAvailableSubcategories(categoryData ? categoryData.subcategories : []);
@@ -173,19 +180,7 @@ export default function EditProductClient({ productId }) {
       setSelectedSizes(sizesArray);
 
       // Fetch color inventories if available
-      try {
-        const colorResponse = await authFetch(
-          `${API_URL}/seller/products/${productId}/colors`
-        );
-
-        if (colorResponse.ok) {
-          const colorData = await colorResponse.json();
-          setColorInventories(colorData.colorInventories || []);
-        }
-      } catch (colorError) {
-        console.error("Error fetching color inventories:", colorError);
-        // Don't throw, just continue with the product data we have
-      }
+      fetchColorInventories(product.id || productId);
 
       setFormData({
         name: product.name || "",
@@ -216,14 +211,88 @@ export default function EditProductClient({ productId }) {
         images: product.images || [],
       });
       setPreviewImages(product.images || []);
+  }, [fetchColorInventories, productId]);
+
+  const fetchProduct = useCallback(async () => {
+    try {
+      console.log("Fetching product with ID:", productId);
+      setLoading(true);
+
+      // First try the standard API endpoint
+      try {
+      const response = await authFetch(
+        PRODUCT_ENDPOINTS.DETAIL(productId)
+      );
+
+      console.log("Fetch response status:", response.status);
+
+      if (!response.ok) {
+          const contentType = response.headers.get('content-type') || '';
+          // Check if we're getting HTML instead of JSON
+          if (contentType.includes('text/html')) {
+            console.error("Received HTML response, trying alternative endpoint");
+            throw new Error("Server returned an HTML error page");
+          }
+          
+        const errorText = await response.text();
+        console.error("Error response:", errorText);
+        throw new Error(
+          `Failed to fetch product: ${response.status} ${errorText}`
+        );
+      }
+
+      const product = await response.json();
+      console.log("Fetched product data:", product);
+        processProductData(product);
+        return; // Exit function if successful
+      } catch (primaryError) {
+        console.warn("Error with primary endpoint, trying direct seller service:", primaryError);
+        
+        // If primary endpoint fails, try direct seller service if configured
+        const apiUrl = process.env.NEXT_PUBLIC_SELLER_SERVICE_URL || 'http://localhost:8000';
+        console.log("Using direct seller service URL:", apiUrl);
+        
+        try {
+          // Use regular fetch here to bypass authFetch which might be causing issues
+          const accessToken = localStorage.getItem("accessToken");
+          const directResponse = await fetch(
+            `${apiUrl}/api/products/${productId}`, {
+              headers: {
+                'Authorization': `Bearer ${accessToken}`,
+                'Content-Type': 'application/json'
+              }
+            }
+          );
+          
+          if (!directResponse.ok) {
+            const errorText = await directResponse.text();
+            throw new Error(`Failed with direct endpoint: ${directResponse.status} ${errorText}`);
+          }
+          
+          const product = await directResponse.json();
+          console.log("Fetched product data from direct API:", product);
+          processProductData(product);
+          return; // Exit function if successful
+        } catch (directError) {
+          console.error("Both endpoints failed:", directError);
+          // Re-throw the primary error for consistent error handling
+          throw primaryError;
+        }
+      }
     } catch (error) {
       console.error("Error fetching product:", error);
-      toast.error("Error fetching product: " + error.message);
+      toast.error("Unable to load product information. Please try again later.");
       router.push("/seller/products");
     } finally {
       setLoading(false);
     }
-  };
+  }, [productId, authFetch, processProductData, router]);
+
+  useEffect(() => {
+    if (productId) {
+      fetchProduct();
+    }
+  }, [productId, fetchProduct]);
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
@@ -472,6 +541,116 @@ export default function EditProductClient({ productId }) {
     console.log(`Updated files: ${selectedFiles.length + validFiles.length}, previews: ${previewImages.length + newPreviewUrls.length}`);
   };
 
+  // Direct upload function that bypasses authFetch for image uploads
+  const directUpload = async (url, formData) => {
+    console.log(`[DirectUpload] Starting direct upload to ${url}`);
+    
+    // Get auth token directly
+    const accessToken = localStorage.getItem("accessToken");
+    if (!accessToken) {
+      throw new Error("Authentication required. Please login again.");
+    }
+    
+    // Log request details
+    console.log(`[DirectUpload] Authorization header configured with token`);
+    console.log(`[DirectUpload] FormData contains ${formData.getAll('images').length} files`);
+    formData.getAll('images').forEach((file, i) => {
+      console.log(`[DirectUpload] File ${i+1}: ${file.name}, ${file.size} bytes, ${file.type}`);
+    });
+    
+    // Implement retry mechanism
+    let attempts = 0;
+    const maxAttempts = 3;
+    
+    while (attempts < maxAttempts) {
+      attempts++;
+      try {
+        console.log(`[DirectUpload] Attempt ${attempts}/${maxAttempts}`);
+        
+        // Use direct fetch with manual auth header instead of authFetch
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 30000); // 30 second timeout
+        
+        const response = await fetch(url, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${accessToken}`
+            // Don't set Content-Type for multipart/form-data
+          },
+          body: formData,
+          credentials: 'include',
+          signal: controller.signal
+        });
+        
+        clearTimeout(timeoutId);
+        
+        console.log(`[DirectUpload] Response status: ${response.status}, content type: ${response.headers.get('content-type') || 'unknown'}`);
+        
+        // Handle responses based on status
+        if (!response.ok) {
+          // Try to get detailed error info
+          const contentType = response.headers.get('content-type') || '';
+          
+          // For HTML errors, don't try to parse JSON
+          if (contentType.includes('text/html')) {
+            const htmlText = await response.text();
+            console.error('[DirectUpload] HTML error response:', htmlText.substring(0, 500));
+            throw new Error(`Upload failed (${response.status}): Server returned HTML error page`);
+          }
+          
+          // For JSON errors, parse them
+          if (contentType.includes('application/json')) {
+            const errorData = await response.json();
+            console.error('[DirectUpload] JSON error response:', errorData);
+            throw new Error(errorData.message || `Upload failed with status ${response.status}`);
+          }
+          
+          // For other content types
+          const errorText = await response.text();
+          console.error('[DirectUpload] Error response:', errorText.substring(0, 500));
+          throw new Error(`Upload failed with status ${response.status}`);
+        }
+        
+        // For successful responses
+        const contentType = response.headers.get('content-type') || '';
+        
+        // Only try to parse JSON for JSON responses
+        if (contentType.includes('application/json')) {
+          const data = await response.json();
+          console.log('[DirectUpload] Success response:', data);
+          return data;
+        }
+        
+        // For non-JSON success responses, return empty urls
+        console.warn('[DirectUpload] Non-JSON success response');
+        const text = await response.text();
+        console.log('[DirectUpload] Response text:', text.substring(0, 200));
+        return { imageUrls: [] };
+        
+      } catch (error) {
+        console.error(`[DirectUpload] Attempt ${attempts} error:`, error);
+        
+        // Check if it's a network error
+        if (error.name === 'TypeError' || error.message.includes('Failed to fetch') || error.name === 'AbortError') {
+          console.log(`[DirectUpload] Network error detected: ${error.message}`);
+          
+          if (attempts < maxAttempts) {
+            // Wait before retrying (exponential backoff)
+            const waitTime = Math.min(1000 * Math.pow(2, attempts), 8000);
+            console.log(`[DirectUpload] Retrying in ${waitTime}ms...`);
+            await new Promise(resolve => setTimeout(resolve, waitTime));
+            continue; // Try again
+          }
+        }
+        
+        // If we've exhausted retries or it's not a network error, rethrow
+        throw error;
+      }
+    }
+    
+    throw new Error('Failed to upload after multiple attempts. Please check your network connection.');
+  };
+
   const uploadImages = async () => {
     if (selectedFiles.length === 0) return formData.images;
 
@@ -482,47 +661,78 @@ export default function EditProductClient({ productId }) {
       // Log the number of files being uploaded for debugging
       console.log(`Uploading ${selectedFiles.length} files`);
       
-      // Append files with unique names to prevent overwrites
+      // Log file sizes for debugging
       selectedFiles.forEach((file, index) => {
-        // Add timestamp and index to make each file name unique
-        const fileName = `${Date.now()}_${index}_${file.name.replace(/\s+/g, '_')}`;
-        formDataObj.append("images", new File([file], fileName, { type: file.type }));
+        console.log(`File ${index}: ${file.name}, size: ${(file.size / 1024 / 1024).toFixed(2)} MB, type: ${file.type}`);
+        
+        // Append files with unique names to prevent conflicts
+        const uniqueName = `${Date.now()}_${index}_${file.name.replace(/[^a-zA-Z0-9.-]/g, '_')}`;
+        console.log(`Renamed to: ${uniqueName}`);
+        
+        const fileWithNewName = new File([file], uniqueName, { type: file.type });
+        formDataObj.append("images", fileWithNewName);
       });
 
-      // Upload images with retry logic
-      let response;
-      let retries = 0;
-      const maxRetries = 2;
+      // Try multiple API endpoints for upload
+      let uploadData;
+      let error;
       
-      while (retries <= maxRetries) {
+      // Define all possible upload endpoints
+      const endpoints = [
+        // 1. Local API route
+        `${window.location.origin}/api/products/upload-images`,
+        
+        // 2. API from env variable if available
+        process.env.NEXT_PUBLIC_API_URL ? 
+          `${process.env.NEXT_PUBLIC_API_URL}/api/products/upload-images` : null,
+        
+        // 3. Direct seller service if available
+        process.env.NEXT_PUBLIC_SELLER_SERVICE_URL ? 
+          `${process.env.NEXT_PUBLIC_SELLER_SERVICE_URL}/api/products/upload-images` : null,
+          
+        // 4. Fallback to localhost
+        "http://localhost:8000/api/products/upload-images"
+      ].filter(Boolean); // Remove null entries
+      
+      // Remove duplicates
+      const uniqueEndpoints = [...new Set(endpoints)];
+      console.log(`Will try ${uniqueEndpoints.length} different upload endpoints:`, uniqueEndpoints);
+      
+      // Try each endpoint in sequence
+      for (let i = 0; i < uniqueEndpoints.length; i++) {
+        const endpoint = uniqueEndpoints[i];
+        console.log(`[Upload] Trying endpoint ${i+1}/${uniqueEndpoints.length}: ${endpoint}`);
+        
         try {
-          response = await authFetch(
-            `${process.env.NEXT_PUBLIC_API_URL}/api/products/upload-images`,
-            {
-              method: "POST",
-              body: formDataObj,
-            }
-          );
-          break; // If successful, break out of the retry loop
-        } catch (err) {
-          console.error(`Upload attempt ${retries + 1} failed:`, err);
-          if (retries === maxRetries) throw err; // Rethrow on final attempt
-          retries++;
-          // Wait before retrying (exponential backoff)
-          await new Promise(r => setTimeout(r, 1000 * retries));
+          // Use directUpload for all attempts
+          uploadData = await directUpload(endpoint, formDataObj);
+          console.log(`[Upload] Success with endpoint ${i+1}: ${endpoint}`);
+          error = null; // Clear error if successful
+          break; // Exit loop on success
+        } catch (endpointError) {
+          console.error(`[Upload] Endpoint ${i+1} failed:`, endpointError);
+          error = endpointError;
+          
+          // Continue to next endpoint
+          if (i < uniqueEndpoints.length - 1) {
+            console.log(`[Upload] Trying next endpoint...`);
+          }
         }
       }
-
-      if (!response || !response.ok) {
-        const errorData = await response?.json?.() || { message: "Upload failed" };
-        throw new Error(errorData.message || "Failed to upload images");
+      
+      // If we still have an error after all attempts, throw it
+      if (error) throw error;
+      
+      // Check for upload data
+      if (!uploadData || !uploadData.imageUrls) {
+        console.warn("[Upload] No image URLs returned from upload");
+        return formData.images;
       }
-
-      const data = await response.json();
-      console.log("Upload successful, received URLs:", data.imageUrls?.length || 0);
-      return [...formData.images, ...(data.imageUrls || [])];
+      
+      console.log("[Upload] Upload successful, received URLs:", uploadData.imageUrls?.length || 0);
+      return [...formData.images, ...(uploadData.imageUrls || [])];
     } catch (error) {
-      console.error("Image upload error:", error);
+      console.error("[Upload] Image upload error:", error);
       toast.error("Failed to upload images: " + error.message);
       throw error;
     } finally {
@@ -537,8 +747,8 @@ export default function EditProductClient({ productId }) {
 
     try {
       // Validate token
-      const token = localStorage.getItem("token");
-      if (!token) {
+      const accessToken = localStorage.getItem("accessToken");
+      if (!accessToken) {
         throw new Error("Authentication required. Please login again.");
       }
 
@@ -552,12 +762,31 @@ export default function EditProductClient({ productId }) {
         }
       }
 
+      // Prepare clean size quantities - ensure sizes with 0 quantity are explicitly set to 0
+      const cleanSizeQuantities = {};
+      SIZES.forEach(size => {
+        // Default all sizes to 0
+        cleanSizeQuantities[size] = 0;
+      });
+      
+      // Then set only the sizes that have quantities from our form
+      Object.entries(formData.sizeQuantities).forEach(([size, qty]) => {
+        cleanSizeQuantities[size] = parseInt(qty) || 0;
+      });
+      
+      // Add detailed logging
+      console.log("Original sizeQuantities:", formData.sizeQuantities);
+      console.log("Cleaned sizeQuantities:", cleanSizeQuantities);
+      console.log("Sizes with quantities > 0:", 
+        Object.entries(cleanSizeQuantities)
+          .filter(([_, qty]) => qty > 0)
+          .map(([size, qty]) => `${size}: ${qty}`)
+      );
+
       // Update product
       console.log("Updating product:", productId);
-      console.log(
-        "API URL:",
-        PRODUCT_ENDPOINTS.UPDATE(productId)
-      );
+      const apiUrl = PRODUCT_ENDPOINTS.UPDATE(productId);
+      console.log("API URL:", apiUrl);
 
       // Prepare payload with color inventories
       const payload = {
@@ -565,6 +794,7 @@ export default function EditProductClient({ productId }) {
         mrpPrice: parseFloat(formData.mrpPrice),
         sellingPrice: parseFloat(formData.sellingPrice),
         images: imageUrls,
+        sizeQuantities: cleanSizeQuantities,
         colorInventories: colorInventories.map((item) => ({
           color: item.color,
           colorCode: item.colorCode || "",
@@ -572,10 +802,10 @@ export default function EditProductClient({ productId }) {
         })),
       };
 
-      console.log("With data:", payload);
+      console.log("Update payload:", JSON.stringify(payload));
 
       const response = await authFetch(
-        PRODUCT_ENDPOINTS.UPDATE(productId),
+        apiUrl,
         {
           method: "PUT",
           headers: {
@@ -606,6 +836,10 @@ export default function EditProductClient({ productId }) {
       }
 
       toast.success("Product updated successfully!");
+      
+      // Force a refresh of the products list cache by setting a flag in localStorage
+      localStorage.setItem('product_list_updated', Date.now().toString());
+      
       router.push("/seller/products");
     } catch (error) {
       console.error("Update error:", error);
@@ -663,6 +897,7 @@ export default function EditProductClient({ productId }) {
               name="name"
               value={formData.name}
               onChange={handleInputChange}
+              placeholder="Enter product name"
               className="w-full p-3 border border-ui-border rounded-md bg-background focus:ring-2 focus:ring-secondary focus:border-secondary focus:outline-none transition-colors"
               required
             />
@@ -751,7 +986,6 @@ export default function EditProductClient({ productId }) {
               onChange={handleInputChange}
               rows={4}
               className="w-full p-3 border border-ui-border rounded-md bg-background focus:ring-2 focus:ring-secondary focus:border-secondary focus:outline-none transition-colors"
-              required
             />
           </div>
 
@@ -907,116 +1141,154 @@ export default function EditProductClient({ productId }) {
               )}
             </div>
 
-            <div className="flex flex-wrap gap-4 mb-4">
-              <div className="w-full md:w-1/3">
-                <label className="block text-xs text-text-muted mb-1">
-                  Size
-                </label>
-                <select
-                  value={selectedSize}
-                  onChange={handleSizeChange}
-                  className="w-full p-2 border border-ui-border rounded-md bg-background focus:ring-2 focus:ring-secondary focus:border-secondary focus:outline-none transition-colors"
-                >
-                  <option value="">Select Size</option>
-                  {SIZES.map((size) => (
-                    <option key={size} value={size}>
-                      {size}
-                    </option>
-                  ))}
-                </select>
-              </div>
+            <div className="grid grid-cols-6 gap-4 mb-4">
+              {SIZES.slice(0, 6).map((size) => {
+                // Determine quantity value based on whether a color is selected
+                const sizeData = selectedColor 
+                  ? currentColorSizes.find(s => s.size === size)
+                  : selectedSizes.find(s => s.size === size);
+                const quantity = sizeData?.quantity || "";
+                
+                return (
+                  <div key={size} className="flex flex-col items-center">
+                    <div className="bg-background-alt p-2 w-12 h-12 flex items-center justify-center mb-2 rounded-md rotate-45">
+                      <span className="text-sm font-medium -rotate-45">{size}</span>
+                    </div>
+                    <input
+                      type="number"
+                      min="0"
+                      className="w-full p-2 border border-ui-border rounded-md text-center"
+                      placeholder="0"
+                      value={quantity}
+                      onChange={(e) => {
+                        const value = parseInt(e.target.value) || 0;
+                        if (selectedColor) {
+                          // Update color inventory
+                          const existing = currentColorSizes.find(
+                            (item) => item.size === size
+                          );
+                          let updatedColorSizes;
 
-              <div className="w-full md:w-1/3">
-                <label className="block text-xs text-text-muted mb-1">
-                  Quantity
-                </label>
-                <input
-                  type="number"
-                  min="1"
-                  value={selectedQuantity}
-                  onChange={handleSizeQuantityChange}
-                  className="w-full p-2 border border-ui-border rounded-md bg-background focus:ring-2 focus:ring-secondary focus:border-secondary focus:outline-none transition-colors"
-                  placeholder="Quantity"
-                />
-              </div>
+                          if (existing) {
+                            // Update existing size
+                            updatedColorSizes = currentColorSizes.map((item) =>
+                              item.size === size
+                                ? { ...item, quantity: value }
+                                : item
+                            );
+                          } else if (value > 0) {
+                            // Add new size
+                            updatedColorSizes = [
+                              ...currentColorSizes,
+                              {
+                                size,
+                                quantity: value,
+                              },
+                            ];
+                          } else {
+                            updatedColorSizes = currentColorSizes;
+                          }
 
-              <div className="w-full md:w-1/4 flex items-end">
-                <button
-                  type="button"
-                  onClick={addSizeQuantity}
-                  className="w-full p-2 bg-secondary text-white rounded-md hover:bg-secondary-dark transition-colors"
-                >
-                  Add Size
-                </button>
-              </div>
+                          setCurrentColorSizes(updatedColorSizes);
+
+                          // Update colorInventories
+                          const existingColorIndex = colorInventories.findIndex(
+                            (item) => item.color === selectedColor.name
+                          );
+
+                          if (existingColorIndex >= 0) {
+                            // Update existing color inventory
+                            const updatedInventories = [...colorInventories];
+                            const inventoryObj = {
+                              ...updatedInventories[existingColorIndex].inventory,
+                            };
+                            inventoryObj[size] = value;
+
+                            updatedInventories[existingColorIndex] = {
+                              ...updatedInventories[existingColorIndex],
+                              inventory: inventoryObj,
+                            };
+
+                            setColorInventories(updatedInventories);
+                          } else if (value > 0) {
+                            // Create new color inventory
+                            const inventoryObj = {};
+                            inventoryObj[size] = value;
+                            
+                            setColorInventories([
+                              ...colorInventories,
+                              {
+                                color: selectedColor.name,
+                                colorCode: selectedColor.hex,
+                                inventory: inventoryObj,
+                              },
+                            ]);
+                          }
+                        } else {
+                          // Update default inventory
+                          const newSizes = [...selectedSizes];
+                          const index = newSizes.findIndex(s => s.size === size);
+                          
+                          if (index >= 0) {
+                            if (value > 0) {
+                              newSizes[index].quantity = value;
+                            } else {
+                              newSizes.splice(index, 1);
+                            }
+                          } else if (value > 0) {
+                            newSizes.push({ size, quantity: value });
+                          }
+                          
+                          setSelectedSizes(newSizes);
+                          
+                          // Update formData
+                          const updatedSizeQuantities = { ...formData.sizeQuantities };
+                          updatedSizeQuantities[size] = value;
+                          setFormData((prev) => ({
+                            ...prev,
+                            sizeQuantities: updatedSizeQuantities,
+                          }));
+                        }
+                      }}
+                    />
+                  </div>
+                );
+              })}
             </div>
-
-            {/* Selected Sizes Display */}
-            {(selectedColor ? currentColorSizes : selectedSizes).length > 0 && (
-              <div className="mt-4 border-t border-ui-border pt-4">
-                <h4 className="text-sm font-medium text-text-dark mb-2">
-                  {selectedColor
-                    ? `Sizes for ${selectedColor.name}`
-                    : "Selected Sizes"}
-                </h4>
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
-                  {(selectedColor ? currentColorSizes : selectedSizes).map(
-                    (item) => (
-                      <div
-                        key={item.size}
-                        className="flex items-center justify-between p-2 border border-ui-border rounded-lg bg-background"
-                      >
-                        <span className="font-medium text-secondary">
-                          {item.size}
-                        </span>
-                        <div className="flex items-center gap-2">
-                          <span className="text-text-dark">
-                            {item.quantity}
-                          </span>
-                          <button
-                            type="button"
-                            onClick={() => removeSizeQuantity(item.size)}
-                            className="text-error hover:text-error-dark transition-colors"
-                          >
-                            <FiX className="h-4 w-4" />
-                          </button>
-                        </div>
-                      </div>
-                    )
-                  )}
-                </div>
-              </div>
-            )}
           </div>
 
           {/* Price */}
-          <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium text-text-dark mb-2">
-                MRP Price (₹)
+              Price
+            </label>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-xs font-medium text-text-muted mb-2 uppercase">
+                  MRP Price
               </label>
               <input
                 type="text"
                 name="mrpPrice"
                 value={formData.mrpPrice}
                 onChange={handleInputChange}
+                  placeholder="0.00"
                 className="w-full p-3 border border-ui-border rounded-md bg-background focus:ring-2 focus:ring-secondary focus:border-secondary focus:outline-none transition-colors"
                 required
-                placeholder="0.00"
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-text-dark mb-2">
-                Selling Price (₹)
+                <label className="block text-xs font-medium text-text-muted mb-2 uppercase">
+                  Selling Price
               </label>
               <input
                 type="text"
                 name="sellingPrice"
                 value={formData.sellingPrice}
                 onChange={handleInputChange}
+                  placeholder="0.00"
                 className="w-full p-3 border border-ui-border rounded-md bg-background focus:ring-2 focus:ring-secondary focus:border-secondary focus:outline-none transition-colors"
                 required
-                placeholder="0.00"
               />
               {formData.mrpPrice &&
                 formData.sellingPrice &&
@@ -1033,19 +1305,20 @@ export default function EditProductClient({ productId }) {
                     %
                   </div>
                 )}
+              </div>
             </div>
           </div>
 
           {/* Current Images */}
           {previewImages.length > 0 && (
-            <div className="bg-background-alt p-4 rounded-lg border border-ui-border">
+            <div className="bg-background-alt p-6 rounded-lg border border-ui-border">
               <label className="block text-sm font-medium text-text-dark mb-3">
                 Current Images
               </label>
-              <div className="grid grid-cols-3 gap-4">
+              <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 gap-4">
                 {previewImages.map((image, index) => (
-                  <div key={index} className="relative">
-                    <div className="relative h-24 w-full overflow-hidden rounded-lg border border-ui-border bg-background-alt shadow-sm transition-transform hover:scale-105">
+                  <div key={index} className="relative group">
+                    <div className="aspect-square relative overflow-hidden rounded-lg border border-ui-border bg-background-alt shadow-sm transition-transform group-hover:scale-105">
                       <Image
                         src={image}
                         alt={`Product ${index + 1}`}
@@ -1117,13 +1390,19 @@ export default function EditProductClient({ productId }) {
             <button
               type="submit"
               disabled={loading || uploading}
-              className="px-5 py-2.5 bg-secondary text-white rounded-md hover:bg-secondary-dark transition-colors disabled:opacity-70 shadow-sm"
+              className="px-5 py-2.5 bg-secondary text-white rounded-md hover:bg-secondary-dark transition-colors disabled:opacity-70 shadow-sm flex items-center"
             >
-              {loading || uploading
-                ? uploading
-                  ? "Uploading..."
-                  : "Updating..."
-                : "Update Product"}
+              {loading || uploading ? (
+                <>
+                  <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                  </svg>
+                  {uploading ? "Uploading..." : "Updating..."}
+                </>
+              ) : (
+                "Update Product"
+              )}
             </button>
           </div>
         </form>

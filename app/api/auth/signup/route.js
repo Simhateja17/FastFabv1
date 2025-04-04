@@ -123,6 +123,7 @@ export async function POST(request) {
         phone: dbPhone,
         password: randomPasswordPlaceholder, // Not used for login, just a placeholder
         isPhoneVerified: true,
+        updatedAt: new Date(), // Add the current date for updatedAt
       },
     });
 

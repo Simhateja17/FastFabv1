@@ -1,56 +1,91 @@
 "use client";
 
-import { useState, useEffect, Suspense } from "react";
-import Link from "next/link";
-import getAdminApiClient from "@/app/utils/apiClient";
+import { useState, useEffect, useCallback, Suspense } from "react";
+import { useRouter } from "next/navigation";
+import { toast } from "react-hot-toast";
+import { useAdminAuth } from "@/app/context/AdminAuthContext";
+import { FiBox, FiUsers, FiShoppingBag, FiDollarSign } from "react-icons/fi";
 
-export default function AdminDashboardPage() {
+// Simple StatsCard component since we don't have the imported one
+function StatsCard({ title, value, icon, color }) {
   return (
-    <Suspense fallback={<div className="flex items-center justify-center h-full">
-      <div className="w-12 h-12 border-4 border-primary border-solid rounded-full border-t-transparent animate-spin"></div>
-    </div>}>
-      <AdminDashboardContent />
-    </Suspense>
+    <div className={`bg-white rounded-lg shadow-sm p-6`}>
+      <div className="flex items-center">
+        <div className={`p-3 rounded-full ${color} text-white mr-4`}>
+          {icon}
+        </div>
+        <div>
+          <p className="text-gray-500 text-sm">{title}</p>
+          <p className="text-gray-900 text-2xl font-bold">{value}</p>
+        </div>
+      </div>
+    </div>
   );
 }
 
+// Simple utility function to format currency
+function formatCurrency(amount) {
+  return new Intl.NumberFormat('en-IN', { 
+    style: 'currency', 
+    currency: 'INR',
+    maximumFractionDigits: 0 
+  }).format(amount || 0);
+}
+
 function AdminDashboardContent() {
+  const router = useRouter();
+  const { admin, authFetch } = useAdminAuth();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [stats, setStats] = useState({
-    sellersCount: 0,
-    productsCount: 0,
-    activeProductsCount: 0,
+    totalSellers: 0,
+    totalProducts: 0,
+    totalOrders: 0,
+    totalRevenue: 0,
   });
   const [recentSellers, setRecentSellers] = useState([]);
   const [recentProducts, setRecentProducts] = useState([]);
 
-  useEffect(() => {
-    const fetchDashboardData = async () => {
-      try {
-        const apiClient = getAdminApiClient();
-        const response = await apiClient.get("/admin/dashboard-stats");
-        const { stats, recentSellers, recentProducts } = response.data;
+  const fetchDashboardData = useCallback(async () => {
+    setLoading(true);
+    setError(null);
 
-        setStats(stats);
-        setRecentSellers(recentSellers);
-        setRecentProducts(recentProducts);
-      } catch (error) {
-        console.error("Error fetching dashboard data:", error);
-        setError(
-          error.response?.data?.message || "Failed to load dashboard data"
-        );
-      } finally {
-        setLoading(false);
+    try {
+      const response = await authFetch("/admin/dashboard-stats");
+      
+      if (!response.ok) {
+        throw new Error("Failed to fetch dashboard data");
       }
-    };
 
-    fetchDashboardData();
-  }, []);
+      const data = await response.json();
+      
+      setStats({
+        totalSellers: data.totalSellers || 0,
+        totalProducts: data.totalProducts || 0,
+        totalOrders: data.totalOrders || 0,
+        totalRevenue: data.totalRevenue || 0,
+      });
+      
+      setRecentSellers(data.recentSellers || []);
+      setRecentProducts(data.recentProducts || []);
+    } catch (error) {
+      console.error("Error fetching dashboard data:", error);
+      setError(error.message || "Failed to load dashboard data");
+      toast.error("Failed to load dashboard data");
+    } finally {
+      setLoading(false);
+    }
+  }, [authFetch]);
+
+  useEffect(() => {
+    if (admin) {
+      fetchDashboardData();
+    }
+  }, [admin, fetchDashboardData]);
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-full">
+      <div className="flex items-center justify-center min-h-[500px]">
         <div className="w-12 h-12 border-4 border-primary border-solid rounded-full border-t-transparent animate-spin"></div>
       </div>
     );
@@ -58,264 +93,154 @@ function AdminDashboardContent() {
 
   if (error) {
     return (
-      <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded">
-        <p className="font-bold">Error</p>
-        <p>{error}</p>
+      <div className="bg-red-50 border border-red-200 text-red-800 rounded-lg p-4 mb-6">
+        <div className="flex items-center">
+          <svg
+            className="w-5 h-5 mr-3 text-red-500"
+            fill="none"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            strokeWidth="2"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+          >
+            <path d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+          </svg>
+          <p>{error}</p>
+        </div>
         <button
-          onClick={() => window.location.reload()}
-          className="mt-2 px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700"
+          onClick={fetchDashboardData}
+          className="mt-3 px-4 py-2 bg-red-100 hover:bg-red-200 text-red-800 rounded-md transition-colors"
         >
-          Retry
+          Try Again
         </button>
       </div>
     );
   }
 
   return (
-    <div className="space-y-6">
-      <h1 className="text-2xl font-bold text-text">Dashboard</h1>
-
-      {/* Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <StatsCard
+    <div>
+      <h1 className="text-2xl font-bold mb-6 text-gray-800">Dashboard Overview</h1>
+      
+      {/* Stats cards */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+        <StatsCard 
           title="Total Sellers"
-          value={stats.sellersCount}
-          icon={
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              className="h-8 w-8"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"
-              />
-            </svg>
-          }
+          value={stats.totalSellers}
+          icon={<FiUsers className="w-6 h-6" />}
           color="bg-blue-500"
-          link="/superadmin/sellers"
         />
-        <StatsCard
+        <StatsCard 
           title="Total Products"
-          value={stats.productsCount}
-          icon={
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              className="h-8 w-8"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z"
-              />
-            </svg>
-          }
-          color="bg-purple-500"
-          link="/superadmin/products"
-        />
-        <StatsCard
-          title="Active Products"
-          value={stats.activeProductsCount}
-          icon={
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              className="h-8 w-8"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
-              />
-            </svg>
-          }
+          value={stats.totalProducts}
+          icon={<FiBox className="w-6 h-6" />}
           color="bg-green-500"
-          link="/superadmin/products"
+        />
+        <StatsCard 
+          title="Total Orders"
+          value={stats.totalOrders}
+          icon={<FiShoppingBag className="w-6 h-6" />}
+          color="bg-yellow-500"
+        />
+        <StatsCard 
+          title="Total Revenue"
+          value={formatCurrency(stats.totalRevenue)}
+          icon={<FiDollarSign className="w-6 h-6" />}
+          color="bg-purple-500"
         />
       </div>
-
-      {/* Recent Data */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Recent Sellers */}
-        <div className="bg-background-card rounded-lg shadow p-6">
-          <div className="flex justify-between items-center mb-4">
-            <h2 className="text-lg font-semibold text-text">Recent Sellers</h2>
-            <Link
-              href="/superadmin/sellers"
-              className="text-sm text-primary hover:text-primary-dark"
-            >
-              View All
-            </Link>
-          </div>
-          <div className="overflow-x-auto">
-            <table className="min-w-full">
-              <thead className="bg-background-alt">
-                <tr>
-                  <th className="px-4 py-2 text-left text-xs font-medium text-text-muted uppercase tracking-wider">
-                    Shop Name
-                  </th>
-                  <th className="px-4 py-2 text-left text-xs font-medium text-text-muted uppercase tracking-wider">
-                    Owner
-                  </th>
-                  <th className="px-4 py-2 text-left text-xs font-medium text-text-muted uppercase tracking-wider">
-                    Phone
-                  </th>
-                  <th className="px-4 py-2 text-left text-xs font-medium text-text-muted uppercase tracking-wider">
-                    Joined
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-ui-border">
-                {recentSellers.length > 0 ? (
-                  recentSellers.map((seller) => (
-                    <tr key={seller.id}>
-                      <td className="px-4 py-2 whitespace-nowrap text-sm text-text">
-                        <Link
-                          href={`/superadmin/sellers/${seller.id}`}
-                          className="text-primary hover:text-primary-dark"
-                        >
-                          {seller.shopName || "N/A"}
-                        </Link>
-                      </td>
-                      <td className="px-4 py-2 whitespace-nowrap text-sm text-text">
-                        {seller.ownerName || "N/A"}
-                      </td>
-                      <td className="px-4 py-2 whitespace-nowrap text-sm text-text">
-                        {seller.phone}
-                      </td>
-                      <td className="px-4 py-2 whitespace-nowrap text-sm text-text-muted">
-                        {new Date(seller.createdAt).toLocaleDateString()}
-                      </td>
-                    </tr>
-                  ))
-                ) : (
-                  <tr>
-                    <td
-                      colSpan="4"
-                      className="px-4 py-2 text-center text-sm text-text-muted"
-                    >
-                      No sellers found
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
-          </div>
+      
+      {/* Recent sellers */}
+      <div className="bg-white rounded-lg shadow-sm p-6 mb-6">
+        <div className="flex justify-between items-center mb-4">
+          <h2 className="text-lg font-semibold">Recent Sellers</h2>
+          <button 
+            onClick={() => router.push('/superadmin/sellers')}
+            className="text-sm text-primary hover:underline"
+          >
+            View All
+          </button>
         </div>
-
-        {/* Recent Products */}
-        <div className="bg-background-card rounded-lg shadow p-6">
-          <div className="flex justify-between items-center mb-4">
-            <h2 className="text-lg font-semibold text-text">Recent Products</h2>
-            <Link
-              href="/superadmin/products"
-              className="text-sm text-primary hover:text-primary-dark"
-            >
-              View All
-            </Link>
-          </div>
+        
+        {recentSellers.length > 0 ? (
           <div className="overflow-x-auto">
-            <table className="min-w-full">
-              <thead className="bg-background-alt">
+            <table className="min-w-full divide-y divide-gray-200">
+              <thead className="bg-gray-50">
                 <tr>
-                  <th className="px-4 py-2 text-left text-xs font-medium text-text-muted uppercase tracking-wider">
-                    Product
-                  </th>
-                  <th className="px-4 py-2 text-left text-xs font-medium text-text-muted uppercase tracking-wider">
-                    Price
-                  </th>
-                  <th className="px-4 py-2 text-left text-xs font-medium text-text-muted uppercase tracking-wider">
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Seller
                   </th>
-                  <th className="px-4 py-2 text-left text-xs font-medium text-text-muted uppercase tracking-wider">
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Store Name
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Joined
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Status
                   </th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-ui-border">
-                {recentProducts.length > 0 ? (
-                  recentProducts.map((product) => (
-                    <tr key={product.id}>
-                      <td className="px-4 py-2 whitespace-nowrap text-sm text-text">
-                        <Link
-                          href={`/superadmin/products/${product.id}`}
-                          className="text-primary hover:text-primary-dark"
-                        >
-                          {product.name}
-                        </Link>
-                      </td>
-                      <td className="px-4 py-2 whitespace-nowrap text-sm text-text">
-                        ₹{(product.sellingPrice || 0).toFixed(2)}
-                      </td>
-                      <td className="px-4 py-2 whitespace-nowrap text-sm text-text">
-                        <Link
-                          href={`/superadmin/sellers/${
-                            product.seller?.id || "unknown"
-                          }`}
-                          className="text-primary hover:text-primary-dark"
-                        >
-                          {product.seller?.shopName || "Unknown"}
-                        </Link>
-                      </td>
-                      <td className="px-4 py-2 whitespace-nowrap text-sm">
-                        <span
-                          className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
-                            product.isActive
-                              ? "bg-green-100 text-green-800"
-                              : "bg-red-100 text-red-800"
-                          }`}
-                        >
-                          {product.isActive ? "Active" : "Inactive"}
-                        </span>
-                      </td>
-                    </tr>
-                  ))
-                ) : (
-                  <tr>
-                    <td
-                      colSpan="4"
-                      className="px-4 py-2 text-center text-sm text-text-muted"
-                    >
-                      No products found
+              <tbody className="bg-white divide-y divide-gray-200">
+                {recentSellers.map((seller) => (
+                  <tr key={seller.id} className="hover:bg-gray-50">
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <div className="flex items-center">
+                        <div className="flex-shrink-0 h-10 w-10 bg-gray-200 rounded-full flex items-center justify-center">
+                          {seller.name ? seller.name.charAt(0).toUpperCase() : 'S'}
+                        </div>
+                        <div className="ml-4">
+                          <div className="text-sm font-medium text-gray-900">
+                            {seller.name}
+                          </div>
+                          <div className="text-sm text-gray-500">
+                            {seller.email || seller.phone}
+                          </div>
+                        </div>
+                      </div>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <div className="text-sm text-gray-900">
+                        {seller.storeName || 'Not set'}
+                      </div>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <div className="text-sm text-gray-500">
+                        {new Date(seller.createdAt).toLocaleDateString()}
+                      </div>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
+                        seller.isVerified 
+                          ? 'bg-green-100 text-green-800' 
+                          : 'bg-yellow-100 text-yellow-800'
+                      }`}>
+                        {seller.isVerified ? 'Verified' : 'Pending'}
+                      </span>
                     </td>
                   </tr>
-                )}
+                ))}
               </tbody>
             </table>
           </div>
-        </div>
+        ) : (
+          <div className="py-8 text-center text-gray-500">
+            No recent sellers found
+          </div>
+        )}
       </div>
     </div>
   );
 }
 
-// Stats Card Component
-function StatsCard({ title, value, icon, color, link }) {
+export default function AdminDashboardPage() {
   return (
-    <Link
-      href={link}
-      className="bg-background-card rounded-lg shadow p-6 transition-transform hover:scale-105"
-    >
-      <div className="flex items-center">
-        <div className={`p-3 rounded-full ${color} text-white mr-4`}>
-          {icon}
-        </div>
-        <div>
-          <p className="text-text-muted text-sm">{title}</p>
-          <p className="text-text text-2xl font-bold">{value}</p>
-        </div>
+    <Suspense fallback={
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="w-12 h-12 border-4 border-primary border-solid rounded-full border-t-transparent animate-spin"></div>
       </div>
-    </Link>
+    }>
+      <AdminDashboardContent />
+    </Suspense>
   );
 }

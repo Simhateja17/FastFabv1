@@ -28,7 +28,7 @@ export default function NoNearbyProductsMessage({ radius = 3 }) {
       </div>
       
       <p className="text-center text-text mb-6 max-w-md">
-        We're expanding our network of sellers in your area. Please check back soon or try increasing your search radius.
+        We&apos;re expanding our network of sellers in your area. Please check back soon or try increasing your search radius.
       </p>
       
       <div className="flex flex-col sm:flex-row gap-4">
@@ -51,7 +51,7 @@ export default function NoNearbyProductsMessage({ radius = 3 }) {
         <div className="flex items-start">
           <FiAlertCircle className="text-blue-500 mt-1 mr-3 flex-shrink-0" />
           <p className="text-sm text-blue-700">
-            We're rapidly expanding! If you know local sellers who might be interested in joining our platform, please let them know about us.
+            We&apos;re rapidly expanding! If you know local sellers who might be interested in joining our platform, please let them know about us.
           </p>
         </div>
       </div>

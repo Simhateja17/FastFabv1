@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import getAdminApiClient from "@/app/utils/apiClient";
 import { toast } from "react-hot-toast";
+import Image from 'next/image';
 
 export default function ProductsPage() {
   const [products, setProducts] = useState([]);
@@ -341,14 +342,16 @@ export default function ProductsPage() {
                   <tr key={product.id}>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="flex items-center">
-                        <div className="h-10 w-10 flex-shrink-0">
-                          <img
-                            className="h-10 w-10 rounded-md object-cover"
+                        <div className="h-10 w-10 flex-shrink-0 relative rounded-md overflow-hidden bg-background-alt">
+                          <Image
+                            className="object-cover"
                             src={
-                              product.images[0] ||
-                              "https://via.placeholder.com/40"
+                              product.images?.[0] ||
+                              "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='40' height='40' viewBox='0 0 40 40' fill='%23eee'%3E%3Ctext x='50%' y='50%' dominant-baseline='middle' text-anchor='middle' font-size='10' fill='%23aaa'%3ENoImg%3C/text%3E%3C/svg%3E"
                             }
-                            alt={product.name}
+                            alt={product.name || 'Product image'}
+                            fill
+                            sizes="40px"
                           />
                         </div>
                         <div className="ml-4">

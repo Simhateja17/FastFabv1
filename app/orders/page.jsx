@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, Suspense } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { useUserAuth } from "@/app/context/UserAuthContext";
 import { USER_ENDPOINTS } from "@/app/config";
@@ -15,16 +15,6 @@ import {
 } from "react-icons/fi";
 
 export default function Orders() {
-  return (
-    <Suspense fallback={<div className="flex justify-center items-center min-h-screen">
-      <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500"></div>
-    </div>}>
-      <OrdersContent />
-    </Suspense>
-  );
-}
-
-function OrdersContent() {
   const router = useRouter();
   const { user, userAuthFetch, loading: authLoading } = useUserAuth();
   const [orders, setOrders] = useState([]);
@@ -34,6 +24,47 @@ function OrdersContent() {
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const ordersPerPage = 5;
+
+  const fetchOrders = useCallback(async () => {
+    setLoading(true);
+    try {
+      const response = await userAuthFetch(USER_ENDPOINTS.ORDERS);
+      if (response.ok) {
+        const data = await response.json();
+        // Handle different API response formats
+        const ordersList = Array.isArray(data)
+          ? data
+          : data.orders || data.data?.orders || data.data || [];
+
+        setOrders(ordersList);
+        console.log("Orders fetched successfully:", ordersList);
+      } else {
+        console.error(
+          `Error fetching orders: ${response.status} ${response.statusText}`
+        );
+        toast.error("Failed to fetch orders. Please try again.");
+      }
+    } catch (error) {
+      console.error("Error fetching orders:", error);
+      if (
+        error.message.includes("No refresh token available") ||
+        error.message.includes("Failed to refresh token")
+      ) {
+        // This is an auth issue - only show sign in message if user was actually signed out
+        if (
+          !localStorage.getItem("userData") &&
+          !localStorage.getItem("userAccessToken")
+        ) {
+          toast.error("Please sign in to view your orders");
+          router.push("/login");
+        }
+      } else {
+        toast.error("Failed to fetch orders. Please try again.");
+      }
+    } finally {
+      setLoading(false);
+    }
+  }, [userAuthFetch, router]);
 
   // Fetch orders on component mount
   useEffect(() => {
@@ -73,48 +104,7 @@ function OrdersContent() {
     };
 
     checkAuth();
-  }, [user, loading, router]);
-
-  const fetchOrders = async () => {
-    setLoading(true);
-    try {
-      const response = await userAuthFetch(USER_ENDPOINTS.ORDERS);
-      if (response.ok) {
-        const data = await response.json();
-        // Handle different API response formats
-        const ordersList = Array.isArray(data)
-          ? data
-          : data.orders || data.data?.orders || data.data || [];
-
-        setOrders(ordersList);
-        console.log("Orders fetched successfully:", ordersList);
-      } else {
-        console.error(
-          `Error fetching orders: ${response.status} ${response.statusText}`
-        );
-        toast.error("Failed to fetch orders. Please try again.");
-      }
-    } catch (error) {
-      console.error("Error fetching orders:", error);
-      if (
-        error.message.includes("No refresh token available") ||
-        error.message.includes("Failed to refresh token")
-      ) {
-        // This is an auth issue - only show sign in message if user was actually signed out
-        if (
-          !localStorage.getItem("userData") &&
-          !localStorage.getItem("userAccessToken")
-        ) {
-          toast.error("Please sign in to view your orders");
-          router.push("/login");
-        }
-      } else {
-        toast.error("Failed to fetch orders. Please try again.");
-      }
-    } finally {
-      setLoading(false);
-    }
-  };
+  }, [user, loading, router, fetchOrders]);
 
   const handleSearch = (e) => {
     e.preventDefault();

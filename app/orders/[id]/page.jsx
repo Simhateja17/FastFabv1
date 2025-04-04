@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { useUserAuth } from "@/app/context/UserAuthContext";
 import { USER_ENDPOINTS } from "@/app/config";
@@ -28,18 +28,7 @@ export default function OrderDetail({ params }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
-  // Fetch order details on component mount
-  useEffect(() => {
-    if (!authLoading && !user) {
-      toast.error("Please sign in to view order details");
-      router.push("/signin");
-      return;
-    }
-
-    fetchOrderDetails();
-  }, [user, authLoading, router, orderId]);
-
-  const fetchOrderDetails = async () => {
+  const fetchOrderDetails = useCallback(async () => {
     try {
       setLoading(true);
       setError(null);
@@ -62,7 +51,18 @@ export default function OrderDetail({ params }) {
     } finally {
       setLoading(false);
     }
-  };
+  }, [userAuthFetch, orderId]);
+
+  // Fetch order details on component mount
+  useEffect(() => {
+    if (!authLoading && !user) {
+      toast.error("Please sign in to view order details");
+      router.push("/signin");
+      return;
+    }
+
+    fetchOrderDetails();
+  }, [user, authLoading, router, orderId, fetchOrderDetails]);
 
   const getStatusColor = (status) => {
     switch (status?.toLowerCase()) {
