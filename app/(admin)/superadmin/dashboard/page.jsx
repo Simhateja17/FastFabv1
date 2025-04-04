@@ -1,87 +1,122 @@
 "use client";
 
-import { useState, useEffect, useCallback, Suspense } from "react";
+import { useState, useEffect, Suspense } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "react-hot-toast";
-import { useAdminAuth } from "@/app/context/AdminAuthContext";
 import { FiBox, FiUsers, FiShoppingBag, FiDollarSign } from "react-icons/fi";
+import getAdminApiClient from "@/app/utils/apiClient";
 
-// Simple StatsCard component since we don't have the imported one
-function StatsCard({ title, value, icon, color }) {
+// StatsCard component
+function StatsCard({ title, value, icon, color, link }) {
+  const router = useRouter();
+
   return (
-    <div className={`bg-white rounded-lg shadow-sm p-6`}>
+    <div
+      className={`rounded-lg shadow-sm p-6 ${color} text-white cursor-pointer`}
+      onClick={() => link && router.push(link)}
+    >
       <div className="flex items-center">
-        <div className={`p-3 rounded-full ${color} text-white mr-4`}>
-          {icon}
-        </div>
+        <div className="flex-shrink-0 mr-4">{icon}</div>
         <div>
-          <p className="text-gray-500 text-sm">{title}</p>
-          <p className="text-gray-900 text-2xl font-bold">{value}</p>
+          <div className="text-sm font-medium opacity-80">{title}</div>
+          <div className="text-2xl font-bold">{value}</div>
         </div>
       </div>
     </div>
   );
 }
 
-// Simple utility function to format currency
+// Format currency values
 function formatCurrency(amount) {
-  return new Intl.NumberFormat('en-IN', { 
-    style: 'currency', 
-    currency: 'INR',
-    maximumFractionDigits: 0 
+  return new Intl.NumberFormat("en-IN", {
+    style: "currency",
+    currency: "INR",
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 0,
   }).format(amount || 0);
+}
+
+export default function AdminDashboardPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="flex items-center justify-center h-full">
+          <div className="w-12 h-12 border-4 border-primary border-solid rounded-full border-t-transparent animate-spin"></div>
+        </div>
+      }
+    >
+      <AdminDashboardContent />
+    </Suspense>
+  );
 }
 
 function AdminDashboardContent() {
   const router = useRouter();
-  const { admin, authFetch } = useAdminAuth();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [stats, setStats] = useState({
-    totalSellers: 0,
-    totalProducts: 0,
+    sellersCount: 0,
+    productsCount: 0,
+    activeProductsCount: 0,
     totalOrders: 0,
     totalRevenue: 0,
   });
   const [recentSellers, setRecentSellers] = useState([]);
   const [recentProducts, setRecentProducts] = useState([]);
 
-  const fetchDashboardData = useCallback(async () => {
-    setLoading(true);
-    setError(null);
-
+  const fetchDashboardData = async () => {
     try {
-      const response = await authFetch("/admin/dashboard-stats");
-      
-      if (!response.ok) {
-        throw new Error("Failed to fetch dashboard data");
+      const apiClient = getAdminApiClient();
+      setLoading(true);
+
+      // Fetch sellers data (for count and recent sellers)
+      const sellersResponse = await apiClient.get("/api/admin/sellers");
+      let sellers = [];
+
+      if (Array.isArray(sellersResponse.data)) {
+        sellers = sellersResponse.data;
+        setRecentSellers(sellers.slice(0, 5)); // Take first 5 sellers
+        setStats((prevStats) => ({
+          ...prevStats,
+          sellersCount: sellers.length,
+        }));
+      } else {
+        console.error("Invalid sellers response format:", sellersResponse.data);
       }
 
-      const data = await response.json();
-      
-      setStats({
-        totalSellers: data.totalSellers || 0,
-        totalProducts: data.totalProducts || 0,
-        totalOrders: data.totalOrders || 0,
-        totalRevenue: data.totalRevenue || 0,
-      });
-      
-      setRecentSellers(data.recentSellers || []);
-      setRecentProducts(data.recentProducts || []);
+      // Fetch products data
+      const productsResponse = await apiClient.get("/api/admin/products");
+      let products = [];
+
+      if (Array.isArray(productsResponse.data)) {
+        products = productsResponse.data;
+        setRecentProducts(products.slice(0, 5)); // Take first 5 products
+
+        // Calculate statistics
+        setStats((prevStats) => ({
+          ...prevStats,
+          productsCount: products.length,
+          activeProductsCount: products.filter((p) => p.isActive).length,
+        }));
+      } else {
+        console.error(
+          "Invalid products response format:",
+          productsResponse.data
+        );
+      }
     } catch (error) {
       console.error("Error fetching dashboard data:", error);
-      setError(error.message || "Failed to load dashboard data");
-      toast.error("Failed to load dashboard data");
+      setError(
+        error.response?.data?.message || "Failed to load dashboard data"
+      );
     } finally {
       setLoading(false);
     }
-  }, [authFetch]);
+  };
 
   useEffect(() => {
-    if (admin) {
-      fetchDashboardData();
-    }
-  }, [admin, fetchDashboardData]);
+    fetchDashboardData();
+  }, []);
 
   if (loading) {
     return (
@@ -120,48 +155,54 @@ function AdminDashboardContent() {
 
   return (
     <div>
-      <h1 className="text-2xl font-bold mb-6 text-gray-800">Dashboard Overview</h1>
-      
+      <h1 className="text-2xl font-bold mb-6 text-gray-800">
+        Dashboard Overview
+      </h1>
+
       {/* Stats cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-        <StatsCard 
+        <StatsCard
           title="Total Sellers"
-          value={stats.totalSellers}
+          value={stats.sellersCount}
           icon={<FiUsers className="w-6 h-6" />}
           color="bg-blue-500"
+          link="/superadmin/sellers"
         />
-        <StatsCard 
+        <StatsCard
           title="Total Products"
-          value={stats.totalProducts}
+          value={stats.productsCount}
           icon={<FiBox className="w-6 h-6" />}
           color="bg-green-500"
+          link="/superadmin/products"
         />
-        <StatsCard 
-          title="Total Orders"
-          value={stats.totalOrders}
+        <StatsCard
+          title="Active Products"
+          value={stats.activeProductsCount}
           icon={<FiShoppingBag className="w-6 h-6" />}
-          color="bg-yellow-500"
-        />
-        <StatsCard 
-          title="Total Revenue"
-          value={formatCurrency(stats.totalRevenue)}
-          icon={<FiDollarSign className="w-6 h-6" />}
           color="bg-purple-500"
+          link="/superadmin/products"
+        />
+        <StatsCard
+          title="Total Orders"
+          value={stats.totalOrders || 0}
+          icon={<FiDollarSign className="w-6 h-6" />}
+          color="bg-yellow-500"
+          link="/superadmin/orders"
         />
       </div>
-      
+
       {/* Recent sellers */}
       <div className="bg-white rounded-lg shadow-sm p-6 mb-6">
         <div className="flex justify-between items-center mb-4">
           <h2 className="text-lg font-semibold">Recent Sellers</h2>
-          <button 
-            onClick={() => router.push('/superadmin/sellers')}
+          <button
+            onClick={() => router.push("/superadmin/sellers")}
             className="text-sm text-primary hover:underline"
           >
             View All
           </button>
         </div>
-        
+
         {recentSellers.length > 0 ? (
           <div className="overflow-x-auto">
             <table className="min-w-full divide-y divide-gray-200">
@@ -187,21 +228,23 @@ function AdminDashboardContent() {
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="flex items-center">
                         <div className="flex-shrink-0 h-10 w-10 bg-gray-200 rounded-full flex items-center justify-center">
-                          {seller.name ? seller.name.charAt(0).toUpperCase() : 'S'}
+                          {seller.shopName
+                            ? seller.shopName.charAt(0).toUpperCase()
+                            : "S"}
                         </div>
                         <div className="ml-4">
                           <div className="text-sm font-medium text-gray-900">
-                            {seller.name}
+                            {seller.ownerName || "Unknown Owner"}
                           </div>
                           <div className="text-sm text-gray-500">
-                            {seller.email || seller.phone}
+                            {seller.phone || "No contact info"}
                           </div>
                         </div>
                       </div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="text-sm text-gray-900">
-                        {seller.storeName || 'Not set'}
+                        {seller.shopName || "Not set"}
                       </div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
@@ -210,12 +253,8 @@ function AdminDashboardContent() {
                       </div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
-                      <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
-                        seller.isVerified 
-                          ? 'bg-green-100 text-green-800' 
-                          : 'bg-yellow-100 text-yellow-800'
-                      }`}>
-                        {seller.isVerified ? 'Verified' : 'Pending'}
+                      <span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-green-100 text-green-800">
+                        Active
                       </span>
                     </td>
                   </tr>
@@ -229,18 +268,53 @@ function AdminDashboardContent() {
           </div>
         )}
       </div>
-    </div>
-  );
-}
 
-export default function AdminDashboardPage() {
-  return (
-    <Suspense fallback={
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="w-12 h-12 border-4 border-primary border-solid rounded-full border-t-transparent animate-spin"></div>
-      </div>
-    }>
-      <AdminDashboardContent />
-    </Suspense>
+      {/* Recent products section */}
+      {recentProducts.length > 0 && (
+        <div className="bg-white rounded-lg shadow-sm p-6">
+          <div className="flex justify-between items-center mb-4">
+            <h2 className="text-lg font-semibold">Recent Products</h2>
+            <button
+              onClick={() => router.push("/superadmin/products")}
+              className="text-sm text-primary hover:underline"
+            >
+              View All
+            </button>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {recentProducts.map((product) => (
+              <div
+                key={product.id}
+                className="border rounded-lg overflow-hidden shadow-sm"
+              >
+                <div className="p-4">
+                  <h3 className="text-sm font-medium text-gray-900 truncate">
+                    {product.name}
+                  </h3>
+                  <p className="text-xs text-gray-500 mt-1">
+                    {product.category || "Uncategorized"}
+                  </p>
+                  <div className="flex justify-between items-center mt-2">
+                    <span className="text-sm font-bold text-gray-900">
+                      ₹{product.sellingPrice || 0}
+                    </span>
+                    <span
+                      className={`px-2 py-1 text-xs rounded-full ${
+                        product.isActive
+                          ? "bg-green-100 text-green-800"
+                          : "bg-red-100 text-red-800"
+                      }`}
+                    >
+                      {product.isActive ? "Active" : "Inactive"}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
   );
 }

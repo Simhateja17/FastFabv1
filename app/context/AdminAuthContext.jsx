@@ -2,13 +2,10 @@
 
 import { createContext, useContext, useEffect, useState } from "react";
 import axios from "axios";
+import { API_BASE_URL } from "../utils/apiClient";
 
 // Create context
 const AdminAuthContext = createContext();
-
-// Hardcoded admin credentials
-const ADMIN_EMAIL = "simhateja@fastandfab.in";
-const ADMIN_PASSWORD = "FabandFast@963258741";
 
 export function AdminAuthProvider({ children }) {
   const [adminUser, setAdminUser] = useState(null);
@@ -35,25 +32,38 @@ export function AdminAuthProvider({ children }) {
     setError(null);
 
     try {
-      // Check against hardcoded credentials
-      if (email === ADMIN_EMAIL && password === ADMIN_PASSWORD) {
+      // Make API call to backend for authentication
+      const response = await axios.post(`${API_BASE_URL}/api/admin/login`, {
+        email,
+        password,
+      });
+
+      if (response.data && response.data.accessToken) {
+        // Create admin user data with token
         const adminUserData = {
-          email: ADMIN_EMAIL,
-          name: "Admin",
-          role: "SUPER_ADMIN",
+          email: email,
+          name: response.data.admin?.name || "Admin",
+          role: response.data.admin?.role || "SUPER_ADMIN",
           isAuthenticated: true,
+          token: response.data.accessToken,
+          refreshToken: response.data.refreshToken,
         };
 
         // Store in local storage
         localStorage.setItem("adminUser", JSON.stringify(adminUserData));
+        console.log("Admin token stored:", response.data.accessToken);
         setAdminUser(adminUserData);
+
         return { success: true };
       } else {
-        throw new Error("Invalid email or password");
+        throw new Error("Invalid response from server");
       }
     } catch (err) {
-      setError(err.message || "Login failed");
-      return { success: false, error: err.message || "Login failed" };
+      console.error("Login error:", err);
+      const errorMessage =
+        err.response?.data?.message || err.message || "Login failed";
+      setError(errorMessage);
+      return { success: false, error: errorMessage };
     } finally {
       setLoading(false);
     }

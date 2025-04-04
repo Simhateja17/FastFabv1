@@ -1,11 +1,9 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import axios from "axios";
 import { useAdminAuth } from "@/app/context/AdminAuthContext";
-
-// API endpoint
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000";
+import { toast } from "react-hot-toast";
+import { getAdminApiClient } from "@/app/utils/apiClient";
 
 export default function SettingsPage() {
   const { adminUser } = useAdminAuth();
@@ -56,7 +54,12 @@ export default function SettingsPage() {
     const fetchSiteSettings = async () => {
       try {
         setLoading(true);
-        const response = await axios.get(`${API_BASE_URL}/admin/settings`);
+
+        // Get API client with admin authorization
+        const apiClient = getAdminApiClient();
+
+        const response = await apiClient.get(`/api/admin/settings`);
+
         if (response.data && response.data.settings) {
           setSiteSettings({
             ...siteSettings,
@@ -136,10 +139,10 @@ export default function SettingsPage() {
         updateData.newPassword = profileData.newPassword;
       }
 
-      const response = await axios.patch(
-        `${API_BASE_URL}/admin/profile`,
-        updateData
-      );
+      // Get API client with admin authorization
+      const apiClient = getAdminApiClient();
+
+      const response = await apiClient.patch(`/api/admin/profile`, updateData);
 
       // Reset password fields
       setProfileData({
@@ -150,11 +153,13 @@ export default function SettingsPage() {
       });
 
       setProfileSuccess("Profile updated successfully");
+      toast.success("Profile updated successfully");
     } catch (error) {
       console.error("Error updating profile:", error);
       setProfileError(
         error.response?.data?.message || "Failed to update profile"
       );
+      toast.error(error.response?.data?.message || "Failed to update profile");
     } finally {
       setLoading(false);
     }
@@ -168,15 +173,23 @@ export default function SettingsPage() {
 
     try {
       setLoading(true);
-      const response = await axios.patch(
-        `${API_BASE_URL}/admin/settings`,
+
+      // Get API client with admin authorization
+      const apiClient = getAdminApiClient();
+
+      const response = await apiClient.patch(
+        `/api/admin/settings`,
         siteSettings
       );
 
       setSiteSuccess("Site settings updated successfully");
+      toast.success("Site settings updated successfully");
     } catch (error) {
       console.error("Error updating site settings:", error);
       setSiteError(
+        error.response?.data?.message || "Failed to update site settings"
+      );
+      toast.error(
         error.response?.data?.message || "Failed to update site settings"
       );
     } finally {
