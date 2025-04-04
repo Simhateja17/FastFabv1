@@ -3,13 +3,13 @@
 import { useState, useEffect, useCallback } from "react";
 import ProductCard from "@/app/components/ProductCard";
 import LoadingSpinner from "@/app/components/LoadingSpinner";
-import { PUBLIC_ENDPOINTS } from "@/app/config";
 import { FiShoppingBag, FiMapPin, FiFilter } from "react-icons/fi";
 import ProductFilters from "@/app/components/ProductFilters";
 import { useLocationStore } from "@/app/lib/locationStore";
 import LocationRequiredMessage from "@/app/components/LocationRequiredMessage";
 
-export default function WomenProductsPage() {
+// This prevents any useSearchParams calls during server rendering
+function WomenProductsContent() {
   const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -250,9 +250,9 @@ export default function WomenProductsPage() {
             </div>
             
             {/* Products - Takes up 3 columns on large screens */}
-            <div className="lg:col-span-3 mt-6 lg:mt-0">
+            <div className="lg:col-span-3 mt-8 lg:mt-0">
               {loading ? (
-                <div className="flex justify-center py-20">
+                <div className="flex justify-center items-center py-16">
                   <LoadingSpinner size="large" color="secondary" />
                 </div>
               ) : error ? (
@@ -260,22 +260,42 @@ export default function WomenProductsPage() {
                   error={error} 
                   onRetry={() => fetchProducts(userLocation, filters)} 
                 />
-              ) : products.length > 0 ? (
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 md:gap-6">
-                  {products.map((product) => (
-                    <ProductCard key={product.id} product={product} />
-                  ))}
-                </div>
-              ) : (
-                <div className="text-center py-12 bg-white rounded-lg shadow-sm">
-                  <FiShoppingBag className="w-12 h-12 mx-auto text-gray-400" />
+              ) : products.length === 0 ? (
+                <div className="text-center py-16 bg-white rounded-lg shadow-sm">
+                  <FiShoppingBag className="w-12 h-12 mx-auto text-secondary opacity-40" />
                   <h3 className="mt-4 text-lg font-medium text-gray-900">
-                    No Products Found
+                    No products found
                   </h3>
                   <p className="mt-2 text-gray-500 max-w-md mx-auto">
-                    There are no women&apos;s products matching your filters. Try changing your filters or check back later.
+                    We couldn&apos;t find any women&apos;s products matching your criteria.
                   </p>
+                  <button
+                    onClick={() => setFilters({
+                      ...filters,
+                      subcategory: "",
+                      size: "",
+                      minPrice: null,
+                      maxPrice: null,
+                      sort: ""
+                    })}
+                    className="mt-4 text-primary hover:underline"
+                  >
+                    Clear filters
+                  </button>
                 </div>
+              ) : (
+                <>
+                  <div className="mb-4 flex justify-between items-center">
+                    <p className="text-text font-medium">
+                      {products.length} {products.length === 1 ? 'product' : 'products'} found
+                    </p>
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+                    {products.map((product) => (
+                      <ProductCard key={product.id} product={product} />
+                    ))}
+                  </div>
+                </>
               )}
             </div>
           </div>
@@ -283,4 +303,9 @@ export default function WomenProductsPage() {
       )}
     </div>
   );
+}
+
+// The default export of the page
+export default function WomenProductsPage() {
+  return <WomenProductsContent />;
 }

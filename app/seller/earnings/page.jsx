@@ -98,22 +98,22 @@ function EarningsContent() {
 
   // Update stats when date range changes
   useEffect(() => {
-    // Avoid duplicate API calls - the first useEffect will already handle this
-    // Only manually update stats from API if we have a user and the component is already mounted
-    if (stats && dateRange && user?.id && !loading) {
+    // Only fetch new data once user data is loaded
+    if (!loading && user?.id) {
       const fetchStats = async () => {
         try {
-          // Get the authentication token
-          const token = await getAccessToken();
-          
-          if (!token) {
-            console.error('No authentication token available for stats update');
+          // Get access token
+          const accessToken = getAccessToken();
+          if (!accessToken) {
+            console.error('No access token available for stats fetch');
             return;
           }
           
-          const response = await fetch(`/api/seller/earnings?dateRange=${dateRange}`, {
+          // API call with date range
+          const backendUrl = process.env.NEXT_PUBLIC_SELLER_SERVICE_URL || 'http://localhost:8000/api';
+          const response = await fetch(`${backendUrl}/seller/earnings/stats?period=${dateRange}`, {
             headers: {
-              'Authorization': `Bearer ${token}`
+              'Authorization': `Bearer ${accessToken}`
             }
           });
           

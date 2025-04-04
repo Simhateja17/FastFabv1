@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, Suspense } from "react";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import {
@@ -351,8 +351,8 @@ const MobileMenu = ({ isOpen, seller, user, onUserLogout, onSellerLogout }) => {
   );
 };
 
-// Main Navbar Component
-const Navbar = () => {
+// Original Navbar component renamed to NavbarContent
+function NavbarContent() {
   const { seller, setSeller } = useAuth();
   const { user, authStateChange, logout } = useUserAuth();
   const pathname = usePathname();
@@ -845,6 +845,20 @@ const Navbar = () => {
         <LocationModal onClose={() => setIsLocationModalOpen(false)} />
       )}
     </nav>
+  );
+}
+
+// New wrapper component that applies Suspense
+const Navbar = () => {
+  return (
+    <Suspense fallback={
+      <div className="h-16 bg-white shadow-sm flex items-center justify-between px-4">
+        <div className="animate-pulse h-8 bg-gray-200 rounded w-32"></div>
+        <div className="animate-pulse h-8 bg-gray-200 rounded w-32"></div>
+      </div>
+    }>
+      <NavbarContent />
+    </Suspense>
   );
 };
 

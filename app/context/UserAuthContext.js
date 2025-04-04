@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, useContext, useState, useEffect } from "react";
+import { createContext, useContext, useState, useEffect, useCallback } from "react";
 import { API_URL, USER_ENDPOINTS } from "@/app/config";
 
 const UserAuthContext = createContext();
@@ -38,15 +38,15 @@ export function UserAuthProvider({ children }) {
   const [authStateChange, setAuthStateChange] = useState(0);
 
   // Helper to update both user state and trigger state change
-  const updateUserState = (userData) => {
+  const updateUserState = useCallback((userData) => {
     console.log("Updating user state to:", userData);
     setUser(userData);
     // Increment to force context consumers to re-render
     setAuthStateChange((prev) => prev + 1);
-  };
+  }, []);
 
   // Refresh the access token using the refresh token
-  const refreshAccessToken = async () => {
+  const refreshAccessToken = useCallback(async () => {
     try {
       const { refreshToken } = getUserTokens();
       console.log(
@@ -124,10 +124,10 @@ export function UserAuthProvider({ children }) {
       localStorage.removeItem("userData");
       throw error;
     }
-  };
+  }, [updateUserState]);
 
   // Create an authenticated fetch function that handles token refresh
-  const userAuthFetch = async (url, options = {}) => {
+  const userAuthFetch = useCallback(async (url, options = {}) => {
     const { accessToken } = getUserTokens();
 
     // Set up headers with access token
@@ -182,10 +182,10 @@ export function UserAuthProvider({ children }) {
       console.error("Auth fetch error:", error);
       throw error;
     }
-  };
+  }, [refreshAccessToken, updateUserState]);
 
   // Function to fetch the user profile
-  const fetchUserProfile = async () => {
+  const fetchUserProfile = useCallback(async () => {
     try {
       console.log("Fetching user profile...");
       const response = await fetch(USER_ENDPOINTS.PROFILE, {
@@ -213,7 +213,7 @@ export function UserAuthProvider({ children }) {
       console.error("Error fetching user profile:", error);
       throw error;
     }
-  };
+  }, []);
 
   // Initialize auth state on mount
   useEffect(() => {
@@ -276,7 +276,7 @@ export function UserAuthProvider({ children }) {
     };
 
     initializeAuth();
-  }, []);
+  }, [fetchUserProfile, refreshAccessToken, updateUserState]);
 
   // Login user with email and password
   const login = async (email, password) => {

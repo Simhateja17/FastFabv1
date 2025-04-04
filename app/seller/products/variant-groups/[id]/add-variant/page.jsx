@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/app/context/AuthContext";
 import Link from "next/link";
@@ -83,11 +83,7 @@ export default function AddVariant({ params }) {
   const [selectedColor, setSelectedColor] = useState(null);
   const [stockNumber, setStockNumber] = useState("");
   
-  useEffect(() => {
-    fetchVariantGroup();
-  }, [groupId]);
-  
-  const fetchVariantGroup = async () => {
+  const fetchVariantGroup = useCallback(async () => {
     setFetching(true);
     try {
       const response = await authFetch(`/api/products/variant-group/${groupId}`, {
@@ -107,7 +103,11 @@ export default function AddVariant({ params }) {
     } finally {
       setFetching(false);
     }
-  };
+  }, [groupId, authFetch]);
+  
+  useEffect(() => {
+    fetchVariantGroup();
+  }, [groupId, fetchVariantGroup]);
   
   const handleFileChange = (e) => {
     const files = Array.from(e.target.files);

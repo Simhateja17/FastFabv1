@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback, Suspense, useMemo } from "react";
 import Link from "next/link";
-import { useSearchParams } from 'next/navigation';
+import { useSearchParams, useRouter } from 'next/navigation';
 import ProductCard from "@/app/components/ProductCard";
 import { PUBLIC_ENDPOINTS } from "@/app/config";
 import { FiShoppingBag, FiMapPin, FiCompass, FiAlertCircle } from "react-icons/fi";
@@ -11,20 +11,42 @@ import SellerBanner from "@/app/components/SellerBanner";
 import { SafeLocationConsumer } from "@/app/components/SafeLocationWrapper";
 import LocationRequiredMessage from "@/app/components/LocationRequiredMessage";
 import { useLocationStore } from "@/app/lib/locationStore";
+import { toast } from 'react-hot-toast';
+import HeroSection from './components/HeroSection';
+import ProductSection from './components/ProductSection';
+import FeaturesSection from './components/FeaturesSection';
+import TestimonialsSection from './components/TestimonialsSection';
+import NewsletterSection from './components/NewsletterSection';
+import CategorySection from './components/CategorySection';
 
 // New component to hold the main content and hook logic
 function HomePageContent({ userLocation: contextLocation, loading: locationLoading }) {
   const searchParams = useSearchParams();
+  const router = useRouter();
   const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [locationError, setLocationError] = useState(false);
   const [lastUserLocation, setLastUserLocation] = useState(null);
+  const [featuredProducts, setFeaturedProducts] = useState([]);
+  const [newArrivals, setNewArrivals] = useState([]);
 
   const searchTerm = searchParams.get("q") || "";
 
   // Memoize location for stability
   const userLocation = useMemo(() => contextLocation, [contextLocation]);
+
+  // Check for any payment redirects
+  useEffect(() => {
+    const paymentStatus = searchParams.get('payment_status');
+    if (paymentStatus === 'success') {
+      toast.success('Payment successful! Your order has been placed.');
+      router.replace('/');
+    } else if (paymentStatus === 'failed') {
+      toast.error('Payment failed. Please try again.');
+      router.replace('/');
+    }
+  }, [searchParams, router]);
 
   // Moved fetchProducts definition before useEffect
   const fetchProducts = useCallback(async (location, currentSearchTerm) => {
@@ -138,6 +160,31 @@ function HomePageContent({ userLocation: contextLocation, loading: locationLoadi
   // Moved return statement here
   const isLocationSet = userLocation?.latitude && userLocation?.longitude;
 
+  // Fetch featured products
+  const fetchFeaturedProducts = useCallback(async () => {
+    setLoading(true);
+    try {
+      const response = await fetch('/api/products/featured');
+      const data = await response.json();
+      
+      if (!response.ok) {
+        throw new Error(data.message || 'Failed to fetch products');
+      }
+      
+      setFeaturedProducts(data.featuredProducts || []);
+      setNewArrivals(data.newArrivals || []);
+    } catch (err) {
+      console.error('Error fetching products:', err);
+      setError('Failed to load products. Please try again later.');
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchFeaturedProducts();
+  }, [fetchFeaturedProducts]);
+
   return (
     <main className="min-h-screen bg-background">
       {/* Seller Banner Modal */}
@@ -222,6 +269,32 @@ function HomePageContent({ userLocation: contextLocation, loading: locationLoadi
           )
         )}
       </div>
+
+      <HeroSection />
+      
+      <CategorySection />
+      
+      <ProductSection 
+        title="Featured Products"
+        products={featuredProducts}
+        loading={loading}
+        error={error}
+        onRetry={fetchFeaturedProducts}
+      />
+      
+      <FeaturesSection />
+      
+      <ProductSection 
+        title="New Arrivals"
+        products={newArrivals}
+        loading={loading}
+        error={error}
+        onRetry={fetchFeaturedProducts}
+      />
+      
+      <TestimonialsSection />
+      
+      <NewsletterSection />
     </main>
   );
 }

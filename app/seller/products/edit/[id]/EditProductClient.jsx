@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
 import { toast } from "react-hot-toast";
@@ -134,13 +134,86 @@ export default function EditProductClient({ productId }) {
     images: [],
   });
 
-  useEffect(() => {
-    if (productId) {
-      fetchProduct();
-    }
-  }, [productId]);
+  // Function to fetch color inventories separately
+  const fetchColorInventories = useCallback(async (pid) => {
+    try {
+      const colorResponse = await authFetch(
+        `${API_URL}/seller/products/${pid}/colors`
+      );
 
-  const fetchProduct = async () => {
+      if (colorResponse.ok) {
+        const colorData = await colorResponse.json();
+        setColorInventories(colorData.colorInventories || []);
+      } else if (colorResponse.status === 401) {
+        console.error("Authentication error while fetching color inventories");
+        toast.error("Please login again to continue.");
+        setTimeout(() => {
+          router.push("/signin");
+        }, 2000);
+      } else {
+        console.warn(`Failed to fetch color inventories: ${colorResponse.status}`);
+        // Continue with the product data we have
+      }
+    } catch (colorError) {
+      console.error("Error fetching color inventories:", colorError);
+      // Don't throw, just continue with the product data we have
+      if (colorError.message.includes("Authentication required")) {
+        toast.error("Please login again to continue.");
+        setTimeout(() => {
+          router.push("/signin");
+        }, 2000);
+      }
+    }
+  }, [authFetch, router]);
+
+  // Helper function to process product data
+  const processProductData = useCallback((product) => {
+      // Update subcategories based on category
+      const categoryData = CATEGORIES.find((c) => c.name === product.category);
+      setAvailableSubcategories(categoryData ? categoryData.subcategories : []);
+
+      // Create array of selected sizes
+      const sizesArray = Object.entries(product.sizeQuantities || {})
+        .filter(([_, quantity]) => quantity > 0)
+        .map(([size, quantity]) => ({ size, quantity }));
+
+      setSelectedSizes(sizesArray);
+
+      // Fetch color inventories if available
+      fetchColorInventories(product.id || productId);
+
+      setFormData({
+        name: product.name || "",
+        description: product.description || "",
+        mrpPrice: product.mrpPrice ? product.mrpPrice.toString() : "",
+        sellingPrice: product.sellingPrice
+          ? product.sellingPrice.toString()
+          : "",
+        category: product.category || "",
+        subcategory: product.subcategory || "",
+        isReturnable: product.isReturnable !== undefined ? product.isReturnable : true,
+        sizeQuantities: product.sizeQuantities || {
+          XS: 0,
+          S: 0,
+          M: 0,
+          L: 0,
+          XL: 0,
+          XXL: 0,
+          "3XL": 0,
+          "4XL": 0,
+          "5XL": 0,
+          "6XL": 0,
+          "7XL": 0,
+          "8XL": 0,
+          "9XL": 0,
+          "10XL": 0,
+        },
+        images: product.images || [],
+      });
+      setPreviewImages(product.images || []);
+  }, [fetchColorInventories, productId]);
+
+  const fetchProduct = useCallback(async () => {
     try {
       console.log("Fetching product with ID:", productId);
       setLoading(true);
@@ -213,86 +286,13 @@ export default function EditProductClient({ productId }) {
     } finally {
       setLoading(false);
     }
-  };
-  
-  // Helper function to process product data
-  const processProductData = (product) => {
-      // Update subcategories based on category
-      const categoryData = CATEGORIES.find((c) => c.name === product.category);
-      setAvailableSubcategories(categoryData ? categoryData.subcategories : []);
+  }, [productId, authFetch, processProductData, router]);
 
-      // Create array of selected sizes
-      const sizesArray = Object.entries(product.sizeQuantities || {})
-        .filter(([_, quantity]) => quantity > 0)
-        .map(([size, quantity]) => ({ size, quantity }));
-
-      setSelectedSizes(sizesArray);
-
-      // Fetch color inventories if available
-    fetchColorInventories(product.id || productId);
-
-      setFormData({
-        name: product.name || "",
-        description: product.description || "",
-        mrpPrice: product.mrpPrice ? product.mrpPrice.toString() : "",
-        sellingPrice: product.sellingPrice
-          ? product.sellingPrice.toString()
-          : "",
-        category: product.category || "",
-        subcategory: product.subcategory || "",
-        isReturnable: product.isReturnable !== undefined ? product.isReturnable : true,
-        sizeQuantities: product.sizeQuantities || {
-          XS: 0,
-          S: 0,
-          M: 0,
-          L: 0,
-          XL: 0,
-          XXL: 0,
-          "3XL": 0,
-          "4XL": 0,
-          "5XL": 0,
-          "6XL": 0,
-          "7XL": 0,
-          "8XL": 0,
-          "9XL": 0,
-          "10XL": 0,
-        },
-        images: product.images || [],
-      });
-      setPreviewImages(product.images || []);
-  };
-  
-  // Function to fetch color inventories separately
-  const fetchColorInventories = async (pid) => {
-    try {
-      const colorResponse = await authFetch(
-        `${API_URL}/seller/products/${pid}/colors`
-      );
-
-      if (colorResponse.ok) {
-        const colorData = await colorResponse.json();
-        setColorInventories(colorData.colorInventories || []);
-      } else if (colorResponse.status === 401) {
-        console.error("Authentication error while fetching color inventories");
-        toast.error("Please login again to continue.");
-        setTimeout(() => {
-          router.push("/signin");
-        }, 2000);
-      } else {
-        console.warn(`Failed to fetch color inventories: ${colorResponse.status}`);
-        // Continue with the product data we have
-      }
-    } catch (colorError) {
-      console.error("Error fetching color inventories:", colorError);
-      // Don't throw, just continue with the product data we have
-      if (colorError.message.includes("Authentication required")) {
-        toast.error("Please login again to continue.");
-        setTimeout(() => {
-          router.push("/signin");
-        }, 2000);
-      }
+  useEffect(() => {
+    if (productId) {
+      fetchProduct();
     }
-  };
+  }, [productId, fetchProduct]);
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;

@@ -4,11 +4,15 @@ import { useState, useEffect, Suspense } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import Image from "next/image";
 import Link from "next/link";
-import { FiCheckCircle, FiXCircle, FiArrowLeft } from "react-icons/fi";
+import { FiCheckCircle, FiXCircle, FiArrowLeft, FiArrowRight } from "react-icons/fi";
+import { toast } from "react-hot-toast";
+import { useCartStore } from "../lib/cartStore";
 
-export default function PaymentStatus() {
+function PaymentStatusContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
+  const clearCart = useCartStore((state) => state.clearCart);
+  
   const [loading, setLoading] = useState(true);
   const [status, setStatus] = useState(null);
   const [orderDetails, setOrderDetails] = useState(null);
@@ -34,11 +38,11 @@ export default function PaymentStatus() {
             userData?.name || "Anonymous user"
           );
 
-          if (login && typeof login === 'function' && !user && accessToken) {
+          if (!user && accessToken) {
             console.log(
               "Forced login to maintain session on payment status page"
             );
-            await login({ accessToken, user: userData });
+            // Not trying to call login here since it's not properly defined
           }
         }
 
@@ -60,7 +64,7 @@ export default function PaymentStatus() {
     };
 
     syncAuthState();
-  }, [user, login]);
+  }, [user]);
 
   useEffect(() => {
     async function verifyPayment() {
@@ -284,5 +288,17 @@ export default function PaymentStatus() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function PaymentStatusPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="w-12 h-12 border-4 border-primary border-solid rounded-full border-t-transparent animate-spin"></div>
+      </div>
+    }>
+      <PaymentStatusContent />
+    </Suspense>
   );
 }

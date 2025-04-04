@@ -115,7 +115,7 @@ export default function ProductDetails({ params }) {
     else if (!product || colorInventories.length === 0) {
         setSelectedColor("");
     }
-  }, [product, colorInventories]); // Rerun only when product or inventories change
+  }, [product, colorInventories, selectedColor]); // Add selectedColor to dependency array
 
   const handleColorSelect = (color) => {
     setSelectedColor(color);
