@@ -1,12 +1,10 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import axios from "axios";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
-
-// API endpoint
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000";
+import { toast } from "react-hot-toast";
+import { getAdminApiClient } from "@/app/utils/apiClient";
+import Link from "next/link";
 
 // Order statuses
 const ORDER_STATUSES = [
@@ -53,6 +51,9 @@ export default function OrdersPage() {
   useEffect(() => {
     const fetchOrders = async () => {
       try {
+        // Get API client with admin authorization
+        const apiClient = getAdminApiClient();
+
         const params = new URLSearchParams();
         params.append("page", currentPage);
         params.append("limit", 10);
@@ -73,12 +74,34 @@ export default function OrdersPage() {
           params.append("search", searchQuery);
         }
 
-        const response = await axios.get(
-          `${API_BASE_URL}/admin/orders?${params.toString()}`
+        const response = await apiClient.get(
+          `/api/admin/orders?${params.toString()}`
         );
 
-        setOrders(response.data.orders);
-        setTotalPages(response.data.pagination.totalPages);
+        // Handle different response formats
+        if (response.data) {
+          let ordersData = [];
+          let paginationData = null;
+
+          // Check if response data is an array or has a orders property
+          if (Array.isArray(response.data)) {
+            ordersData = response.data;
+          } else if (Array.isArray(response.data.orders)) {
+            ordersData = response.data.orders;
+            paginationData = response.data.pagination;
+          } else {
+            console.error("Invalid response format:", response.data);
+            setError("Invalid response format from API");
+            setLoading(false);
+            return;
+          }
+
+          setOrders(ordersData);
+          setTotalPages(paginationData?.totalPages || 1);
+        } else {
+          console.error("Empty response data");
+          setError("Empty response from API");
+        }
       } catch (error) {
         console.error("Error fetching orders:", error);
         setError(error.response?.data?.message || "Failed to load orders data");
@@ -100,7 +123,11 @@ export default function OrdersPage() {
   const updateOrderStatus = async (orderId, newStatus) => {
     try {
       setLoading(true);
-      await axios.patch(`${API_BASE_URL}/admin/orders/${orderId}/status`, {
+
+      // Get API client with admin authorization
+      const apiClient = getAdminApiClient();
+
+      await apiClient.patch(`/api/admin/orders/${orderId}/status`, {
         status: newStatus,
       });
 
@@ -110,9 +137,13 @@ export default function OrdersPage() {
           order.id === orderId ? { ...order, status: newStatus } : order
         )
       );
+
+      toast.success(`Order status updated to ${newStatus}`);
     } catch (error) {
       console.error("Error updating order status:", error);
-      alert(error.response?.data?.message || "Failed to update order status");
+      toast.error(
+        error.response?.data?.message || "Failed to update order status"
+      );
     } finally {
       setLoading(false);
     }
@@ -120,7 +151,7 @@ export default function OrdersPage() {
 
   // View order details
   const viewOrderDetails = (orderId) => {
-    router.push(`/admin/superadmin/orders/${orderId}`);
+    router.push(`/superadmin/orders/${orderId}`);
   };
 
   // Get status color

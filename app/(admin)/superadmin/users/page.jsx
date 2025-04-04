@@ -1,14 +1,12 @@
 "use client";
 
-import React, { useState, useEffect, Suspense } from "react";
-import axios from "axios";
-import Link from "next/link";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
+import { toast } from "react-hot-toast";
+import { getAdminApiClient } from "@/app/utils/apiClient";
+import Link from "next/link";
 
-// API endpoint
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000";
-
-function UsersContent() {
+export default function UsersPage() {
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -23,6 +21,9 @@ function UsersContent() {
   useEffect(() => {
     const fetchUsers = async () => {
       try {
+        // Get API client with admin authorization
+        const apiClient = getAdminApiClient();
+
         const params = new URLSearchParams();
         params.append("page", currentPage);
         params.append("limit", 10);
@@ -31,12 +32,72 @@ function UsersContent() {
           params.append("search", searchQuery);
         }
 
-        const response = await axios.get(
-          `${API_BASE_URL}/admin/users?${params.toString()}`
+        console.log("Fetching users with params:", params.toString());
+
+        const response = await apiClient.get(
+          `/api/admin/users?${params.toString()}`
         );
 
-        setUsers(response.data.users);
-        setTotalPages(response.data.pagination.totalPages || 1);
+        // Log the exact response for debugging
+        console.log("Raw users API response:", response.data);
+
+        // Handle different response formats with more flexibility
+        if (response.data) {
+          let usersData = [];
+          let paginationData = null;
+
+          // Case 1: Direct array of users
+          if (Array.isArray(response.data)) {
+            console.log("Response is a direct array");
+            usersData = response.data;
+          }
+          // Case 2: Object with users array
+          else if (response.data.users && Array.isArray(response.data.users)) {
+            console.log("Response has users array property");
+            usersData = response.data.users;
+            paginationData = response.data.pagination;
+          }
+          // Case 3: Object with data that contains users
+          else if (response.data.data && Array.isArray(response.data.data)) {
+            console.log("Response has data array property");
+            usersData = response.data.data;
+            paginationData =
+              response.data.pagination || response.data.meta?.pagination;
+          }
+          // Case 4: Object is itself convertible to array of users
+          else if (
+            typeof response.data === "object" &&
+            Object.keys(response.data).length
+          ) {
+            console.log("Attempting to extract data from object");
+            // Try to find an array property
+            const arrayProps = Object.keys(response.data).filter((key) =>
+              Array.isArray(response.data[key])
+            );
+
+            if (arrayProps.length > 0) {
+              console.log("Found array property:", arrayProps[0]);
+              usersData = response.data[arrayProps[0]];
+            } else {
+              console.error("No array property found in response data");
+              setError("Invalid response format: no array property found");
+              setLoading(false);
+              return;
+            }
+          } else {
+            console.error("Invalid response format:", response.data);
+            setError("Invalid response format from API");
+            setLoading(false);
+            return;
+          }
+
+          console.log("Processed users data:", usersData.length, "items");
+          setUsers(usersData);
+          setTotalPages(paginationData?.totalPages || 1);
+        } else {
+          console.error("Empty response data");
+          setError("Empty response from API");
+        }
       } catch (error) {
         console.error("Error fetching users:", error);
         setError(error.response?.data?.message || "Failed to load users data");
@@ -47,6 +108,48 @@ function UsersContent() {
 
     fetchUsers();
   }, [currentPage, searchQuery]);
+
+  // Retry function for errors
+  const retryFetchUsers = () => {
+    setError(null);
+    setLoading(true);
+    // Reset current state
+    const fetchUsersAgain = async () => {
+      try {
+        const apiClient = getAdminApiClient();
+        const params = new URLSearchParams();
+        params.append("page", currentPage);
+        params.append("limit", 10);
+        if (searchQuery) {
+          params.append("search", searchQuery);
+        }
+
+        const response = await apiClient.get(
+          `/api/admin/users?${params.toString()}`
+        );
+        console.log("Retry response:", response.data);
+
+        if (response.data && Array.isArray(response.data.users)) {
+          setUsers(response.data.users);
+          setTotalPages(response.data.pagination?.totalPages || 1);
+        } else if (Array.isArray(response.data)) {
+          setUsers(response.data);
+          setTotalPages(1);
+        } else {
+          setError("Could not process response data");
+        }
+      } catch (error) {
+        console.error("Retry failed:", error);
+        setError(
+          "Retry failed: " + (error.response?.data?.message || error.message)
+        );
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchUsersAgain();
+  };
 
   // Handle search
   const handleSearch = (e) => {
@@ -60,13 +163,18 @@ function UsersContent() {
 
     setLoading(true);
     try {
-      await axios.delete(`${API_BASE_URL}/admin/users/${selectedUser.id}`);
+      // Get API client with admin authorization
+      const apiClient = getAdminApiClient();
+
+      await apiClient.delete(`/api/admin/users/${selectedUser.id}`);
+
       setUsers(users.filter((user) => user.id !== selectedUser.id));
       setIsDeleteModalOpen(false);
       setSelectedUser(null);
+      toast.success("User deleted successfully");
     } catch (error) {
       console.error("Error deleting user:", error);
-      setError(error.response?.data?.message || "Failed to delete user");
+      toast.error(error.response?.data?.message || "Failed to delete user");
     } finally {
       setLoading(false);
     }
@@ -74,7 +182,7 @@ function UsersContent() {
 
   // View user details
   const viewUserDetails = (userId) => {
-    router.push(`/admin/superadmin/users/${userId}`);
+    router.push(`/superadmin/users/${userId}`);
   };
 
   // Format date
@@ -102,6 +210,38 @@ function UsersContent() {
     return (
       <div className="flex items-center justify-center h-full">
         <div className="w-12 h-12 border-4 border-primary border-solid rounded-full border-t-transparent animate-spin"></div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="bg-red-100 border border-red-400 text-red-700 px-6 py-4 rounded mb-6">
+        <div className="flex items-center">
+          <svg
+            className="w-6 h-6 mr-2"
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth="2"
+              d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+            ></path>
+          </svg>
+          <div>
+            <p className="font-bold">Error Loading Users</p>
+            <p className="text-sm">{error}</p>
+            <button
+              onClick={retryFetchUsers}
+              className="mt-2 bg-red-600 text-white px-4 py-2 rounded hover:bg-red-700"
+            >
+              Retry
+            </button>
+          </div>
+        </div>
       </div>
     );
   }
@@ -137,13 +277,6 @@ function UsersContent() {
           </button>
         </form>
       </div>
-
-      {error && (
-        <div className="mb-4 bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded">
-          <p className="font-bold">Error</p>
-          <p>{error}</p>
-        </div>
-      )}
 
       <div className="bg-background-card rounded-lg shadow overflow-hidden">
         <div className="overflow-x-auto">

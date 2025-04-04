@@ -18,59 +18,29 @@ export default function SellersPage() {
   useEffect(() => {
     const fetchSellers = async () => {
       try {
-        // Using mock data for demonstration purposes
-        const mockSellers = [
-          {
-            id: "seller-1",
-            shopName: "Fashion Trends",
-            ownerName: "John Smith",
-            phone: "+91 9876543210",
-            email: "john@fashiontrends.com",
-            city: "Mumbai",
-            productsCount: 24,
-            createdAt: new Date(
-              Date.now() - 60 * 24 * 60 * 60 * 1000
-            ).toISOString(),
-          },
-          {
-            id: "seller-2",
-            shopName: "Tech World",
-            ownerName: "Arun Kumar",
-            phone: "+91 9871234560",
-            email: "arun@techworld.in",
-            city: "Bangalore",
-            productsCount: 18,
-            createdAt: new Date(
-              Date.now() - 45 * 24 * 60 * 60 * 1000
-            ).toISOString(),
-          },
-          {
-            id: "seller-3",
-            shopName: "Home Essentials",
-            ownerName: "Priya Sharma",
-            phone: "+91 9867890123",
-            email: "priya@homeessentials.com",
-            city: "Delhi",
-            productsCount: 32,
-            createdAt: new Date(
-              Date.now() - 30 * 24 * 60 * 60 * 1000
-            ).toISOString(),
-          },
-          {
-            id: "seller-4",
-            shopName: "Kids Corner",
-            ownerName: "Rahul Verma",
-            phone: "+91 9890123456",
-            email: "rahul@kidscorner.in",
-            city: "Hyderabad",
-            productsCount: 12,
-            createdAt: new Date(
-              Date.now() - 20 * 24 * 60 * 60 * 1000
-            ).toISOString(),
-          },
-        ];
+        setLoading(true);
 
-        setSellers(mockSellers);
+        // Get API client with admin authorization
+        const apiClient = getAdminApiClient();
+
+        // Fetch sellers data from the API
+        const response = await apiClient.get("/api/admin/sellers");
+
+        // Check if response data is an array or has a sellers property
+        if (response.data) {
+          // Handle both possible response formats
+          if (Array.isArray(response.data)) {
+            setSellers(response.data);
+          } else if (Array.isArray(response.data.sellers)) {
+            setSellers(response.data.sellers);
+          } else {
+            console.error("Invalid response format:", response.data);
+            setError("Invalid response format from API");
+          }
+        } else {
+          console.error("Empty response data");
+          setError("Empty response from API");
+        }
       } catch (error) {
         console.error("Error fetching sellers:", error);
         setError(
@@ -101,7 +71,13 @@ export default function SellersPage() {
 
     setLoading(true);
     try {
-      // For demo purposes, we're just updating the state without making an actual API call
+      // Get API client with admin authorization
+      const apiClient = getAdminApiClient();
+
+      // Send delete request to the API
+      await apiClient.delete(`/api/admin/sellers/${selectedSeller.id}`);
+
+      // Update UI by removing the deleted seller
       setSellers(sellers.filter((seller) => seller.id !== selectedSeller.id));
       setIsDeleteModalOpen(false);
       setSelectedSeller(null);

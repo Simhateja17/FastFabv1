@@ -23,119 +23,43 @@ export default function ProductsPage() {
   useEffect(() => {
     const fetchProducts = async () => {
       try {
-        // Using mock data for demonstration purposes
-        const mockProducts = [
-          {
-            id: "product-1",
-            name: "Cotton T-Shirt",
-            sellingPrice: 599,
-            mrp: 799,
-            stock: 45,
-            images: ["https://via.placeholder.com/150"],
-            isActive: true,
-            category: "Clothing",
-            seller: {
-              id: "seller-1",
-              shopName: "Fashion Trends",
-            },
-            createdAt: new Date(
-              Date.now() - 2 * 24 * 60 * 60 * 1000
-            ).toISOString(),
-          },
-          {
-            id: "product-2",
-            name: "Wireless Earbuds",
-            sellingPrice: 1999,
-            mrp: 2499,
-            stock: 20,
-            images: ["https://via.placeholder.com/150"],
-            isActive: true,
-            category: "Electronics",
-            seller: {
-              id: "seller-2",
-              shopName: "Tech World",
-            },
-            createdAt: new Date(
-              Date.now() - 3 * 24 * 60 * 60 * 1000
-            ).toISOString(),
-          },
-          {
-            id: "product-3",
-            name: "Kitchen Blender",
-            sellingPrice: 1499,
-            mrp: 1999,
-            stock: 12,
-            images: ["https://via.placeholder.com/150"],
-            isActive: false,
-            category: "Home & Kitchen",
-            seller: {
-              id: "seller-3",
-              shopName: "Home Essentials",
-            },
-            createdAt: new Date(
-              Date.now() - 5 * 24 * 60 * 60 * 1000
-            ).toISOString(),
-          },
-          {
-            id: "product-4",
-            name: "Educational Toy Set",
-            sellingPrice: 899,
-            mrp: 1199,
-            stock: 30,
-            images: ["https://via.placeholder.com/150"],
-            isActive: true,
-            category: "Toys & Games",
-            seller: {
-              id: "seller-4",
-              shopName: "Kids Corner",
-            },
-            createdAt: new Date(
-              Date.now() - 7 * 24 * 60 * 60 * 1000
-            ).toISOString(),
-          },
-          {
-            id: "product-5",
-            name: "Yoga Mat",
-            sellingPrice: 799,
-            mrp: 999,
-            stock: 25,
-            images: ["https://via.placeholder.com/150"],
-            isActive: true,
-            category: "Sports & Fitness",
-            seller: {
-              id: "seller-1",
-              shopName: "Fashion Trends",
-            },
-            createdAt: new Date(
-              Date.now() - 9 * 24 * 60 * 60 * 1000
-            ).toISOString(),
-          },
-          {
-            id: "product-6",
-            name: "Designer Watch",
-            sellingPrice: 2999,
-            mrp: 3499,
-            stock: 10,
-            images: ["https://via.placeholder.com/150"],
-            isActive: true,
-            category: "Accessories",
-            seller: {
-              id: "seller-2",
-              shopName: "Tech World",
-            },
-            createdAt: new Date(
-              Date.now() - 12 * 24 * 60 * 60 * 1000
-            ).toISOString(),
-          },
-        ];
+        setLoading(true);
 
-        setProducts(mockProducts);
+        // Get API client with admin authorization
+        const apiClient = getAdminApiClient();
 
-        // Extract unique categories
-        const uniqueCategories = [
-          ...new Set(mockProducts.map((product) => product.category)),
-        ];
-        setCategories(uniqueCategories);
+        // Fetch products data from the API
+        const response = await apiClient.get("/api/admin/products");
+
+        // Handle different response formats
+        if (response.data) {
+          let productsData = [];
+
+          // Check if response data is an array or has a products property
+          if (Array.isArray(response.data)) {
+            productsData = response.data;
+          } else if (Array.isArray(response.data.products)) {
+            productsData = response.data.products;
+          } else {
+            console.error("Invalid response format:", response.data);
+            setError("Invalid response format from API");
+            setLoading(false);
+            return;
+          }
+
+          setProducts(productsData);
+
+          // Extract unique categories
+          const uniqueCategories = [
+            ...new Set(
+              productsData.map((product) => product.category).filter(Boolean)
+            ),
+          ];
+          setCategories(uniqueCategories);
+        } else {
+          console.error("Empty response data");
+          setError("Empty response from API");
+        }
       } catch (error) {
         console.error("Error fetching products:", error);
         setError(error.response?.data?.message || "Failed to load products");
@@ -171,20 +95,29 @@ export default function ProductsPage() {
       const productIndex = products.findIndex((p) => p.id === productId);
       if (productIndex === -1) return;
 
-      // Create a copy of the products array
+      // Get current status
+      const currentStatus = products[productIndex].isActive;
+      const newStatus = !currentStatus;
+
+      // Get API client
+      const apiClient = getAdminApiClient();
+
+      // Update status via API
+      await apiClient.patch(`/api/admin/products/${productId}`, {
+        isActive: newStatus,
+      });
+
+      // Create a copy of the products array and update the status
       const updatedProducts = [...products];
-      // Toggle the status
       updatedProducts[productIndex] = {
         ...updatedProducts[productIndex],
-        isActive: !updatedProducts[productIndex].isActive,
+        isActive: newStatus,
       };
 
       // Update state
       setProducts(updatedProducts);
       toast.success(
-        `Product ${
-          updatedProducts[productIndex].isActive ? "activated" : "deactivated"
-        } successfully`
+        `Product ${newStatus ? "activated" : "deactivated"} successfully`
       );
     } catch (error) {
       console.error("Error toggling product status:", error);
@@ -198,7 +131,13 @@ export default function ProductsPage() {
 
     setLoading(true);
     try {
-      // Mock deletion
+      // Get API client
+      const apiClient = getAdminApiClient();
+
+      // Delete product via API
+      await apiClient.delete(`/api/admin/products/${selectedProduct.id}`);
+
+      // Update state
       setProducts(
         products.filter((product) => product.id !== selectedProduct.id)
       );
@@ -207,7 +146,7 @@ export default function ProductsPage() {
       toast.success("Product deleted successfully");
     } catch (error) {
       console.error("Error deleting product:", error);
-      toast.error(error.response?.data?.message || "Failed to delete product");
+      toast.error("Failed to delete product");
     } finally {
       setLoading(false);
     }
