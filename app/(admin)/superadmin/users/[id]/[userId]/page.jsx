@@ -1,12 +1,12 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, Suspense } from "react";
 import { getAdminApiClient } from "@/app/lib/api";
 import { ADMIN_ENDPOINTS } from "@/app/lib/endpoints";
 import { useParams } from "next/navigation";
 
-const UserDetailsPage = () => {
-  const { id } = useParams();
+const UserDetailsContent = () => {
+  const { id, userId } = useParams();
   const [userDetails, setUserDetails] = useState({});
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -18,10 +18,10 @@ const UserDetailsPage = () => {
       setLoading(true);
       try {
         const apiClient = getAdminApiClient();
-        console.log("Fetching user details:", ADMIN_ENDPOINTS.USER_DETAIL(id));
+        console.log("Fetching user details:", ADMIN_ENDPOINTS.USER_DETAIL(userId));
 
         const userResponse = await apiClient.get(
-          ADMIN_ENDPOINTS.USER_DETAIL(id)
+          ADMIN_ENDPOINTS.USER_DETAIL(userId)
         );
         console.log("User details API response:", userResponse.data);
 
@@ -45,7 +45,7 @@ const UserDetailsPage = () => {
 
         // Fetch user orders
         const ordersResponse = await apiClient.get(
-          ADMIN_ENDPOINTS.USER_ORDERS(id)
+          ADMIN_ENDPOINTS.USER_ORDERS(userId)
         );
         console.log("User orders API response:", ordersResponse.data);
 
@@ -66,12 +66,20 @@ const UserDetailsPage = () => {
       }
     };
 
-    if (id) {
+    if (userId) {
       fetchUserDetails();
     }
-  }, [id]);
+  }, [userId]);
 
   return <div>{/* Render your component content here */}</div>;
+};
+
+const UserDetailsPage = () => {
+  return (
+    <Suspense fallback={<div>Loading user details...</div>}>
+      <UserDetailsContent />
+    </Suspense>
+  );
 };
 
 export default UserDetailsPage;

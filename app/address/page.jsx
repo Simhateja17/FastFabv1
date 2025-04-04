@@ -55,6 +55,47 @@ export default function AddressList() {
         }
 
         // Proceed with fetching addresses - userAuthFetch will handle token refresh if needed
+        const fetchAddresses = async () => {
+          setLoading(true);
+          try {
+            const response = await userAuthFetch(USER_ENDPOINTS.ADDRESSES);
+            if (response.ok) {
+              const data = await response.json();
+              // Handle different API response formats
+              const addressList = Array.isArray(data)
+                ? data
+                : data.addresses || data.data?.addresses || data.data || [];
+      
+              setAddresses(addressList);
+              console.log("Addresses fetched successfully:", addressList);
+            } else {
+              console.error(
+                `Error fetching addresses: ${response.status} ${response.statusText}`
+              );
+              toast.error("Failed to fetch addresses. Please try again.");
+            }
+          } catch (error) {
+            console.error("Error fetching addresses:", error);
+            if (
+              error.message.includes("No refresh token available") ||
+              error.message.includes("Failed to refresh token")
+            ) {
+              // This is an auth issue - only show sign in message if user was actually signed out
+              if (
+                !localStorage.getItem("userData") &&
+                !localStorage.getItem("userAccessToken")
+              ) {
+                toast.error("Please sign in to view your addresses");
+                router.push("/login");
+              }
+            } else {
+              toast.error("Failed to fetch addresses. Please try again.");
+            }
+          } finally {
+            setLoading(false);
+          }
+        };
+        
         await fetchAddresses();
       } catch (error) {
         console.error("Authentication check error:", error);
@@ -64,48 +105,7 @@ export default function AddressList() {
     };
 
     checkAuth();
-  }, [user, loading, router, fetchAddresses]);
-
-  const fetchAddresses = async () => {
-    setLoading(true);
-    try {
-      const response = await userAuthFetch(USER_ENDPOINTS.ADDRESSES);
-      if (response.ok) {
-        const data = await response.json();
-        // Handle different API response formats
-        const addressList = Array.isArray(data)
-          ? data
-          : data.addresses || data.data?.addresses || data.data || [];
-
-        setAddresses(addressList);
-        console.log("Addresses fetched successfully:", addressList);
-      } else {
-        console.error(
-          `Error fetching addresses: ${response.status} ${response.statusText}`
-        );
-        toast.error("Failed to fetch addresses. Please try again.");
-      }
-    } catch (error) {
-      console.error("Error fetching addresses:", error);
-      if (
-        error.message.includes("No refresh token available") ||
-        error.message.includes("Failed to refresh token")
-      ) {
-        // This is an auth issue - only show sign in message if user was actually signed out
-        if (
-          !localStorage.getItem("userData") &&
-          !localStorage.getItem("userAccessToken")
-        ) {
-          toast.error("Please sign in to view your addresses");
-          router.push("/login");
-        }
-      } else {
-        toast.error("Failed to fetch addresses. Please try again.");
-      }
-    } finally {
-      setLoading(false);
-    }
-  };
+  }, [user, loading, router, userAuthFetch]);
 
   const handleInputChange = (e) => {
     const { name, value, type, checked } = e.target;

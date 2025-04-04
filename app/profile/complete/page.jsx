@@ -1,13 +1,13 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, Suspense } from "react";
 import { useRouter } from "next/navigation";
 import { useUserAuth } from "@/app/context/UserAuthContext";
 import { toast } from "react-hot-toast";
 import { useAuth } from "@/app/context/AuthContext";
 import LoadingSpinner from "@/app/components/LoadingSpinner";
 
-export default function CompleteProfile() {
+function ProfileCompleteContent() {
   const router = useRouter();
   const { user, updateUserProfile, loading: authLoading } = useUserAuth();
   const [loading, setLoading] = useState(false);
@@ -197,5 +197,17 @@ export default function CompleteProfile() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function CompleteProfile() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="w-12 h-12 border-4 border-primary border-solid rounded-full border-t-transparent animate-spin"></div>
+      </div>
+    }>
+      <ProfileCompleteContent />
+    </Suspense>
   );
 }

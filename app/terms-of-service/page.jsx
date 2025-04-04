@@ -3,8 +3,9 @@
 import Link from "next/link";
 import Image from "next/image";
 import { FiChevronRight, FiFileText, FiArrowLeft } from "react-icons/fi";
+import { Suspense } from "react";
 
-export default function TermsAndConditions() {
+function TermsAndConditionsContent() {
   return (
     <div className="bg-background min-h-screen">
       {/* Hero Section */}
@@ -306,5 +307,13 @@ export default function TermsAndConditions() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function TermsAndConditions() {
+  return (
+    <Suspense fallback={<div className="min-h-screen flex items-center justify-center">Loading...</div>}>
+      <TermsAndConditionsContent />
+    </Suspense>
   );
 }

@@ -26,51 +26,21 @@ export default function UserProfile() {
     const checkAuth = async () => {
       if (authLoading) return; // Skip if auth context is still loading
 
-      console.log("Profile page - Checking auth:", !!user);
-
       try {
-        // If no user in context, check localStorage as fallback
+        // If no user in context, redirect to login
         if (!user) {
-          const savedUserData = localStorage.getItem("userData");
-          const accessToken = localStorage.getItem("userAccessToken");
-          const refreshToken = localStorage.getItem("userRefreshToken");
-
-          console.log("Profile page - Auth fallbacks:", {
-            savedUserData: !!savedUserData,
-            accessToken: !!accessToken,
-            refreshToken: !!refreshToken,
-          });
-
-          // If we have no authentication data at all, redirect to login
-          if (!savedUserData && !accessToken && !refreshToken) {
-            toast.error("Please sign in to view your profile");
-            router.push("/login");
-            return;
-          }
-
-          // Try to use the saved data to pre-fill form
-          if (savedUserData) {
-            try {
-              const userData = JSON.parse(savedUserData);
-              setFormData({
-                name: userData.name || "",
-                email: userData.email || "",
-                phone: userData.phone || "",
-                ...formData,
-              });
-            } catch (e) {
-              console.error("Error parsing saved user data:", e);
-            }
-          }
-        } else {
-          // If we have user from context, use it to pre-fill form
-          setFormData({
-            name: user.name || "",
-            email: user.email || "",
-            phone: user.phone || "",
-            ...formData,
-          });
+          toast.error("Please sign in to view your profile");
+          router.push("/login");
+          return;
         }
+
+        // Update form data with user info
+        setFormData({
+          name: user.name || "",
+          email: user.email || "",
+          phone: user.phone || "",
+          ...formData,
+        });
       } catch (error) {
         console.error("Authentication check error:", error);
         toast.error("Authentication error. Please sign in again.");
@@ -79,7 +49,7 @@ export default function UserProfile() {
     };
 
     checkAuth();
-  }, [user, authLoading, router]);
+  }, [user, authLoading, router, formData]);
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;

@@ -1,130 +1,173 @@
 "use client";
 
-import Image from "next/image";
-import Link from "next/link";
-import { useState, useEffect } from "react";
-import { FiMapPin, FiShoppingBag } from "react-icons/fi";
+import React from 'react';
+import Link from 'next/link';
+import Image from 'next/image';
+import { FiHeart, FiShoppingCart } from 'react-icons/fi';
+import { useCartStore } from '../lib/cartStore';
+import { useWishlistStore } from '../lib/wishlistStore';
+import { useRouter } from 'next/navigation';
 
-export default function ProductCard({ product, showSellerDistance = false }) {
-  const [imageError, setImageError] = useState(false);
-  const [currentSizes, setCurrentSizes] = useState([]);
+export default function ProductCard({ product }) {
+  const router = useRouter();
+  const addToCart = useCartStore((state) => state.addItem);
+  const addToWishlist = useWishlistStore((state) => state.addItem);
+  const isInWishlist = useWishlistStore((state) => state.isInWishlist(product?.id));
 
-  // Process available sizes on component mount and when product changes
-  useEffect(() => {
-    if (product?.sizeQuantities) {
-      // Get available sizes by filtering those with quantity > 0
-      const availableSizes = Object.entries(product.sizeQuantities)
-        .filter(([_, quantity]) => parseInt(quantity) > 0)
-        .map(([size]) => size)
-        .sort(); // Sort sizes for consistency
-      
-      console.log(`ProductCard - Product ${product.id} available sizes:`, availableSizes);
-      setCurrentSizes(availableSizes);
-    } else {
-      setCurrentSizes([]);
-    }
-  }, [product]);
+  if (!product) {
+    // Render placeholder/skeleton if no product
+    return (
+      <div className="bg-gray-100 rounded-lg p-4 h-80 animate-pulse">
+        <div className="bg-gray-200 h-48 rounded-md mb-4"></div>
+        <div className="h-4 bg-gray-200 rounded mb-2"></div>
+        <div className="h-4 bg-gray-200 rounded w-2/3"></div>
+      </div>
+    );
+  }
 
-  // Calculate discount percentage
-  const discountPercentage = Math.round(
-    ((product.mrpPrice - product.sellingPrice) / product.mrpPrice) * 100
-  );
+  const {
+    id,
+    name,
+    price,
+    sellingPrice,
+    discountPercentage,
+    images,
+    category,
+    isOutOfStock,
+  } = product;
 
-  // Calculate total quantity across all sizes
-  const totalQuantity = product.sizeQuantities
-    ? Object.values(product.sizeQuantities).reduce(
-        (sum, quantity) => sum + parseInt(quantity),
-        0
-      )
-    : 0;
+  // Format price with INR currency
+  const formatPrice = (price) => {
+    return new Intl.NumberFormat('en-IN', {
+      style: 'currency',
+      currency: 'INR',
+      maximumFractionDigits: 0
+    }).format(price);
+  };
 
-  // Ensure images is always an array
-  const images = Array.isArray(product.images) ? product.images : [];
-  const firstImage = images.length > 0 ? images[0] : null;
-  
-  // Get distance to display (might be in product or product.seller)
-  const distance = product.distance || (product.seller && product.seller.distance);
+  // Calculate discount percentage if not provided
+  const discount = discountPercentage || (price && sellingPrice
+    ? Math.round(100 - ((sellingPrice / price) * 100))
+    : 0);
+
+  // Get the first image URL or use a placeholder
+  const imageUrl = images && images.length > 0 
+    ? images[0] 
+    : 'https://via.placeholder.com/300';
+
+  const handleAddToCart = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+
+    if (isOutOfStock) return;
+
+    addToCart({
+      id,
+      name,
+      price: sellingPrice || price,
+      image: imageUrl,
+      quantity: 1,
+      // For products with size, you might want to use a modal or redirect to product page
+      size: 'M' // Default size, adjust as needed
+    });
+
+    // Optional: Show toast or notification
+  };
+
+  const handleAddToWishlist = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+
+    addToWishlist({
+      id,
+      name,
+      price: sellingPrice || price,
+      image: imageUrl,
+    });
+
+    // Optional: Show toast or notification
+  };
 
   return (
-    <Link href={`/products/${product.id}`} className="block group">
-      <div className="bg-background-card rounded-lg shadow-sm overflow-hidden transition-shadow group-hover:shadow-md border border-ui-border">
-        {/* Product Image */}
-        <div className="relative aspect-square overflow-hidden bg-background-alt">
-          {product.images && product.images.length > 0 ? (
-            <Image
-              src={product.images[0]}
-              alt={product.name}
-              fill
-              sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 25vw"
-              className="object-cover group-hover:scale-105 transition-transform"
-            />
-          ) : (
-            <div className="w-full h-full flex items-center justify-center bg-background-alt">
-              <FiShoppingBag className="w-12 h-12 text-text-muted" />
-            </div>
-          )}
-
-          {/* Discount Badge */}
-          {discountPercentage > 0 && (
-            <div className="absolute top-0 left-0 bg-accent text-white text-xs font-medium px-2 py-1 m-2 rounded">
-              {discountPercentage}% OFF
-            </div>
-          )}
-          
-          {/* Stock Badge */}
-          {totalQuantity > 0 ? (
-            <div className="absolute bottom-0 right-0 bg-green-500 text-white text-xs font-medium px-2 py-1 m-2 rounded">
-              In Stock
-            </div>
-          ) : (
-            <div className="absolute bottom-0 right-0 bg-red-500 text-white text-xs font-medium px-2 py-1 m-2 rounded">
-              Out of Stock
-            </div>
-          )}
+    <Link
+      href={`/products/${id}`}
+      className="group relative bg-white rounded-lg shadow-sm hover:shadow-md transition-shadow overflow-hidden flex flex-col"
+    >
+      {/* Product Image */}
+      <div className="relative aspect-square bg-gray-100 overflow-hidden">
+        {/* Using Next.js Image component for better performance */}
+        <div className="relative w-full h-full">
+          <Image
+            src={imageUrl}
+            alt={name || 'Product image'}
+            fill
+            sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
+            className="object-cover object-center"
+            onError={(e) => {
+              // Fallback when image fails to load
+              e.currentTarget.src = 'https://via.placeholder.com/300?text=No+Image';
+            }}
+          />
         </div>
 
-        <div className="p-3">
-          {/* Product Name */}
-          <h3 className="font-medium text-text-dark line-clamp-1 mb-1">
-            {product.name}
-          </h3>
+        {/* Discount tag */}
+        {discount > 0 && (
+          <div className="absolute top-2 left-2 bg-primary text-white text-xs font-bold px-2 py-1 rounded">
+            {discount}% OFF
+          </div>
+        )}
 
-          {/* Price */}
-          <div className="flex items-center">
-            <span className="text-primary font-medium">
-              ₹{product.sellingPrice}
+        {/* Out of stock overlay */}
+        {isOutOfStock && (
+          <div className="absolute inset-0 bg-black bg-opacity-50 flex items-center justify-center">
+            <span className="text-white font-medium text-lg">Out of Stock</span>
+          </div>
+        )}
+
+        {/* Quick action buttons */}
+        <div className="absolute top-2 right-2 flex flex-col gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+          <button
+            onClick={handleAddToWishlist}
+            className={`p-2 rounded-full bg-white shadow-sm hover:bg-gray-100 ${
+              isInWishlist ? 'text-red-500' : 'text-gray-700'
+            }`}
+          >
+            <FiHeart className={isInWishlist ? 'fill-current' : ''} />
+          </button>
+          
+          {!isOutOfStock && (
+            <button
+              onClick={handleAddToCart}
+              className="p-2 rounded-full bg-white shadow-sm hover:bg-gray-100 text-gray-700"
+            >
+              <FiShoppingCart />
+            </button>
+          )}
+        </div>
+      </div>
+
+      {/* Product details */}
+      <div className="p-4 flex-grow flex flex-col">
+        <h3 className="text-sm font-medium text-gray-900 mb-1 line-clamp-2">
+          {name}
+        </h3>
+        
+        <p className="text-xs text-gray-500 mb-2">
+          {category || 'General'}
+        </p>
+        
+        <div className="mt-auto">
+          <div className="flex items-center gap-2">
+            <span className="text-sm font-bold text-gray-900">
+              {formatPrice(sellingPrice || price)}
             </span>
-            {product.mrpPrice > product.sellingPrice && (
-              <span className="ml-2 text-text-muted text-xs line-through">
-                ₹{product.mrpPrice}
+            
+            {discount > 0 && price && (
+              <span className="text-xs text-gray-500 line-through">
+                {formatPrice(price)}
               </span>
             )}
           </div>
-
-          {/* Available Sizes */}
-          {currentSizes.length > 0 && (
-            <div className="flex flex-wrap gap-1 mt-1">
-              {currentSizes.map((size) => (
-                <span 
-                  key={size} 
-                  className="inline-block px-1.5 py-0.5 bg-gray-100 text-xs rounded border border-gray-200"
-                >
-                  {size}
-                </span>
-              ))}
-            </div>
-          )}
-
-          {/* Seller/Distance (if applicable) */}
-          {showSellerDistance && product.seller && (
-            <div className="flex items-center mt-1 text-xs text-text-muted">
-              <FiMapPin className="mr-1 h-3 w-3" />
-              <span className="truncate">
-                {product.seller.shopName || "Unknown seller"}
-                {distance && ` • ${distance.toFixed(1)} km`}
-              </span>
-            </div>
-          )}
         </div>
       </div>
     </Link>
