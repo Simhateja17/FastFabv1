@@ -38,13 +38,14 @@ export const USER_ENDPOINTS = {
 
 // Product endpoints
 export const PRODUCT_ENDPOINTS = {
-  LIST: `${API_URL}/products`,
-  DETAIL: (id) => `${API_URL}/products/${id}`,
-  CREATE: `${API_URL}/seller/products`,
-  UPDATE: (id) => `${API_URL}/seller/products/${id}`,
-  DELETE: (id) => `${API_URL}/seller/products/${id}`,
-  UPLOAD_IMAGES: `${API_URL}/products/upload-images`,
-  PUBLIC_ACTIVE: `${API_URL}/products/all`,
+  LIST: `/api/seller/products`,
+  DETAIL: (id) => `/api/seller/products/${id}`,
+  CREATE: `/api/seller/products`,
+  UPDATE: (id) => `/api/seller/products/${id}`,
+  DELETE: (id) => `/api/seller/products/${id}`,
+  UPLOAD_IMAGES: `/api/products/upload-images`,
+  PUBLIC_ACTIVE: `/api/public/products/active`,
+  COLORS: (id) => `/api/products/${id}/colors`,
 };
 
 // Public endpoints

@@ -2,19 +2,8 @@
 
 import Link from "next/link";
 import { FiHelpCircle, FiChevronRight } from "react-icons/fi";
-import { Suspense } from "react";
 
 export default function FAQPage() {
-  return (
-    <Suspense fallback={<div className="flex justify-center items-center min-h-screen">
-      <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500"></div>
-    </div>}>
-      <FAQPageContent />
-    </Suspense>
-  );
-}
-
-function FAQPageContent() {
   return (
     <div className="bg-background min-h-screen">
       {/* Hero Section */}

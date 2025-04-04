@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useLocationStore } from "@/app/lib/locationStore";
 import { useUserAuth } from "@/app/context/UserAuthContext";
 import { FiMapPin, FiAlertCircle } from "react-icons/fi";
@@ -12,31 +12,8 @@ export default function LocationPermissionHandler({ children }) {
   const [showModal, setShowModal] = useState(false);
   const [locationRequested, setLocationRequested] = useState(false);
 
-  // Check if this is a new user (no prior visits)
-  useEffect(() => {
-    const hasVisitedBefore = localStorage.getItem("hasVisitedBefore");
-    const locationSet = localStorage.getItem("locationSet");
-    
-    // If user has set their location previously, don't do anything
-    if (locationSet === "true" || userLocation) {
-      setLocationStatus("allowed");
-      return;
-    }
-
-    // If this is a first-time visitor or returning user without location
-    if (!hasVisitedBefore || (!locationSet && !userLocation)) {
-      // Mark as visited
-      localStorage.setItem("hasVisitedBefore", "true");
-      
-      // If they haven't been asked for permission yet
-      if (!locationRequested) {
-        requestLocationPermission();
-      }
-    }
-  }, [userLocation, locationRequested]);
-
   // Requests browser location permission
-  const requestLocationPermission = () => {
+  const requestLocationPermission = useCallback(() => {
     setLocationRequested(true);
     
     if (navigator.geolocation) {
@@ -80,7 +57,30 @@ export default function LocationPermissionHandler({ children }) {
       setLocationStatus("unsupported");
       setShowModal(true);
     }
-  };
+  }, [setUserLocation]);
+
+  // Check if this is a new user (no prior visits)
+  useEffect(() => {
+    const hasVisitedBefore = localStorage.getItem("hasVisitedBefore");
+    const locationSet = localStorage.getItem("locationSet");
+    
+    // If user has set their location previously, don't do anything
+    if (locationSet === "true" || userLocation) {
+      setLocationStatus("allowed");
+      return;
+    }
+
+    // If this is a first-time visitor or returning user without location
+    if (!hasVisitedBefore || (!locationSet && !userLocation)) {
+      // Mark as visited
+      localStorage.setItem("hasVisitedBefore", "true");
+      
+      // If they haven't been asked for permission yet
+      if (!locationRequested) {
+        requestLocationPermission();
+      }
+    }
+  }, [userLocation, locationRequested, requestLocationPermission]);
 
   // Call this when user clicks the location modal trigger
   const handleOpenLocationModal = () => {
@@ -120,7 +120,7 @@ export default function LocationPermissionHandler({ children }) {
                 <div className="flex items-start">
                   <FiAlertCircle className="text-amber-500 mt-1 mr-3 flex-shrink-0" />
                   <p className="text-sm text-amber-700">
-                    You've denied location access. Please set your location manually or enable location services in your browser settings.
+                    You&apos;ve denied location access. Please set your location manually or enable location services in your browser settings.
                   </p>
                 </div>
               </div>

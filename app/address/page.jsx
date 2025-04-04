@@ -64,7 +64,7 @@ export default function AddressList() {
     };
 
     checkAuth();
-  }, [user, loading, router]);
+  }, [user, loading, router, fetchAddresses]);
 
   const fetchAddresses = async () => {
     setLoading(true);

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback, Suspense } from "react";
+import { useState, useEffect, useCallback } from "react";
 import ProductCard from "@/app/components/ProductCard";
 import LoadingSpinner from "@/app/components/LoadingSpinner";
 import { PUBLIC_ENDPOINTS } from "@/app/config";
@@ -10,16 +10,6 @@ import { useLocationStore } from "@/app/lib/locationStore";
 import LocationRequiredMessage from "@/app/components/LocationRequiredMessage";
 
 export default function MenProductsPage() {
-  return (
-    <Suspense fallback={<div className="flex justify-center items-center min-h-screen">
-      <LoadingSpinner size="large" color="primary" />
-    </div>}>
-      <MenProductsPageContent />
-    </Suspense>
-  );
-}
-
-function MenProductsPageContent() {
   const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -180,7 +170,7 @@ function MenProductsPageContent() {
             Expanding to Your Area!
           </h3>
           <p className="mt-2 text-gray-500 max-w-md mx-auto">
-            Currently we're expanding into your region, we'll be soon delivering you the outfits you love
+            Currently we&apos;re expanding into your region, we&apos;ll be soon delivering you the outfits you love
           </p>
           <p className="mt-4 text-sm text-gray-500">
             You can try setting a different location or check back later.
@@ -248,8 +238,8 @@ function MenProductsPageContent() {
         <>
           {/* Page Title */}
           <div className="mb-6">
-            <h1 className="text-2xl font-bold text-text-dark">Men's Collection</h1>
-            <p className="text-text-muted">Browse our latest men's fashion</p>
+            <h1 className="text-2xl font-bold text-text-dark">Men&apos;s Collection</h1>
+            <p className="text-text-muted">Browse our latest men&apos;s fashion</p>
           </div>
           
           {/* Filters and Products Section using Grid */}
@@ -259,58 +249,36 @@ function MenProductsPageContent() {
               <ProductFilters
                 filters={filters}
                 setFilters={setFilters}
-                categoryPage={true}
-                showResetButton={true}
+                availableCategories={["MEN"]} 
               />
             </div>
             
-            {/* Products Grid - Takes up 3 columns on large screens */}
-            <div className="lg:col-span-3 mt-8 lg:mt-0">
-              {/* Loading State */}
+            {/* Products - Takes up 3 columns on large screens */}
+            <div className="lg:col-span-3 mt-6 lg:mt-0">
               {loading ? (
-                <div className="flex justify-center items-center min-h-[300px]">
-                  <LoadingSpinner size="large" color="primary" />
+                <div className="flex justify-center py-20">
+                  <LoadingSpinner size="large" color="secondary" />
                 </div>
               ) : error ? (
-                /* Error State */
                 <ErrorMessage 
                   error={error} 
                   onRetry={() => fetchProducts(userLocation, filters)} 
                 />
-              ) : products.length === 0 ? (
-                /* Empty State */
-                <div className="text-center py-12 bg-white rounded-lg shadow-sm">
-                  <FiShoppingBag className="w-12 h-12 mx-auto text-gray-400" />
-                  <h3 className="mt-4 text-lg font-medium text-gray-900">
-                    No products found
-                  </h3>
-                  <p className="mt-2 text-gray-500 max-w-md mx-auto">
-                    We couldn't find any men's products matching your filters.
-                    Try changing your filters or check back later.
-                  </p>
-                  <button
-                    onClick={() => {
-                      // Reset filters except category
-                      setFilters({
-                        ...filters,
-                        subcategory: "",
-                        size: "",
-                        minPrice: null,
-                        maxPrice: null,
-                        sort: ""
-                      });
-                    }}
-                    className="mt-4 text-primary hover:underline flex items-center justify-center mx-auto"
-                  >
-                    <FiFilter className="mr-1" /> Reset filters
-                  </button>
-                </div>
-              ) : (
-                /* Products Grid */
-                <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-3 gap-4 sm:gap-6">
+              ) : products.length > 0 ? (
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 md:gap-6">
                   {products.map((product) => (
                     <ProductCard key={product.id} product={product} />
                   ))}
+                </div>
+              ) : (
+                <div className="text-center py-12 bg-white rounded-lg shadow-sm">
+                  <FiShoppingBag className="w-12 h-12 mx-auto text-gray-400" />
+                  <h3 className="mt-4 text-lg font-medium text-gray-900">
+                    No Products Found
+                  </h3>
+                  <p className="mt-2 text-gray-500 max-w-md mx-auto">
+                    There are no men&apos;s products matching your filters. Try changing your filters or check back later.
+                  </p>
                 </div>
               )}
             </div>

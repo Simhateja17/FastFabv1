@@ -1,12 +1,12 @@
 "use client";
 
-import { useState, useEffect, Suspense } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useUserAuth } from "@/app/context/UserAuthContext";
 import { toast } from "react-hot-toast";
 import Link from "next/link";
 
-function UserProfileContent() {
+export default function UserProfile() {
   const router = useRouter();
   const {
     user,
@@ -313,17 +313,5 @@ function UserProfileContent() {
         )}
       </div>
     </div>
-  );
-}
-
-export default function UserProfile() {
-  return (
-    <Suspense fallback={
-      <div className="flex justify-center items-center min-h-screen">
-        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-secondary"></div>
-      </div>
-    }>
-      <UserProfileContent />
-    </Suspense>
   );
 }

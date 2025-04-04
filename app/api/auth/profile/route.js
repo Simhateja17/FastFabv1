@@ -38,22 +38,74 @@ export async function GET(request) {
     
     console.log(`Forwarding profile request to: ${endpoint}`);
     
-    const response = await fetch(endpoint, {
-      method: 'GET',
-      headers: {
-        'Authorization': `Bearer ${token}`
+    // Add retry mechanism for better reliability
+    let response;
+    let retryCount = 0;
+    const maxRetries = 2;
+    
+    while (retryCount <= maxRetries) {
+      try {
+        response = await fetch(endpoint, {
+          method: 'GET',
+          headers: {
+            'Authorization': `Bearer ${token}`
+          },
+          // Add a reasonable timeout
+          signal: AbortSignal.timeout(5000)
+        });
+        
+        // If successful, break out of retry loop
+        break;
+      } catch (fetchError) {
+        console.error(`Profile fetch attempt ${retryCount + 1} failed:`, fetchError.message);
+        
+        // If we've reached max retries, handle the error
+        if (retryCount === maxRetries) {
+          console.error('All profile fetch attempts failed');
+          
+          // Instead of failing completely, return a non-fatal error
+          // This prevents unwanted logouts during temporary network issues
+          return NextResponse.json({
+            message: 'Profile fetch could not complete due to network issues',
+            maintainSession: true,
+            networkError: true
+          }, { status: 200 }); // Return 200 to prevent automatic logout
+        }
+        
+        // Wait before retrying (exponential backoff)
+        const delay = Math.pow(2, retryCount) * 500;
+        await new Promise(resolve => setTimeout(resolve, delay));
+        retryCount++;
       }
-    });
+    }
     
     console.log(`Profile response status: ${response.status}`);
     
     if (!response.ok) {
       if (response.status === 401) {
-        // Token expired or invalid
+        // Token expired or invalid - this should trigger the refresh process
         return NextResponse.json(
           { message: 'Unauthorized' },
           { status: 401 }
         );
+      }
+      
+      // For server errors, return a non-fatal error that won't cause logout
+      if (response.status >= 500) {
+        return NextResponse.json({
+          message: 'Server error during profile fetch',
+          maintainSession: true,
+          serverError: true
+        }, { status: 200 }); // Return 200 to prevent automatic logout
+      }
+      
+      // For 404 errors (might be a routing issue), also prevent logout
+      if (response.status === 404) {
+        return NextResponse.json({
+          message: 'Profile endpoint not found',
+          maintainSession: true,
+          routingError: true
+        }, { status: 200 }); // Return 200 to prevent automatic logout
       }
       
       // Other error
@@ -81,6 +133,16 @@ export async function GET(request) {
     
   } catch (error) {
     console.error('Profile fetch error:', error);
+    
+    // For network errors, don't trigger an automatic logout
+    if (error.name === 'AbortError' || error instanceof TypeError) {
+      return NextResponse.json({
+        message: 'Network issue during profile fetch',
+        maintainSession: true,
+        networkError: true
+      }, { status: 200 }); // Return 200 to prevent automatic logout
+    }
+    
     return NextResponse.json(
       { message: 'Failed to fetch profile', error: error.message },
       { status: 500 }

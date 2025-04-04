@@ -43,13 +43,47 @@ export async function POST(request) {
     
     console.log(`Forwarding refresh request to: ${refreshEndpoint}`);
     
-    const response = await fetch(refreshEndpoint, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ refreshToken }),
-    });
+    // Add retry mechanism for better reliability
+    let response;
+    let retryCount = 0;
+    const maxRetries = 2;
+    
+    while (retryCount <= maxRetries) {
+      try {
+        response = await fetch(refreshEndpoint, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ refreshToken }),
+          // Add a reasonable timeout
+          signal: AbortSignal.timeout(5000)
+        });
+        
+        // If successful, break out of retry loop
+        break;
+      } catch (fetchError) {
+        console.error(`Fetch attempt ${retryCount + 1} failed:`, fetchError.message);
+        
+        // If we've reached max retries, handle the error
+        if (retryCount === maxRetries) {
+          console.error('All refresh token fetch attempts failed');
+          
+          // Instead of failing completely, try to return the existing token info
+          // This helps prevent unwanted logouts during temporary network issues
+          return NextResponse.json({
+            message: 'Token refresh could not complete due to network issues',
+            maintainSession: true,
+            networkError: true
+          });
+        }
+        
+        // Wait before retrying (exponential backoff)
+        const delay = Math.pow(2, retryCount) * 500;
+        await new Promise(resolve => setTimeout(resolve, delay));
+        retryCount++;
+      }
+    }
     
     console.log(`Refresh token response status: ${response.status}`);
     
@@ -66,6 +100,16 @@ export async function POST(request) {
       } catch (e) {
         // If not JSON, use text as is
         console.error('Non-JSON error response from refresh token endpoint:', errorText);
+      }
+      
+      // For 500-level errors, don't propagate the error in a way that causes logout
+      if (response.status >= 500) {
+        return NextResponse.json({
+          message: 'Server error during token refresh',
+          error: errorMessage,
+          maintainSession: true,
+          serverError: true
+        }, { status: 200 }); // Return 200 to prevent automatic logout
       }
       
       return NextResponse.json(
@@ -86,7 +130,7 @@ export async function POST(request) {
         httpOnly: true,
         secure: isProduction,
         sameSite: 'lax',
-        maxAge: 60 * 15, // 15 minutes in seconds
+        maxAge: 60 * 120, // 2 hours in seconds to match backend
         path: '/',
       });
     }
@@ -106,6 +150,16 @@ export async function POST(request) {
     
   } catch (error) {
     console.error('Token refresh error:', error);
+    
+    // For server and network errors, don't trigger an automatic logout
+    if (error.name === 'AbortError' || error instanceof TypeError) {
+      return NextResponse.json({
+        message: 'Network issue during token refresh',
+        maintainSession: true,
+        networkError: true
+      }, { status: 200 }); // Return 200 to prevent automatic logout
+    }
+    
     return NextResponse.json(
       { message: 'Failed to refresh token', error: error.message },
       { status: 500 }

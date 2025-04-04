@@ -1,7 +1,5 @@
 import { NextResponse } from 'next/server';
-import { PrismaClient } from '@prisma/client';
-
-const prisma = new PrismaClient();
+import prisma from '@/app/api/lib/prisma';
 
 // Simple in-memory cache to prevent redundant searches
 const searchCache = new Map();
@@ -20,6 +18,8 @@ const CACHE_TTL = 60 * 1000; // 1 minute cache
  * - maxPrice: (optional) Maximum price filter
  */
 export async function GET(request) {
+  console.log("Search API called");
+  
   try {
     const { searchParams } = new URL(request.url);
     const searchQuery = searchParams.get('search');
@@ -29,7 +29,7 @@ export async function GET(request) {
     const minPrice = searchParams.get('minPrice') ? parseFloat(searchParams.get('minPrice')) : null;
     const maxPrice = searchParams.get('maxPrice') ? parseFloat(searchParams.get('maxPrice')) : null;
     
-    console.log(`Search API called with query: "${searchQuery}", category: ${category}, page: ${page}, limit: ${limit}`);
+    console.log(`Search API params: searchQuery=${searchQuery}, category=${category}`);
     
     if (!searchQuery) {
       return NextResponse.json(
@@ -55,53 +55,55 @@ export async function GET(request) {
       return NextResponse.json(cachedResult.data);
     }
     
-    // Using PublicProducts view for search
-    const whereClause = {
-      AND: [
-        {
-          OR: [
-            { name: { contains: searchQuery, mode: 'insensitive' } },
-            { description: { contains: searchQuery, mode: 'insensitive' } },
-            { category: { contains: searchQuery, mode: 'insensitive' } }
-          ]
-        }
-      ]
-    };
-    
-    // Add category filter if provided
-    if (category) {
-      whereClause.AND.push({ 
-        category: { 
-          equals: category,
-          mode: 'insensitive'
-        } 
-      });
-    }
-    
-    // Add price filters if provided
-    if (minPrice !== null || maxPrice !== null) {
-      const priceFilter = {};
-      
-      if (minPrice !== null) {
-        priceFilter.gte = minPrice;
-      }
-      
-      if (maxPrice !== null) {
-        priceFilter.lte = maxPrice;
-      }
-      
-      if (Object.keys(priceFilter).length > 0) {
-        whereClause.AND.push({ sellingPrice: priceFilter });
-      }
-    }
-    
-    // Calculate pagination
-    const skip = (page - 1) * limit;
-    
+    // Simplify the query to make it more robust
     try {
-      // Try using the PublicProducts view first
+      console.log("Building corrected search query");
+      
+      // 1. Get IDs of visible sellers
+      const visibleSellers = await prisma.seller.findMany({
+        where: { isVisible: true },
+        select: { id: true },
+      });
+      const visibleSellerIds = visibleSellers.map(s => s.id);
+
+      if (visibleSellerIds.length === 0) {
+        console.log("No visible sellers found, returning empty result.");
+        return NextResponse.json({ products: [], totalProducts: 0, totalPages: 0, currentPage: page });
+      }
+
+      // Calculate pagination
+      const skip = (page - 1) * limit;
+      
+      // 2. Build the Product query using visibleSellerIds
+      let whereClause = {
+        isActive: true,
+        sellerId: { in: visibleSellerIds }, // Filter by seller IDs
+        OR: [
+          { name: { contains: searchQuery, mode: 'insensitive' } },
+          { description: { contains: searchQuery, mode: 'insensitive' } },
+          { category: { contains: searchQuery, mode: 'insensitive' } }
+        ]
+      };
+      
+      // Add category filter if provided
+      if (category) {
+        whereClause.category = category;
+      }
+      
+      // Add price filters if provided
+      if (minPrice !== null && !isNaN(minPrice)) {
+        whereClause.sellingPrice = { ...(whereClause.sellingPrice || {}), gte: minPrice };
+      }
+      
+      if (maxPrice !== null && !isNaN(maxPrice)) {
+        whereClause.sellingPrice = { ...(whereClause.sellingPrice || {}), lte: maxPrice };
+      }
+      
+      console.log(`Final where clause: ${JSON.stringify(whereClause)}`);
+      
+      // 3. Execute query with the corrected structure
       const [products, totalCount] = await Promise.all([
-        prisma.publicProducts.findMany({
+        prisma.product.findMany({
           where: whereClause,
           include: {
             seller: {
@@ -111,8 +113,7 @@ export async function GET(request) {
                 city: true,
                 state: true,
               },
-            },
-            colorInventory: true
+            }
           },
           orderBy: {
             createdAt: 'desc',
@@ -120,20 +121,17 @@ export async function GET(request) {
           skip,
           take: limit,
         }),
-        prisma.publicProducts.count({ where: whereClause })
+        prisma.product.count({ where: whereClause })
       ]);
       
-      // Calculate total pages
-      const totalPages = Math.ceil(totalCount / limit);
-      
-      console.log(`Search found ${totalCount} results for "${searchQuery}"`);
+      console.log(`Search found ${products.length} results for "${searchQuery}"`);
       
       // Prepare the response
       const responseData = {
         products,
         query: searchQuery,
         totalProducts: totalCount,
-        totalPages,
+        totalPages: Math.ceil(totalCount / limit),
         currentPage: page,
       };
       
@@ -147,80 +145,19 @@ export async function GET(request) {
       cleanupCache();
       
       return NextResponse.json(responseData);
-    } catch (viewError) {
-      // If the view doesn't exist, fall back to the old method
-      if (viewError.message && viewError.message.includes('relation "PublicProducts" does not exist')) {
-        console.log("PublicProducts view not available, falling back to manual filtering");
-        
-        // Add visibility filters for the fallback approach
-        whereClause.AND.push({ isActive: true });
-        whereClause.AND.push({ 
-          seller: {
-            isVisible: true 
-          }
-        });
-        
-        // Execute with fallback
-        const [products, totalCount] = await Promise.all([
-          prisma.product.findMany({
-            where: whereClause,
-            include: {
-              seller: {
-                select: {
-                  id: true,
-                  shopName: true,
-                  city: true,
-                  state: true,
-                },
-              },
-              colorInventory: true
-            },
-            orderBy: {
-              createdAt: 'desc',
-            },
-            skip,
-            take: limit,
-          }),
-          prisma.product.count({ where: whereClause })
-        ]);
-        
-        // Calculate total pages
-        const totalPages = Math.ceil(totalCount / limit);
-        
-        console.log(`Search found ${totalCount} results for "${searchQuery}" (fallback method)`);
-        
-        // Prepare the response
-        const responseData = {
-          products,
-          query: searchQuery,
-          totalProducts: totalCount,
-          totalPages,
-          currentPage: page,
-        };
-        
-        // Cache the result
-        searchCache.set(cacheKey, {
-          data: responseData,
-          timestamp: Date.now()
-        });
-        
-        // Clean up old cache entries
-        cleanupCache();
-        
-        return NextResponse.json(responseData);
-      } else {
-        // If it's a different error, log and throw
-        console.error(`Error in search API using PublicProducts view: ${viewError.message}`);
-        throw viewError;
-      }
+    } catch (error) {
+      console.error(`Error executing search query:`, error);
+      
+      // Return a more generic error to avoid leaking details in production
+      return NextResponse.json(
+        { error: 'Failed to search products. Please try again.' },
+        { status: 500 }
+      );
     }
   } catch (error) {
-    console.error(`Error in search API: ${error.message}`);
+    console.error(`Fatal error in search API:`, error);
     return NextResponse.json(
-      { 
-        error: 'Failed to search products', 
-        details: error.message 
-      },
+      { error: 'An unexpected error occurred' },
       { status: 500 }
     );
   }

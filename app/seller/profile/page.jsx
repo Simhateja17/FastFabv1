@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/app/context/AuthContext";
 import { toast } from "react-hot-toast";
@@ -14,6 +14,7 @@ import {
   FiHome,
   FiPackage,
   FiShoppingBag,
+  FiMapPin,
 } from "react-icons/fi";
 
 // The actual profile content
@@ -22,6 +23,9 @@ function ProfileContent() {
   const { seller, updateSellerDetails, logout } = useAuth();
   const [loading, setLoading] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
+  const [mapsLoaded, setMapsLoaded] = useState(false);
+  const addressInputRef = useRef(null);
+  const autocompleteRef = useRef(null);
   const [formData, setFormData] = useState({
     shopName: "",
     ownerName: "",
@@ -32,6 +36,8 @@ function ProfileContent() {
     gstNumber: "",
     openTime: "",
     closeTime: "",
+    latitude: null,
+    longitude: null,
   });
 
   // Extract the actual seller data from the nested structure
@@ -51,9 +57,140 @@ function ProfileContent() {
         gstNumber: sellerData.gstNumber || "",
         openTime: sellerData.openTime || "",
         closeTime: sellerData.closeTime || "",
+        latitude: sellerData.latitude || null,
+        longitude: sellerData.longitude || null,
       });
     }
   }, [sellerData]);
+
+  // Check if Google Maps API is loaded
+  useEffect(() => {
+    const checkGoogleMapsLoaded = () => {
+      if (window.google && window.google.maps && window.google.maps.places) {
+        console.log("Google Maps API detected");
+        setMapsLoaded(true);
+        return true;
+      }
+      return false;
+    };
+
+    // Check immediately
+    if (checkGoogleMapsLoaded()) {
+      return;
+    }
+
+    // If not loaded yet, set up an interval to check
+    const intervalId = setInterval(() => {
+      if (checkGoogleMapsLoaded()) {
+        clearInterval(intervalId);
+      }
+    }, 300);
+
+    // Clean up interval
+    return () => clearInterval(intervalId);
+  }, []);
+
+  // Initialize Google Maps Autocomplete when editing and Maps API is loaded
+  useEffect(() => {
+    if (isEditing && mapsLoaded && addressInputRef.current) {
+      try {
+        console.log("Initializing Google Maps Autocomplete for address field");
+        
+        // Create autocomplete instance
+        autocompleteRef.current = new window.google.maps.places.Autocomplete(
+          addressInputRef.current,
+          {
+            componentRestrictions: { country: "in" },
+            fields: ["address_components", "formatted_address", "geometry"],
+            types: ['establishment', 'geocode']
+          }
+        );
+        
+        // Add listener for place selection
+        autocompleteRef.current.addListener("place_changed", () => {
+          const place = autocompleteRef.current.getPlace();
+          handlePlaceSelection(place);
+        });
+      } catch (error) {
+        console.error("Error initializing Google Maps Autocomplete:", error);
+      }
+      
+      // Clean up on unmount or when editing state changes
+      return () => {
+        if (autocompleteRef.current && window.google) {
+          window.google.maps.event.clearInstanceListeners(autocompleteRef.current);
+          autocompleteRef.current = null;
+        }
+      };
+    }
+  }, [isEditing, mapsLoaded]);
+
+  // Handle place selection from Google Maps Autocomplete
+  const handlePlaceSelection = (place) => {
+    try {
+      if (!place || !place.geometry) {
+        console.warn("Invalid place object received");
+        return;
+      }
+      
+      // Get coordinates
+      const lat = place.geometry.location.lat();
+      const lng = place.geometry.location.lng();
+      
+      console.log(`Location coordinates: ${lat}, ${lng}`);
+      
+      // Extract address components
+      let addressData = {
+        address: place.formatted_address || "",
+        city: "",
+        state: "",
+        pincode: "",
+        latitude: lat,
+        longitude: lng,
+      };
+      
+      // Extract city, state, postal_code from address_components
+      if (place.address_components && Array.isArray(place.address_components)) {
+        place.address_components.forEach(component => {
+          if (!component || !component.types || !Array.isArray(component.types)) {
+            return;
+          }
+          
+          const types = component.types;
+          
+          if (types.includes("locality")) {
+            addressData.city = component.long_name || "";
+          }
+          
+          if (types.includes("administrative_area_level_1")) {
+            addressData.state = component.long_name || "";
+          }
+          
+          if (types.includes("postal_code")) {
+            addressData.pincode = component.long_name || "";
+          }
+        });
+      }
+      
+      console.log("Extracted address data:", addressData);
+      
+      // Update form data with location details
+      setFormData(prev => ({
+        ...prev,
+        address: addressData.address,
+        city: addressData.city || prev.city,
+        state: addressData.state || prev.state,
+        pincode: addressData.pincode || prev.pincode,
+        latitude: addressData.latitude,
+        longitude: addressData.longitude,
+      }));
+      
+      toast.success("Location selected successfully");
+    } catch (error) {
+      console.error("Error handling place selection:", error);
+      toast.error("Error selecting location");
+    }
+  };
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
@@ -205,14 +342,27 @@ function ProfileContent() {
                 <label className="block text-sm font-medium text-text-dark mb-2">
                   Address
                 </label>
-                <textarea
-                  name="address"
-                  value={formData.address}
-                  onChange={handleInputChange}
-                  rows={3}
-                  className="w-full p-3 border border-ui-border rounded-md bg-background focus:ring-2 focus:ring-secondary focus:border-secondary focus:outline-none transition-colors"
-                  required
-                />
+                <div className="relative">
+                  <input
+                    type="text"
+                    name="address"
+                    value={formData.address}
+                    onChange={handleInputChange}
+                    ref={addressInputRef}
+                    className="w-full p-3 pl-10 border border-ui-border rounded-md bg-background focus:ring-2 focus:ring-secondary focus:border-secondary focus:outline-none transition-colors"
+                    required
+                    placeholder="Start typing your address for suggestions"
+                  />
+                  <FiMapPin className="absolute left-3 top-3 text-text-muted" />
+                </div>
+                {!mapsLoaded && isEditing && (
+                  <p className="mt-1 text-xs text-text-muted">Loading location suggestions...</p>
+                )}
+                {formData.latitude && formData.longitude && (
+                  <p className="mt-1 text-xs text-accent">
+                    Location coordinates captured successfully
+                  </p>
+                )}
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
@@ -371,6 +521,12 @@ function ProfileContent() {
                 <p className="mt-1 text-lg font-medium text-text-dark">
                   {sellerData.address || "Not set"}
                 </p>
+                {sellerData.latitude && sellerData.longitude && (
+                  <div className="mt-1 text-xs text-accent flex items-center gap-1">
+                    <FiMapPin size={12} /> 
+                    <span>Location coordinates: {sellerData.latitude.toFixed(6)}, {sellerData.longitude.toFixed(6)}</span>
+                  </div>
+                )}
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6">

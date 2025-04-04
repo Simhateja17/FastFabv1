@@ -284,7 +284,7 @@ export default function SellerSignin() {
             )}
 
             <div className="text-center text-sm text-text-muted">
-              Don't have an account?{" "}
+              Don&apos;t have an account?{" "}
               <Link
                 href="/seller/signup"
                 className="text-primary hover:underline"

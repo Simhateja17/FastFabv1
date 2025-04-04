@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { PrismaClient } from '@prisma/client';
 import jwt from 'jsonwebtoken';
+import { cookies } from 'next/headers';
 
 // Create a Prisma client instance with better error handling
 let prisma;
@@ -63,6 +64,31 @@ const generateTokens = (userId) => {
   }
 };
 
+/**
+ * Set authentication cookies in the response
+ */
+const setAuthCookies = (accessToken, refreshToken) => {
+  const cookieStore = cookies();
+  
+  // Set the access token cookie
+  cookieStore.set("accessToken", accessToken, {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === "production",
+    maxAge: 15 * 60, // 15 minutes in seconds
+    path: "/",
+  });
+  
+  // Set the refresh token cookie
+  cookieStore.set("refreshToken", refreshToken, {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === "production",
+    maxAge: 7 * 24 * 60 * 60, // 7 days in seconds
+    path: "/",
+  });
+  
+  console.log('Auth cookies set successfully');
+};
+
 export async function POST(request) {
   try {
     const body = await request.json();
@@ -106,6 +132,10 @@ export async function POST(request) {
     // Generate tokens with fallback
     const tokens = generateTokens(user.id);
     console.log('Generated tokens for user:', user.id);
+    
+    // Set auth cookies in response
+    setAuthCookies(tokens.accessToken, tokens.refreshToken);
+    console.log('Set auth cookies for user:', user.id);
 
     // Return user data and tokens
     return NextResponse.json({
