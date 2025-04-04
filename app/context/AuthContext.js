@@ -212,6 +212,19 @@ export function AuthProvider({ children }) {
     
     console.log(`Auth tokens available: access=${!!accessToken}, refresh=${!!refreshToken}`);
 
+    // Safety check: If this is a seller visibility endpoint and seller is not available, return an error
+    if (url.includes('/seller/visibility') && !seller) {
+      console.error('Cannot perform seller visibility operations: No seller data available');
+      return new Response(JSON.stringify({
+        success: false,
+        message: 'Seller data not available. Please refresh the page or log in again.'
+      }), {
+        status: 400,
+        headers: { 'Content-Type': 'application/json' },
+        ok: false
+      });
+    }
+
     // Set up headers with access token
     const headers = {
       ...options.headers,

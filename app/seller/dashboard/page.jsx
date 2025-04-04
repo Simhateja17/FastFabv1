@@ -23,6 +23,13 @@ function DashboardContent() {
   
   const fetchVisibilityStatus = useCallback(async () => {
     try {
+      // First, check if seller exists before proceeding
+      if (!seller) {
+        console.log('No seller data available in context, cannot fetch visibility status');
+        setIsVisible(false); // Default to hidden if no seller data
+        return;
+      }
+
       // Debug log
       console.log('Fetching visibility status from API');
       
@@ -69,6 +76,18 @@ function DashboardContent() {
 
   const handleVisibilityToggle = async () => {
     try {
+      // Check if seller exists before proceeding
+      if (!seller) {
+        toast.error('Seller data is not available. Please refresh the page or contact support.');
+        return;
+      }
+
+      // Check if within store hours before allowing toggle
+      if (!isWithinStoreHours()) {
+        toast.error('Cannot change store visibility outside of store hours');
+        return;
+      }
+
       setIsToggling(true);
       
       // Debug log
@@ -164,7 +183,9 @@ function DashboardContent() {
       toast.error(error.message || 'Failed to update store visibility');
       
       // Refresh visibility status to ensure UI is in sync
-      fetchVisibilityStatus();
+      if (seller) { // Only fetch if seller exists
+        fetchVisibilityStatus();
+      }
     } finally {
       setIsToggling(false);
     }
@@ -198,9 +219,13 @@ function DashboardContent() {
     },
   ];
 
-  // Check if current time is within store hours
+  // Update the isWithinStoreHours function to be more robust
   const isWithinStoreHours = () => {
-    if (!seller || !seller.openTime || !seller.closeTime) return true;
+    // If seller data is missing or if store hours aren't set, default to true
+    if (!seller || !seller.openTime || !seller.closeTime) {
+      console.log('Store hours not set or seller data missing, defaulting to store open');
+      return true;
+    }
 
     const now = new Date();
     const currentTime = now.getHours() * 60 + now.getMinutes();
@@ -211,7 +236,9 @@ function DashboardContent() {
     const openTime = openHours * 60 + openMinutes;
     const closeTime = closeHours * 60 + closeMinutes;
     
-    return currentTime >= openTime && currentTime <= closeTime;
+    const isOpen = currentTime >= openTime && currentTime <= closeTime;
+    console.log(`Current time: ${currentTime}, Open time: ${openTime}, Close time: ${closeTime}, Is within hours: ${isOpen}`);
+    return isOpen;
   };
 
   const storeStatus = isWithinStoreHours();
