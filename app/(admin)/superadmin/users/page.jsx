@@ -1,12 +1,28 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, Suspense } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "react-hot-toast";
 import { getAdminApiClient } from "@/app/utils/apiClient";
 import Link from "next/link";
 
+// Main component wrapper with Suspense
 export default function UsersPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="flex items-center justify-center h-full">
+          <div className="w-12 h-12 border-4 border-primary border-solid rounded-full border-t-transparent animate-spin"></div>
+        </div>
+      }
+    >
+      <UsersContent />
+    </Suspense>
+  );
+}
+
+// Content component that handles data fetching and rendering
+function UsersContent() {
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -445,13 +461,5 @@ export default function UsersPage() {
         </div>
       )}
     </div>
-  );
-}
-
-export default function UsersPage() {
-  return (
-    <Suspense fallback={<div>Loading users list...</div>}>
-      <UsersContent />
-    </Suspense>
   );
 }
