@@ -248,63 +248,50 @@ export function AuthProvider({ children }) {
         // Log response status and content type for debugging
         console.log(`Response: ${response.status} ${response.statusText}`);
         const contentType = response.headers.get('content-type') || '';
-        console.log(`Content-Type: ${contentType}`);
-
-        // Special handling for HTML responses (likely error pages)
-        if (contentType.includes('text/html')) {
-          console.error("Received HTML response instead of JSON. Server may be returning an error page.");
-          const htmlContent = await response.text();
-          console.error("HTML content preview:", htmlContent.substring(0, 200) + "...");
+        
+        // Check for auth errors that need handling
+        if (response.status === 401) {
+          console.log("Received 401 Unauthorized, trying to refresh token");
           
-          // If this is likely a server error page, treat it as a 500
-          if (htmlContent.includes('<!DOCTYPE') || htmlContent.includes('<html>')) {
-            const error = new Error("Server returned an HTML error page");
-            error.htmlResponse = true;
-            throw error;
-          }
-        }
-
-        // If unauthorized and we have a refresh token, try to refresh
-        if (response.status === 401 && retryCount === 0) {
-          console.log("Got 401, attempting to refresh token");
-          try {
-            // Try to refresh the token
-            const newAccessToken = await refreshAccessToken();
-            
-            // Retry the request with the new token
-            console.log("Token refreshed, retrying original request");
-            return makeRequest(newAccessToken, retryCount + 1);
-          } catch (refreshError) {
-            console.error("Token refresh failed during request:", refreshError.message);
-            // Only clear auth state for specific auth errors, not network issues
-            if (refreshError.message.includes("Invalid refresh token") || 
-                refreshError.message === "No refresh token available") {
-              clearTokens();
-              setSeller(null);
+          if (retryCount === 0 && refreshToken) {
+            // Try to refresh the token and retry the request once
+            try {
+              const newToken = await refreshAccessToken();
+              if (newToken) {
+                console.log("Successfully refreshed token, retrying request");
+                clearTimeout(timeoutId);
+                // Retry the request with the new token
+                return makeRequest(newToken, retryCount + 1);
+              }
+            } catch (refreshError) {
+              console.error("Failed to refresh token:", refreshError);
+              // Only clear tokens for specific auth errors
+              if (refreshError.message === "Invalid refresh token" || 
+                  refreshError.message === "No refresh token available") {
+                clearTokens();
+                setSeller(null);
+              }
             }
-            throw refreshError;
           }
+        } else if (response.status === 404) {
+          // Don't treat 404 as a fatal error that logs users out
+          console.warn(`Endpoint not found: ${url} - This might be a routing issue`);
+        } else if (response.status >= 500) {
+          // Don't log users out on server errors
+          console.warn(`Server error: ${response.status} when accessing ${url}`);
         }
         
-        // For server errors, retry once after a short delay
-        if (response.status >= 500 && retryCount === 0) {
-          console.warn(`Server error ${response.status}, retrying...`);
-          await new Promise(resolve => setTimeout(resolve, 1000));
-          return makeRequest(token, retryCount + 1);
-        }
-
-        // Check for 404 errors specifically
-        if (response.status === 404) {
-          console.error(`Resource not found: ${url}`);
-        }
-
         return response;
       } catch (error) {
-        // For network errors, retry once
+        // For network errors, retry once and don't log out
         if ((error.name === 'AbortError' || error instanceof TypeError) && retryCount === 0) {
           console.warn(`Network error: ${error.message}, retrying...`);
           await new Promise(resolve => setTimeout(resolve, 1000));
           return makeRequest(token, retryCount + 1);
+        }
+        // For network errors, don't clear tokens or log users out
+        if (error.name === 'AbortError' || error instanceof TypeError) {
+          console.warn(`Network error: ${error.message}, but maintaining session`);
         }
         throw error;
       }
@@ -317,6 +304,17 @@ export function AuthProvider({ children }) {
     } catch (error) {
       clearTimeout(timeoutId);
       console.error("Auth fetch error:", error);
+      // Don't throw errors for network issues
+      if (error.name === 'AbortError' || error instanceof TypeError) {
+        // Return a response-like object that won't trigger token clearing
+        return {
+          ok: false,
+          status: 0,
+          statusText: "Network Error",
+          json: async () => ({ message: "Network error", networkError: true }),
+          text: async () => "Network error",
+        };
+      }
       throw error;
     }
   };
@@ -346,7 +344,7 @@ export function AuthProvider({ children }) {
             return;
           } catch (refreshError) {
             console.error("Failed to refresh token during init:", refreshError);
-            // Only clear on specific auth errors
+            // Don't clear tokens on network errors or non-critical auth issues
             if (refreshError.message === "No refresh token available" ||
                 refreshError.message === "Invalid refresh token") {
               clearTokens();
@@ -392,6 +390,7 @@ export function AuthProvider({ children }) {
                   setSeller(sellerData);
                 } else {
                   console.error("Profile fetch failed even after token refresh");
+                  // Only clear tokens on confirmed auth issues, not network/server errors
                   if (retryResponse.status === 401) {
                     clearTokens();
                     setSeller(null);
@@ -407,26 +406,26 @@ export function AuthProvider({ children }) {
                 setSeller(null);
               }
             }
-          } else if (response.status >= 500) {
-            // Server error - maintain current state
-            console.warn("Server error during auth initialization, maintaining current state");
+          } else if (response.status >= 500 || response.status === 404) {
+            // Server error or endpoint not found - maintain current state
+            console.warn(`Server error or endpoint not found (${response.status}) during auth initialization, maintaining current state`);
+            // Do NOT clear tokens or reset seller state on server-side issues
           } else {
-            // Other client errors
+            // Only handle other specific client errors
             console.error(`Unexpected auth response: ${response.status}`);
-            clearTokens();
-            setSeller(null);
+            // Don't automatically clear tokens on unexpected responses
           }
         } catch (fetchError) {
-          // Network error or other fetch failure
+          // Network error or other fetch failure - maintain session
           console.error("Auth profile fetch failed:", fetchError);
           // Don't clear tokens on network errors
         }
       } catch (error) {
         console.error("Auth initialization error:", error);
         // Only clear tokens for critical errors, not network issues
-        if (!(error instanceof TypeError)) {
-          clearTokens();
-          setSeller(null);
+        if (!(error instanceof TypeError) && !(error.message && error.message.includes('fetch'))) {
+          // Don't clear tokens for network-related errors
+          console.warn("Maintaining session despite error:", error.message);
         }
       } finally {
         setLoading(false);

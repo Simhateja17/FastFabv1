@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback, Suspense } from "react";
+import { useState, useEffect, useCallback } from "react";
 import ProductCard from "@/app/components/ProductCard";
 import LoadingSpinner from "@/app/components/LoadingSpinner";
 import { PUBLIC_ENDPOINTS } from "@/app/config";
@@ -9,7 +9,7 @@ import ProductFilters from "@/app/components/ProductFilters";
 import { useLocationStore } from "@/app/lib/locationStore";
 import LocationRequiredMessage from "@/app/components/LocationRequiredMessage";
 
-function WomenProductsContent() {
+export default function WomenProductsPage() {
   const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -166,7 +166,7 @@ function WomenProductsContent() {
             Expanding to Your Area!
           </h3>
           <p className="mt-2 text-gray-500 max-w-md mx-auto">
-            Currently we're expanding into your region, we'll be soon delivering you the outfits you love
+            Currently we&apos;re expanding into your region, we&apos;ll be soon delivering you the outfits you love
           </p>
           <p className="mt-4 text-sm text-gray-500">
             You can try setting a different location or check back later.
@@ -234,8 +234,8 @@ function WomenProductsContent() {
         <>
           {/* Page Title */}
           <div className="mb-6">
-            <h1 className="text-2xl font-bold text-text-dark">Women's Collection</h1>
-            <p className="text-text-muted">Browse our latest women's fashion</p>
+            <h1 className="text-2xl font-bold text-text-dark">Women&apos;s Collection</h1>
+            <p className="text-text-muted">Browse our latest women&apos;s fashion</p>
           </div>
           
           {/* Filters and Products Section using Grid */}
@@ -273,7 +273,7 @@ function WomenProductsContent() {
                     No Products Found
                   </h3>
                   <p className="mt-2 text-gray-500 max-w-md mx-auto">
-                    There are no women's products matching your filters. Try changing your filters or check back later.
+                    There are no women&apos;s products matching your filters. Try changing your filters or check back later.
                   </p>
                 </div>
               )}
@@ -282,17 +282,5 @@ function WomenProductsContent() {
         </>
       )}
     </div>
-  );
-}
-
-export default function WomenProductsPage() {
-  return (
-    <Suspense fallback={
-      <div className="flex justify-center items-center min-h-screen">
-        <LoadingSpinner size="large" color="primary" />
-      </div>
-    }>
-      <WomenProductsContent />
-    </Suspense>
   );
 }

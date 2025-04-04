@@ -354,7 +354,7 @@ const MobileMenu = ({ isOpen, seller, user, onUserLogout, onSellerLogout }) => {
 // Main Navbar Component
 const Navbar = () => {
   const { seller, setSeller } = useAuth();
-  const { user, setUser } = useUserAuth();
+  const { user, authStateChange, logout } = useUserAuth();
   const pathname = usePathname();
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -378,6 +378,14 @@ const Navbar = () => {
 
   // Derive current location label
   const currentLocation = useLocationStore((state) => state.userLocation?.label || "Select Location");
+
+  // Add effect to debug user auth state changes
+  useEffect(() => {
+    console.log("Navbar auth state updated:", { 
+      user: user ? `${user.name} (${user.id})` : 'null',
+      authStateChange
+    });
+  }, [user, authStateChange]); 
 
   // Redirect URL for logo click
   const redirect = isSellerRoute
@@ -472,10 +480,14 @@ const Navbar = () => {
 
   // Handlers for logout...
   const handleSellerLogout = () => {
-    // ... (existing handleSellerLogout logic) ...
+    logout(); // Use the logout function from context
+    setIsSellerDropdownOpen(false);
+    router.push('/seller/signin');
   };
+  
   const handleUserLogout = () => {
-    // ... (existing handleUserLogout logic) ...
+    logout(); // Use the logout function from context
+    setIsUserDropdownOpen(false);
   };
 
   // Get Breadcrumbs (if needed, might be removed or simplified)

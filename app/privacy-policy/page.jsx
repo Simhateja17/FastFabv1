@@ -2,9 +2,8 @@
 
 import Link from "next/link";
 import { FiChevronRight, FiArrowLeft, FiShield } from "react-icons/fi";
-import { Suspense } from "react";
 
-function PrivacyPolicyContent() {
+export default function PrivacyPolicy() {
   return (
     <div className="bg-background min-h-screen">
       {/* Hero Section */}
@@ -296,13 +295,5 @@ function PrivacyPolicyContent() {
         </div>
       </div>
     </div>
-  );
-}
-
-export default function PrivacyPolicy() {
-  return (
-    <Suspense fallback={<div className="p-8 text-center">Loading privacy policy...</div>}>
-      <PrivacyPolicyContent />
-    </Suspense>
   );
 }

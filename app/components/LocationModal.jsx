@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import { FiMapPin, FiX } from "react-icons/fi";
 import { useUserAuth } from "@/app/context/UserAuthContext";
 import { SafeLocationConsumer } from "./SafeLocationWrapper";
@@ -22,7 +22,7 @@ function LocationModalContent({ onClose }) {
   const setUserLocation = useLocationStore(state => state.setUserLocation);
   
   // Safety check to ensure we update location state properly
-  const safeUpdateLocation = (locationData) => {
+  const safeUpdateLocation = useCallback((locationData) => {
     let success = false;
     
     // Try to use the store method
@@ -50,7 +50,7 @@ function LocationModalContent({ onClose }) {
     localStorage.setItem("refreshMensProducts", "true");
     
     return success;
-  };
+  }, [setUserLocation]);
   
   // All hooks are called unconditionally in the same order every time
   const { user } = useUserAuth();
@@ -236,7 +236,7 @@ function LocationModalContent({ onClose }) {
         autocompleteRef.current = null;
       }
     };
-  }, [mapsScriptLoaded, onClose, setUserLocation, safeUpdateLocation]);
+  }, [mapsScriptLoaded, onClose, safeUpdateLocation]);
 
   // Handle input changes without interfering with Google autocomplete
   const handleInputChange = (e) => {

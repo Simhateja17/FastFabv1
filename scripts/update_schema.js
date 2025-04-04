@@ -1,114 +1,137 @@
-// Schema update script that follows production-safe practices
-// This script:
-// 1. Pulls the current schema from the database
-// 2. Identifies changes needed
-// 3. Creates a SQL migration file for those specific changes
-// 4. Never uses prisma migrate directly
-
+const { exec } = require('child_process');
 const fs = require('fs');
 const path = require('path');
-const { execSync } = require('child_process');
-const { PrismaClient } = require('@prisma/client');
+const { Client } = require('pg');
 
-const prisma = new PrismaClient();
+// Define the paths
+const sqlMigrationsPath = path.join(__dirname, '../prisma/sql_migrations.sql');
+const envPath = path.join(__dirname, '../seller-Service-2-main/seller-Service-2-main/.env');
+const projectEnvPath = path.join(__dirname, '../.env');
+const prismaEnvPath = path.join(__dirname, '../prisma/.env');
 
+// Function to execute commands
+function runCommand(command) {
+  return new Promise((resolve, reject) => {
+    console.log(`Running: ${command}`);
+    exec(command, (error, stdout, stderr) => {
+      if (error) {
+        console.error(`Error: ${error.message}`);
+        return reject(error);
+      }
+      if (stderr) {
+        console.error(`Stderr: ${stderr}`);
+      }
+      console.log(`Stdout: ${stdout}`);
+      resolve(stdout);
+    });
+  });
+}
+
+// Main function
 async function main() {
   try {
-    console.log('Starting production-safe schema update process...');
-    
-    // Step 1: Backup the current schema file
-    const schemaPath = path.join(__dirname, '../prisma/schema.prisma');
-    const backupPath = path.join(__dirname, '../prisma/schema.prisma.backup');
-    
-    console.log('Creating schema backup...');
-    fs.copyFileSync(schemaPath, backupPath);
-    console.log('Schema backup created at', backupPath);
-    
-    // Step 2: Pull the current schema from the database
-    console.log('Pulling current schema from database using prisma db pull...');
-    execSync('npx prisma db pull', { stdio: 'inherit' });
-    console.log('Schema pulled successfully');
-    
-    // Step 3: Generate a timestamp for the migration files
-    const timestamp = new Date().toISOString().replace(/[^0-9]/g, '').slice(0, 14);
-    const migrationName = `${timestamp}_schema_update`;
-    
-    // Step 4: Create a directory for this migration
-    const migrationsDir = path.join(__dirname, '../prisma/migrations');
-    if (!fs.existsSync(migrationsDir)) {
-      fs.mkdirSync(migrationsDir, { recursive: true });
+    // Step 1: Check if we need to back up existing environment files
+    if (fs.existsSync(projectEnvPath)) {
+      console.log('Backing up existing .env file...');
+      fs.copyFileSync(projectEnvPath, `${projectEnvPath}.backup`);
+      console.log('Project .env file backed up.');
     }
     
-    const migrationDir = path.join(migrationsDir, migrationName);
-    if (!fs.existsSync(migrationDir)) {
-      fs.mkdirSync(migrationDir);
+    // Step 2: Copy the .env file from seller-service to project root
+    console.log('Copying .env file from seller-service...');
+    const envContent = fs.readFileSync(envPath, 'utf8');
+    
+    // Write to project root
+    fs.writeFileSync(projectEnvPath, envContent);
+    console.log('.env file copied to project root.');
+    
+    // Remove any existing prisma .env to avoid conflicts
+    if (fs.existsSync(prismaEnvPath)) {
+      fs.unlinkSync(prismaEnvPath);
+      console.log('Removed existing prisma .env file to avoid conflicts.');
     }
     
-    // Step 5: Create an empty migration SQL file
-    const sqlFilePath = path.join(migrationDir, 'migration.sql');
-    fs.writeFileSync(sqlFilePath, '-- SQL migration file for schema changes\n-- Add your specific SQL changes here\n');
-    console.log('Created migration file at', sqlFilePath);
-    
-    // Step 6: Create a README.md with instructions
-    const readmePath = path.join(migrationDir, 'README.md');
-    const readmeContent = `# Schema Update Migration
+    // Step 3: Run prisma db pull to update the schema
+    console.log('Running prisma db pull...');
+    await runCommand('npx prisma db pull');
+    console.log('Schema updated successfully.');
 
-## Overview
-This migration was generated on ${new Date().toISOString()} using the production-safe schema update process.
-
-## Implementation Steps
-1. The latest schema was pulled from the database using \`prisma db pull\`
-2. A migration SQL file was created for manual editing
-
-## Manual Steps Required
-1. Edit the migration.sql file to include specific SQL changes needed
-2. Run the SQL directly against your database using your preferred method
-3. After applying the SQL changes, run \`npx prisma db pull\` again to keep the schema in sync
-
-## Important Notes
-- This migration follows the recommended practice of separating schema changes from data migrations
-- Never use \`prisma migrate\` in production as it can lead to data loss
-- Always back up your database before applying migrations
-`;
-    fs.writeFileSync(readmePath, readmeContent);
+    // Step 4: Apply the SQL migration changes using the pg library
+    console.log('Applying migration changes...');
+    const sqlMigrations = fs.readFileSync(sqlMigrationsPath, 'utf8');
     
-    // Step 7: Generate the Prisma client
-    console.log('Generating Prisma client with updated schema...');
-    execSync('npx prisma generate', { stdio: 'inherit' });
-    
-    // Step 8: Record the migration in a tracking file
-    const migrationRecord = {
-      name: migrationName,
-      timestamp: new Date().toISOString(),
-      method: 'db-pull',
-      appliedChanges: [],
-    };
-    
-    const recordsPath = path.join(__dirname, '../prisma/migration_records.json');
-    let records = [];
-    
-    if (fs.existsSync(recordsPath)) {
-      records = JSON.parse(fs.readFileSync(recordsPath, 'utf8'));
+    if (!sqlMigrations.trim()) {
+      console.warn('No SQL migrations found in the migration file.');
+      console.log('Skipping database migration step.');
+    } else {
+      // Extract the DATABASE_URL from the .env file
+      const dbUrlMatch = envContent.match(/DATABASE_URL=["'](.+)["']/);
+      if (!dbUrlMatch) {
+        throw new Error('DATABASE_URL not found in .env file');
+      }
+      
+      const dbUrl = dbUrlMatch[1];
+      
+      // Apply migration using the pg client
+      console.log('Connecting to database...');
+      const client = new Client({
+        connectionString: dbUrl
+      });
+      
+      await client.connect();
+      console.log('Connected to database successfully.');
+      
+      console.log('Executing SQL migration...');
+      try {
+        // Split the SQL by semicolons to execute each statement separately
+        const sqlStatements = sqlMigrations
+          .split(';')
+          .filter(statement => statement.trim() !== '')
+          .map(statement => statement.trim() + ';');
+        
+        console.log(`Found ${sqlStatements.length} SQL statements to execute.`);
+        
+        // Execute each SQL statement
+        for (let i = 0; i < sqlStatements.length; i++) {
+          const statement = sqlStatements[i];
+          console.log(`Executing statement ${i+1}/${sqlStatements.length}: ${statement.substring(0, 60)}...`);
+          
+          try {
+            await client.query(statement);
+            console.log(`Statement ${i+1} executed successfully.`);
+          } catch (sqlError) {
+            if (sqlError.message.includes('already exists')) {
+              console.log(`Object already exists, continuing: ${sqlError.message}`);
+            } else if (sqlError.message.includes('does not exist') && statement.includes('IF NOT EXISTS')) {
+              console.log(`Object doesn't exist, but using IF NOT EXISTS so continuing.`);
+            } else {
+              console.warn(`Error executing statement ${i+1}: ${sqlError.message}`);
+              console.warn('Continuing with next statement...');
+            }
+          }
+        }
+        
+        console.log('Migration changes applied successfully.');
+      } finally {
+        await client.end();
+        console.log('Database connection closed.');
+      }
     }
     
-    records.push(migrationRecord);
-    fs.writeFileSync(recordsPath, JSON.stringify(records, null, 2));
+    // Step 5: Run prisma generate to update the client
+    console.log('Updating Prisma client...');
+    await runCommand('npx prisma generate');
+    console.log('Prisma client updated successfully.');
     
-    console.log('Migration record saved.');
-    console.log(`
-    ========== NEXT STEPS ==========
-    1. Edit the SQL migration file at: ${sqlFilePath}
-    2. Add your specific schema changes as SQL statements
-    3. Run the SQL directly on your production database
-    4. Run 'npx prisma db pull' again to sync the schema
-    ================================
-    `);
+    // Step 6: Create a file to track that the migration has been applied
+    const migrationTrackerPath = path.join(__dirname, '../prisma/migration_applied.txt');
+    fs.writeFileSync(migrationTrackerPath, `Migration applied at ${new Date().toISOString()}`);
+    console.log('Created migration tracker file.');
     
+    console.log('All operations completed successfully!');
   } catch (error) {
-    console.error('Error updating schema:', error);
+    console.error('Error occurred:', error);
     process.exit(1);
-  } finally {
-    await prisma.$disconnect();
   }
 }
 

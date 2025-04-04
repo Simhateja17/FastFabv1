@@ -62,6 +62,7 @@ model ColorInventory {
   updatedAt   DateTime
   colorCode   String   @default("")
   stockNumber String?
+  product     Product  @relation(fields: [productId], references: [id], map: "ColorInventory_productId_product_fkey")
 
   @@unique([productId, color])
 }
@@ -131,21 +132,23 @@ model PaymentTransaction {
 }
 
 model Product {
-  id             String   @id
+  id             String           @id
   name           String
   description    String?
   mrpPrice       Float
   sellingPrice   Float
-  images         String[] @default([])
+  images         String[]         @default([])
   category       String?
   subcategory    String?
   sizeQuantities Json
-  isActive       Boolean  @default(true)
-  createdAt      DateTime @default(now())
+  isActive       Boolean          @default(true)
+  createdAt      DateTime         @default(now())
   updatedAt      DateTime
   sellerId       String
   variantGroupId String?
-  isReturnable   Boolean  @default(true)
+  isReturnable   Boolean          @default(true)
+  seller         Seller           @relation(fields: [sellerId], references: [id])
+  colorInventory ColorInventory[]
 
   @@index([isActive, sellerId], map: "idx_product_active_seller")
 }
@@ -164,7 +167,7 @@ model ProductVariantGroup {
 }
 
 model RefreshToken {
-  id        String   @id
+  id        String   @id @default(cuid())
   token     String   @unique
   sellerId  String
   expiresAt DateTime
@@ -176,8 +179,8 @@ model RefreshToken {
 
 /// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
 model Seller {
-  id              String   @id
-  phone           String   @unique
+  id              String    @id @default(cuid())
+  phone           String    @unique
   password        String?
   shopName        String?
   ownerName       String?
@@ -187,15 +190,16 @@ model Seller {
   pincode         String?
   openTime        String?
   closeTime       String?
-  categories      String[] @default([])
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime
+  categories      String[]  @default([])
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @default(now()) @updatedAt
   latitude        Float?
   longitude       Float?
-  isPhoneVerified Boolean  @default(false)
+  isPhoneVerified Boolean   @default(false)
   gstNumber       String?
-  isVisible       Boolean  @default(true)
-  manuallyHidden  Boolean  @default(false)
+  isVisible       Boolean   @default(true)
+  manuallyHidden  Boolean   @default(false)
+  products        Product[]
 
   @@index([manuallyHidden], map: "idx_seller_manually_hidden")
   @@index([isVisible], map: "idx_seller_visibility")
@@ -211,7 +215,7 @@ model SuperAdmin {
 }
 
 model User {
-  id                 String    @id
+  id                 String    @id @default(dbgenerated("gen_random_uuid()"))
   email              String?   @unique
   phone              String?   @unique
   password           String
@@ -230,7 +234,7 @@ model User {
 }
 
 model UserRefreshToken {
-  id        String   @id
+  id        String   @id @default(cuid())
   token     String   @unique
   userId    String
   expiresAt DateTime
@@ -238,13 +242,13 @@ model UserRefreshToken {
 }
 
 model WhatsAppOTP {
-  id          String   @id
+  id          String   @id @default(cuid())
   phoneNumber String
   otpCode     String
   verified    Boolean  @default(false)
   expiresAt   DateTime
   createdAt   DateTime @default(now())
-  updatedAt   DateTime
+  updatedAt   DateTime @updatedAt
   name        String?
   email       String?
   isNewUser   Boolean? @default(false)

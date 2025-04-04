@@ -2,7 +2,10 @@ import EditProductClient from "./EditProductClient";
 import Link from "next/link";
 import { FiChevronRight } from "react-icons/fi";
 
-export default function EditProductPage({ params }) {
+export default async function EditProductPage({ params }) {
+  // Await params to get the ID before passing it to the client component
+  const { id } = await params;
+
   return (
     <div className="bg-background min-h-screen">
       {/* Breadcrumb */}
@@ -22,7 +25,7 @@ export default function EditProductPage({ params }) {
         </div>
       </div>
 
-      <EditProductClient productId={params.id} />
+      <EditProductClient productId={id} />
     </div>
   );
 }

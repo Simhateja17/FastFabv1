@@ -1,85 +1,75 @@
-// Script to apply the seller visibility migration in a production-safe way
-// This script:
-// 1. Connects directly to the database using pg
-// 2. Applies the migration SQL with error handling
-// 3. Records the migration application
-
-const fs = require('fs');
+// Migration script to apply the manuallyHidden field to sellers
+const { PrismaClient } = require('@prisma/client');
 const path = require('path');
-const { Client } = require('pg');
-const dotenv = require('dotenv');
 
-// Load environment variables
-dotenv.config();
-
-// Migration file path
-const migrationFilePath = path.join(__dirname, '../prisma/migrations/seller_visibility/migration.sql');
-
-// Main function
-async function main() {
-  console.log('Starting seller visibility migration application...');
+async function applyMigration() {
+  console.log('Starting manual visibility override migration...');
   
-  // Verify migration file exists
-  if (!fs.existsSync(migrationFilePath)) {
-    console.error('Migration file not found:', migrationFilePath);
-    process.exit(1);
-  }
-  
-  // Read migration SQL
-  const migrationSQL = fs.readFileSync(migrationFilePath, 'utf8');
-  console.log('Read migration SQL file successfully');
-  
-  // Get database connection string
-  const databaseUrl = process.env.DATABASE_URL;
-  if (!databaseUrl) {
-    console.error('DATABASE_URL environment variable not found');
-    process.exit(1);
-  }
-  
-  // Connect to the database
-  const client = new Client({
-    connectionString: databaseUrl,
-  });
+  const prisma = new PrismaClient();
   
   try {
-    console.log('Connecting to database...');
-    await client.connect();
-    console.log('Connected to database successfully');
+    // Define the SQL statements individually instead of reading from a file
+    const sqlStatements = [
+      `ALTER TABLE "Seller" ADD COLUMN IF NOT EXISTS "manuallyHidden" BOOLEAN NOT NULL DEFAULT FALSE;`,
+      `CREATE INDEX IF NOT EXISTS "idx_seller_manually_hidden" ON "Seller"("manuallyHidden");`,
+      `COMMENT ON COLUMN "Seller"."manuallyHidden" IS 'Tracks if a seller has manually toggled their visibility off. When true, automatic visibility changes based on store hours will be bypassed.';`
+    ];
     
-    // Apply migration
-    console.log('Applying seller visibility migration...');
-    await client.query(migrationSQL);
-    console.log('Migration applied successfully');
-    
-    // Record migration application
-    const timestamp = new Date().toISOString();
-    const migrationRecord = {
-      name: 'seller_visibility',
-      applied_at: timestamp,
-      script: migrationFilePath
-    };
-    
-    // Create migration records directory if needed
-    const recordsDir = path.join(__dirname, '../prisma/migration_records');
-    if (!fs.existsSync(recordsDir)) {
-      fs.mkdirSync(recordsDir, { recursive: true });
+    // Execute each statement separately
+    for (const sql of sqlStatements) {
+      console.log('Executing SQL:', sql);
+      await prisma.$executeRawUnsafe(sql);
+      console.log('Statement executed successfully');
     }
     
-    // Write migration record
-    const recordPath = path.join(recordsDir, 'seller_visibility.json');
-    fs.writeFileSync(recordPath, JSON.stringify(migrationRecord, null, 2));
-    console.log('Migration record created at:', recordPath);
+    console.log('Migration applied successfully!');
     
-    console.log('Seller visibility migration complete!');
+    // Verify the migration worked
+    const result = await prisma.$queryRaw`
+      SELECT column_name, data_type, column_default
+      FROM information_schema.columns
+      WHERE table_name = 'Seller' AND column_name = 'manuallyHidden'
+    `;
+    
+    if (result.length > 0) {
+      console.log('Verified: manuallyHidden column added to Seller table', result[0]);
+    } else {
+      console.log('Warning: Could not verify manuallyHidden column');
+    }
+    
+    // Fix the PublicProducts view
+    console.log('Fixing PublicProducts view...');
+    
+    // Drop view if exists
+    try {
+      await prisma.$executeRawUnsafe(`DROP VIEW IF EXISTS "PublicProducts";`);
+      console.log('Dropped existing PublicProducts view');
+    } catch (viewError) {
+      console.log('Note: Could not drop view - it might not exist yet');
+    }
+    
+    // Create the view
+    await prisma.$executeRawUnsafe(`
+      CREATE VIEW "PublicProducts" AS
+      SELECT p.* 
+      FROM "Product" p
+      JOIN "Seller" s ON p."sellerId" = s.id
+      WHERE p."isActive" = TRUE AND s."isVisible" = TRUE;
+    `);
+    console.log('Created PublicProducts view');
+    
+    // Output next steps
+    console.log('\nMigration complete!');
+    console.log('\nNext steps:');
+    console.log('1. Run `npx prisma db pull` to update your schema');
+    console.log('2. Run `npx prisma generate` to update your Prisma Client');
+    console.log('3. Restart the seller service to apply changes');
+    
   } catch (error) {
-    console.error('Error applying migration:', error);
-    process.exit(1);
+    console.error('Migration failed:', error);
   } finally {
-    // Always close the database connection
-    await client.end();
-    console.log('Database connection closed');
+    await prisma.$disconnect();
   }
 }
 
-// Run the main function
-main(); 
+applyMigration(); 

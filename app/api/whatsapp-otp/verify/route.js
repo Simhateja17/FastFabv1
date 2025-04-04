@@ -1,17 +1,77 @@
 import { NextResponse } from 'next/server';
 import { PrismaClient } from '@prisma/client';
-import crypto from 'crypto';
+import jwt from 'jsonwebtoken';
+import { cookies } from 'next/headers';
 
-// Initialize Prisma with a connection pool for better stability
-const prisma = new PrismaClient({
-  log: ['error', 'warn'],
-  errorFormat: 'pretty',
-  datasources: {
-    db: {
-      url: process.env.DATABASE_URL
+// Create a more reliable Prisma client with reconnection
+let prisma;
+let connectionAttempts = 0;
+const MAX_ATTEMPTS = 5; // Increased to give more chances to connect
+
+const initPrisma = async () => {
+  // Reset the connection if it was previously terminated
+  if (prisma) {
+    try {
+      // Test if the connection is still alive
+      await prisma.$queryRaw`SELECT 1`;
+      return prisma; // Connection is good
+    } catch (e) {
+      // Check if it's a termination error (E57P01)
+      if (e.message && (e.message.includes('E57P01') || e.message.includes('terminating connection'))) {
+        console.log('Previous connection was terminated, creating a new one...');
+        await prisma.$disconnect().catch(() => {}); // Ignore errors from disconnect
+        prisma = null; // Reset so we create a new client
+        connectionAttempts = 0; // Reset attempts counter
+      } else {
+        throw e; // Re-throw unknown errors
+      }
     }
   }
-});
+  
+  try {
+    connectionAttempts++;
+    console.log(`Initializing PrismaClient (attempt ${connectionAttempts}/${MAX_ATTEMPTS})...`);
+    
+    // Create a new PrismaClient instance
+    const newPrisma = new PrismaClient({
+      log: ['error', 'warn'],
+      errorFormat: 'pretty'
+    });
+    
+    // Test the connection
+    await newPrisma.$connect();
+    console.log('PrismaClient connected successfully to database');
+    
+    prisma = newPrisma;
+    return prisma;
+  } catch (e) {
+    console.error('Failed to initialize PrismaClient:', e);
+    
+    // Special handling for known database termination errors
+    if (e.message && (e.message.includes('E57P01') || e.message.includes('terminating connection'))) {
+      console.log('Connection was terminated by administrator command. Retrying...');
+      if (connectionAttempts < MAX_ATTEMPTS) {
+        console.log(`Retrying connection in 2 seconds... (${connectionAttempts}/${MAX_ATTEMPTS})`);
+        // Wait 2 seconds before retrying
+        await new Promise(resolve => setTimeout(resolve, 2000));
+        return initPrisma(); // Recursive retry
+      }
+    } else if (connectionAttempts < MAX_ATTEMPTS) {
+      console.log(`Retrying connection in 1 second... (${connectionAttempts}/${MAX_ATTEMPTS})`);
+      // Wait 1 second before retrying
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      return initPrisma(); // Recursive retry
+    }
+    
+    // No fallback to in-memory storage, just throw the error
+    throw new Error('Failed to connect to database after maximum retry attempts');
+  }
+};
+
+// Initialize Prisma on module load
+initPrisma().catch(e => console.error('Initial Prisma connection failed:', e));
+
+// Remove all in-memory OTP store references
 
 /**
  * Format 10-digit phone number to E.164 format with +91 prefix
@@ -37,116 +97,118 @@ const formatPhoneNumber = (phoneNumber) => {
 };
 
 /**
- * Verify OTP from database
+ * Verify OTP from database only
  */
 const verifyOTP = async (phoneNumber, otpCode) => {
-  try {
-    console.log('Verifying OTP in database for phone:', phoneNumber, 'code:', otpCode);
-    
-    // Find the latest non-expired, non-verified OTP
-    const otp = await prisma.whatsAppOTP.findFirst({
-      where: {
-        phoneNumber,
-        expiresAt: { gt: new Date() },
-        verified: false,
-      },
-      orderBy: { createdAt: 'desc' },
-    });
-    
-    if (!otp) {
-      console.log('No valid OTP found for this phone number');
-      return { success: false, message: 'No valid OTP found or OTP expired. Please request a new one.' };
-    }
-    
-    console.log('Found OTP in database:', otp.id);
-    
-    // Compare the OTP code
-    if (otp.otpCode === otpCode) {
-      // Mark as verified
-      await prisma.whatsAppOTP.update({
-        where: { id: otp.id },
-        data: { 
-          verified: true,
-          updatedAt: new Date()
-        },
+  // Make sure Prisma is initialized
+  const db = await initPrisma();
+  // If we get here, we have a database connection
+  
+  console.log('Verifying OTP in database for phone:', phoneNumber, 'code:', otpCode);
+  
+  // Check if otpCode exists in the database for this phone number
+  const allOtps = await db.whatsAppOTP.findMany({
+    where: {
+      phoneNumber,
+    },
+    orderBy: { createdAt: 'desc' },
+  });
+  
+  console.log('Found OTPs for this number:', allOtps.length, 'OTPs');
+  if (allOtps.length > 0) {
+    // Log details about found OTPs to help debug
+    allOtps.forEach((otp, index) => {
+      console.log(`OTP ${index+1}:`, {
+        id: otp.id, 
+        code: otp.otpCode, 
+        verified: otp.verified,
+        expired: new Date() > otp.expiresAt,
+        expiresAt: otp.expiresAt,
+        createdAt: otp.createdAt
       });
-      
-      console.log('OTP verified successfully in database:', otp.id);
-      return { success: true };
-    }
-    
-    console.log('OTP code mismatch. Verification failed.');
-    return { success: false, message: 'Invalid OTP code. Please try again.' };
-  } catch (error) {
-    console.error('Error verifying OTP:', error);
-    throw error;
+    });
   }
+  
+  // Find the latest non-expired OTP
+  const otp = await db.whatsAppOTP.findFirst({
+    where: {
+      phoneNumber,
+      expiresAt: { gt: new Date() },
+      verified: false,
+    },
+    orderBy: { createdAt: 'desc' },
+  });
+  
+  // Add detailed debug logging
+  debugVerify(phoneNumber, otpCode, otp);
+  
+  if (!otp) {
+    console.log('No valid OTP found for this phone number');
+    return { success: false, message: 'No valid OTP found' };
+  }
+  
+  console.log('Found OTP in database:', otp.id);
+  console.log('Comparing input OTP:', otpCode, 'with stored OTP:', otp.otpCode);
+  
+  if (otp.otpCode === otpCode) {
+    // Mark as verified
+    await db.whatsAppOTP.update({
+      where: { id: otp.id },
+      data: { verified: true },
+    });
+    console.log('OTP verified successfully in database:', otp.id);
+    return { success: true };
+  }
+  
+  console.log('OTP code mismatch. Verification failed.');
+  // Not found in database - return failure
+  return { success: false, message: 'Invalid OTP code' };
 };
 
 /**
  * Check if user exists by phone number
  */
 const checkUserExists = async (phoneNumber) => {
-  try {
-    const existingUser = await prisma.user.findUnique({
-      where: { phone: phoneNumber }
-    });
-    
-    if (existingUser) {
-      return { exists: true, userId: existingUser.id, user: existingUser };
-    }
-    
-    return { exists: false };
-  } catch (error) {
-    console.error('Error checking if user exists:', error);
-    throw error;
+  // Make sure Prisma is initialized
+  const db = await initPrisma();
+  // If we get here, we have a database connection
+  
+  const existingUser = await db.user.findUnique({
+    where: { phone: phoneNumber }
+  });
+  
+  if (existingUser) {
+    return { exists: true, userId: existingUser.id };
   }
+  
+  return { exists: false };
 };
 
-/**
- * Create a new user with the verified phone number
- */
-const createUser = async (phoneNumber, name = null, email = null) => {
-  try {
-    // Generate a default password (user will be prompted to change it)
-    const defaultPassword = crypto.randomBytes(16).toString('hex');
-    const hashedPassword = crypto.createHash('sha256').update(defaultPassword).digest('hex');
-    
-    const newUser = await prisma.user.create({
-      data: {
-        id: crypto.randomUUID(),
-        phone: phoneNumber,
-        email: email,
-        name: name || 'New User',
-        password: hashedPassword,
-        isPhoneVerified: true,
-        createdAt: new Date(),
-        updatedAt: new Date()
-      }
+// Log additional information about verification
+const debugVerify = (phoneNumber, otpCode, otp) => {
+  console.log('===== WhatsApp OTP Verification Debug Info =====');
+  console.log('Phone number:', phoneNumber);
+  console.log('OTP code entered:', otpCode);
+  console.log('OTP found in database:', otp ? 'Yes' : 'No');
+  if (otp) {
+    console.log('OTP details:', {
+      id: otp.id,
+      code: otp.otpCode,
+      expired: new Date() > otp.expiresAt,
+      expiresAt: otp.expiresAt,
+      verified: otp.verified,
+      createdAt: otp.createdAt
     });
-    
-    return { 
-      success: true, 
-      userId: newUser.id, 
-      newUser: true
-    };
-  } catch (error) {
-    console.error('Error creating new user:', error);
-    throw error;
   }
+  console.log('===== End Debug Info =====');
 };
 
 export async function POST(request) {
   try {
     const body = await request.json();
-    let { phoneNumber, otpCode, name, email } = body;
+    let { phoneNumber, otpCode } = body;
     
-    console.log('OTP verification request received:', { 
-      phoneNumber, 
-      otpCodeLength: otpCode?.length,
-      hasName: !!name,
-      hasEmail: !!email
-    });
+    console.log('OTP verification request received:', { phoneNumber, otpLength: otpCode?.length });
     
     // Format the phone number (add +91 prefix if it's a 10-digit number)
     phoneNumber = formatPhoneNumber(phoneNumber);
@@ -180,57 +242,117 @@ export async function POST(request) {
 
     // Check if a user already exists with this phone number
     const userCheck = await checkUserExists(phoneNumber);
-    let response = {
-      success: true,
-      verified: true,
-      message: 'Phone number verified successfully',
-    };
+    const db = await initPrisma();
     
-    // If user doesn't exist, we'll create a new one
-    if (!userCheck.exists) {
-      console.log('User does not exist, creating new user');
-      try {
-        const createResult = await createUser(phoneNumber, name, email);
-        response = {
-          ...response,
-          ...createResult,
-          message: 'Phone number verified and account created successfully'
-        };
-      } catch (createError) {
-        console.error('Error creating new user account:', createError);
-        // Still return success for verification, but with error info
-        response.accountCreationError = 'Failed to create user account. Please contact support.';
+    if (userCheck.exists) {
+      console.log('User exists, proceeding with login for userId:', userCheck.userId);
+      const userId = userCheck.userId;
+
+      // Generate JWT tokens
+      const JWT_SECRET = process.env.JWT_SECRET;
+      const JWT_REFRESH_SECRET = process.env.JWT_REFRESH_SECRET;
+      const ACCESS_TOKEN_EXPIRY = process.env.JWT_EXPIRES_IN || '15m';
+      const REFRESH_TOKEN_EXPIRY = process.env.JWT_REFRESH_EXPIRES_IN || '7d';
+
+      if (!JWT_SECRET || !JWT_REFRESH_SECRET) {
+        console.error('JWT secrets are not configured in environment variables');
+        throw new Error('Authentication configuration error.');
       }
-    } else {
-      response.userId = userCheck.userId;
-      response.newUser = false;
-      response.message = 'Phone number verified successfully. Welcome back!';
-      console.log('Existing user found:', userCheck.userId);
+
+      const accessToken = jwt.sign({ userId }, JWT_SECRET, { expiresIn: ACCESS_TOKEN_EXPIRY });
+      const refreshToken = jwt.sign({ userId }, JWT_REFRESH_SECRET, { expiresIn: REFRESH_TOKEN_EXPIRY });
+
+      // Store or update refresh token in the database
+      const expiresAt = new Date(Date.now() + require('ms')(REFRESH_TOKEN_EXPIRY)); // Calculate expiry date
       
-      // Update isPhoneVerified flag if needed
-      if (!userCheck.user.isPhoneVerified) {
-        try {
-          await prisma.user.update({
-            where: { id: userCheck.userId },
-            data: { 
-              isPhoneVerified: true,
-              updatedAt: new Date() 
-            }
-          });
-          console.log('Updated isPhoneVerified flag for existing user');
-        } catch (updateError) {
-          console.error('Error updating user verification status:', updateError);
-        }
+      // Delete existing tokens for the user first
+      await db.userRefreshToken.deleteMany({
+        where: { userId: userId },
+      });
+      console.log('Deleted existing refresh tokens for user:', userId);
+
+      // Create the new refresh token with a custom ID
+      const { customAlphabet } = await import('nanoid');
+      const cuid = customAlphabet('0123456789abcdefghijklmnopqrstuvwxyz', 24); // Similar to cuid but using nanoid
+      const tokenId = cuid();
+
+      await db.userRefreshToken.create({
+        data: { 
+          id: tokenId, // Manually set the ID
+          userId: userId, 
+          token: refreshToken, 
+          expiresAt: expiresAt 
+        },
+      });
+      console.log('New refresh token created for user:', userId);
+
+      // Set cookies in response
+      // Create the response first
+      const response = NextResponse.json({
+        success: true,
+        message: 'Login successful',
+        verified: true,
+        isNewUser: false,
+        userId: userId,
+      }, { status: 200 });
+      
+      // Set cookies on the response object directly
+      response.cookies.set('accessToken', accessToken, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV !== 'development',
+        sameSite: 'lax',
+        path: '/',
+        maxAge: require('ms')(ACCESS_TOKEN_EXPIRY) / 1000, // maxAge is in seconds
+      });
+
+      response.cookies.set('refreshToken', refreshToken, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV !== 'development',
+        sameSite: 'lax',
+        path: '/',
+        maxAge: require('ms')(REFRESH_TOKEN_EXPIRY) / 1000, // maxAge is in seconds
+      });
+
+      console.log('Access and Refresh tokens set as HttpOnly cookies on response object.');
+      
+      return response;
+
+    } else {
+      console.log('User does not exist, marking as new user');
+      // We don't create the user here - this will be done in the registration endpoint
+      // Existing response for new user is appropriate
+      return NextResponse.json({
+        success: true,
+        message: 'OTP verified successfully. New user detected.',
+        isNewUser: true,
+        userId: null, // No user ID yet
+        verified: true,
+        status: 'success'
+      }, { status: 200 });
+    }
+    
+  } catch (error) {
+    console.error('Error verifying OTP:', error);
+    
+    // Provide more specific error messages based on error types
+    let message = 'Failed to verify OTP. Please try again.';
+    let statusCode = 500;
+    
+    // Handle Prisma database errors
+    if (error.code && error.code.startsWith('P')) {
+      if (error.code === 'P2002') {
+        message = 'A user with this phone number already exists.';
+        statusCode = 400;
+      } else if (error.code.startsWith('P1')) {
+        message = 'Database connection error. Please try again later.';
+        statusCode = 503;
       }
     }
     
-    return NextResponse.json(response);
-  } catch (error) {
-    console.error('Error processing verification request:', error);
     return NextResponse.json({
       success: false,
-      message: 'Internal server error. Please try again later.',
+      message,
       error: error.message
-    }, { status: 500 });
+    }, { status: statusCode });
   }
 } 

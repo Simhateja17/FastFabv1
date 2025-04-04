@@ -184,117 +184,93 @@ export function UserAuthProvider({ children }) {
     }
   };
 
+  // Function to fetch the user profile
+  const fetchUserProfile = async () => {
+    try {
+      console.log("Fetching user profile...");
+      const response = await fetch(USER_ENDPOINTS.PROFILE, {
+        method: "GET",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        credentials: "include", // Important: Include cookies in the request
+      });
+
+      if (!response.ok) {
+        if (response.status === 401) {
+          console.log("Authentication required for profile");
+          throw new Error("Authentication required");
+        }
+        throw new Error(`Profile fetch failed: ${response.status}`);
+      }
+
+      const userData = await response.json();
+      console.log("User profile fetched successfully:", userData);
+      
+      // Handle both direct user object and response with success/user structure
+      return userData.user || userData;
+    } catch (error) {
+      console.error("Error fetching user profile:", error);
+      throw error;
+    }
+  };
+
   // Initialize auth state on mount
   useEffect(() => {
     const initializeAuth = async () => {
       console.log("Initializing auth state...");
       try {
-        const { accessToken, refreshToken } = getUserTokens();
-        console.log("Tokens from storage:", {
-          accessToken: accessToken ? "Present" : "Missing",
-          refreshToken: refreshToken ? "Present" : "Missing",
-        });
-
-        // Try to get persisted user data from localStorage
+        // Try to get persisted user data from localStorage (for UI performance only)
         const savedUserData = localStorage.getItem("userData");
         console.log("Saved user data exists:", !!savedUserData);
 
-        if (!accessToken && !refreshToken) {
-          console.log("No tokens found, user is not authenticated");
-
-          // Even with no tokens, if there's saved user data, we'll use it temporarily
-          // This helps prevent UI flicker until we can verify auth status
-          if (savedUserData) {
-            try {
-              const parsedUserData = JSON.parse(savedUserData);
-              console.log("Using saved user data temporarily:", parsedUserData);
-              updateUserState(parsedUserData);
-            } catch (e) {
-              console.error("Error parsing saved user data:", e);
-              localStorage.removeItem("userData");
-            }
-          }
-
-          setLoading(false);
-          return;
-        }
-
-        // Set user data from localStorage while we verify the token
+        // If we have saved data, set it immediately to prevent UI flicker
         if (savedUserData) {
           try {
             const parsedUserData = JSON.parse(savedUserData);
-            console.log("Setting user from localStorage:", parsedUserData);
-            updateUserState(parsedUserData);
+            console.log("Using saved user data temporarily:", parsedUserData);
+            setUser(parsedUserData);
           } catch (e) {
             console.error("Error parsing saved user data:", e);
-            localStorage.removeItem("userData");
           }
         }
 
-        // If we have no access token but have a refresh token, try to refresh
-        if (!accessToken && refreshToken) {
-          console.log(
-            "Missing access token but have refresh token - attempting refresh"
-          );
-          try {
-            await refreshAccessToken();
-            console.log("Successfully refreshed token during initialization");
-            setLoading(false);
-            return;
-          } catch (error) {
-            console.error("Token refresh failed during initialization:", error);
-            clearUserTokens();
+        // Now try to fetch the user profile to update with current data
+        try {
+          const userData = await fetchUserProfile();
+          console.log("Successfully fetched user profile:", userData);
+          updateUserState(userData);
+          localStorage.setItem("userData", JSON.stringify(userData));
+        } catch (error) {
+          // If profile fetch fails, we need to check if we have tokens to retry
+          const { accessToken, refreshToken } = getUserTokens();
+          
+          // Only clear user state if we have no tokens at all
+          if (!accessToken && !refreshToken) {
+            console.log("No auth tokens available, clearing user state");
             updateUserState(null);
             localStorage.removeItem("userData");
-            setLoading(false);
-            return;
+          } else if (refreshToken) {
+            // Try to refresh token
+            try {
+              console.log("Attempting to refresh token");
+              await refreshAccessToken();
+              
+              // Now retry profile fetch
+              const userData = await fetchUserProfile();
+              updateUserState(userData);
+              localStorage.setItem("userData", JSON.stringify(userData));
+            } catch (refreshError) {
+              console.error("Token refresh failed:", refreshError);
+              updateUserState(null);
+              localStorage.removeItem("userData");
+            }
           }
-        }
-
-        // Try to get user profile with current token
-        console.log("Attempting to fetch user profile with current token");
-        const response = await fetch(USER_ENDPOINTS.PROFILE, {
-          headers: {
-            Authorization: `Bearer ${accessToken}`,
-          },
-          credentials: "include",
-        });
-
-        if (response.ok) {
-          const userData = await response.json();
-          console.log("Profile fetch successful:", userData);
-
-          // Extract user data from various possible response structures
-          const user =
-            userData.user || userData.data?.user || userData.data || userData;
-
-          updateUserState(user);
-          localStorage.setItem("userData", JSON.stringify(user));
-        } else if (response.status === 401) {
-          console.log("Token expired, attempting to refresh");
-          // If unauthorized, try to refresh token
-          try {
-            await refreshAccessToken();
-            console.log("Token refresh successful during initialization");
-          } catch (error) {
-            console.error("Token refresh failed during initialization:", error);
-            clearUserTokens();
-            updateUserState(null);
-            localStorage.removeItem("userData");
-          }
-        } else {
-          console.error("Profile fetch failed with status:", response.status);
-          clearUserTokens();
-          updateUserState(null);
-          localStorage.removeItem("userData");
         }
       } catch (error) {
         console.error("Auth initialization error:", error);
-        clearUserTokens();
         updateUserState(null);
-        localStorage.removeItem("userData");
       } finally {
-        console.log("Auth initialization complete, user state:", user);
         setLoading(false);
       }
     };
@@ -445,20 +421,17 @@ export function UserAuthProvider({ children }) {
   const logout = async () => {
     try {
       console.log("Logging out user");
-      const { refreshToken } = getUserTokens();
-      console.log("Refresh token available for logout:", !!refreshToken);
-
-      if (refreshToken) {
-        // Call logout API
-        await fetch(USER_ENDPOINTS.LOGOUT, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({ refreshToken }),
-          credentials: "include", // Include cookies
-        }).catch((error) => console.error("Logout API error:", error));
-      }
+      
+      // Always call logout API regardless of refresh token
+      // This ensures cookies are cleared on the server side
+      await fetch(USER_ENDPOINTS.LOGOUT, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        credentials: "include", // Include cookies
+      }).catch((error) => console.error("Logout API error:", error));
+      
     } catch (error) {
       console.error("Logout error:", error);
     } finally {
@@ -467,6 +440,9 @@ export function UserAuthProvider({ children }) {
       localStorage.removeItem("userData");
       updateUserState(null); // Use the new function
       console.log("User logged out, state cleared");
+      
+      // Redirect to home page after logout
+      window.location.href = "/";
     }
   };
 
@@ -614,6 +590,7 @@ export function UserAuthProvider({ children }) {
           phoneNumber: formattedPhone,
           otpCode,
         }),
+        credentials: 'include', // Important: include cookies in request/response
       });
 
       console.log(
@@ -634,61 +611,58 @@ export function UserAuthProvider({ children }) {
         };
       }
 
-      // User exists case: Check if user exists with this phone number
-      try {
-        console.log(
-          "Checking if user exists with phone number:",
-          formattedPhone
-        );
-        const formattedPhoneWithPlus = formattedPhone.startsWith("+")
-          ? formattedPhone
-          : "+" + formattedPhone;
-
-        const userResponse = await fetch(USER_ENDPOINTS.GET_USER_BY_PHONE, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ phone: formattedPhoneWithPlus }),
-        });
-
-        console.log("User lookup response status:", userResponse.status);
-        const userData = await userResponse.json();
-        console.log("User lookup response:", userData);
-
-        // If user exists, login with phone (userData.success === true)
-        if (userData.success && userData.data?.tokens) {
-          const { accessToken, refreshToken } = userData.data.tokens;
-          setUserTokens(accessToken, refreshToken);
-          updateUserState(userData.data.user);
-          localStorage.setItem("userData", JSON.stringify(userData.data.user));
-
-          // Set flag to show location modal
-          localStorage.setItem("justLoggedIn", "true");
-          console.log("Set justLoggedIn flag for location modal trigger");
-
-          return {
-            success: true,
-            message: "Login successful",
-            isNewUser: false,
-            userId: userData.data.user.id,
-          };
-        }
-
-        // User doesn't exist, will need to register
+      // Our backend now handles setting auth cookies for existing users
+      // Just check if user is new or existing based on API response
+      if (result.isNewUser) {
+        console.log("OTP verified - new user detected");
+        // User needs to register
         return {
           success: true,
           message: "OTP verified successfully. New user registration required.",
           isNewUser: true,
           userId: null,
         };
-      } catch (userLookupError) {
-        console.error("Error checking user existence:", userLookupError);
-        // Even if user lookup fails, OTP was verified successfully
+      } else {
+        console.log("OTP verified - existing user logged in");
+        // Fetch user profile with the cookies that were just set
+        try {
+          const profileResponse = await fetch(USER_ENDPOINTS.PROFILE, {
+            method: "GET",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            credentials: "include" // Important: Include cookies in the request
+          });
+          
+          if (profileResponse.ok) {
+            const profileData = await profileResponse.json();
+            console.log("User profile fetched successfully after login:", profileData);
+            
+            // Update user state with profile data
+            if (profileData.success && profileData.user) {
+              updateUserState(profileData.user);
+              localStorage.setItem("userData", JSON.stringify(profileData.user));
+            } else if (profileData) {
+              // Handle case where profileData is directly the user object
+              updateUserState(profileData);
+              localStorage.setItem("userData", JSON.stringify(profileData));
+            }
+          } else {
+            console.error("Failed to fetch user profile after OTP verification");
+          }
+        } catch (profileError) {
+          console.error("Error fetching user profile:", profileError);
+        }
+        
+        // Set flag to show location modal
+        localStorage.setItem("justLoggedIn", "true");
+        console.log("Set justLoggedIn flag for location modal trigger");
+
         return {
           success: true,
-          message: "OTP verified successfully, but user lookup failed.",
-          isNewUser: true, // Assume new user if lookup fails
-          userId: null,
-          error: userLookupError,
+          message: "Login successful",
+          isNewUser: false,
+          userId: result.userId,
         };
       }
     } catch (error) {

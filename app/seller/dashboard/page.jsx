@@ -33,13 +33,30 @@ function DashboardContent() {
       if (response.ok) {
         const data = await response.json();
         console.log('Fetched visibility status:', data);
-        setIsVisible(data.isVisible);
+        if (data && data.data && data.data.isVisible !== undefined) {
+          setIsVisible(data.data.isVisible);
+        }
+      } else if (response.status === 404) {
+        // If endpoint is not found, it might be because we haven't migrated the database yet
+        console.log('Visibility endpoint not found (404), using fallback');
+        // Assume store is visible by default
+        setIsVisible(true);
+        
+        // Fallback to seller data from context if available
+        if (seller && seller.isVisible !== undefined) {
+          console.log('Using fallback visibility from seller context');
+          setIsVisible(seller.isVisible);
+        }
       } else {
         console.error('Failed to fetch visibility status:', response.status);
         // Fallback to seller data from context if API fails
         if (seller && seller.isVisible !== undefined) {
           console.log('Using fallback visibility from seller context');
           setIsVisible(seller.isVisible);
+        } else {
+          // If no seller data either, assume store is visible
+          console.log('No seller context data, defaulting to visible');
+          setIsVisible(true);
         }
       }
     } catch (error) {
@@ -48,6 +65,10 @@ function DashboardContent() {
       if (seller && seller.isVisible !== undefined) {
         console.log('Using fallback visibility from seller context after error');
         setIsVisible(seller.isVisible);
+      } else {
+        // If no seller data either, assume store is visible
+        console.log('No seller context data after error, defaulting to visible');
+        setIsVisible(true);
       }
     }
   };

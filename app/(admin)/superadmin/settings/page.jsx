@@ -49,7 +49,7 @@ export default function SettingsPage() {
         email: adminUser.email || "",
       });
     }
-  }, [adminUser]);
+  }, [adminUser, profileData]);
 
   // Load site settings
   useEffect(() => {
@@ -72,7 +72,7 @@ export default function SettingsPage() {
     };
 
     fetchSiteSettings();
-  }, []);
+  }, [siteSettings]);
 
   // Handle profile form changes
   const handleProfileChange = (e) => {
