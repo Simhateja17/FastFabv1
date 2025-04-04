@@ -1,12 +1,12 @@
 "use client";
 
-import { useState, useEffect, Suspense } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useUserAuth } from "@/app/context/UserAuthContext";
 import { toast } from "react-hot-toast";
 import Link from "next/link";
 
-function UserProfileContent() {
+export default function UserProfile() {
   const router = useRouter();
   const {
     user,
@@ -26,51 +26,21 @@ function UserProfileContent() {
     const checkAuth = async () => {
       if (authLoading) return; // Skip if auth context is still loading
 
-      console.log("Profile page - Checking auth:", !!user);
-
       try {
-        // If no user in context, check localStorage as fallback
+        // If no user in context, redirect to login
         if (!user) {
-          const savedUserData = localStorage.getItem("userData");
-          const accessToken = localStorage.getItem("userAccessToken");
-          const refreshToken = localStorage.getItem("userRefreshToken");
-
-          console.log("Profile page - Auth fallbacks:", {
-            savedUserData: !!savedUserData,
-            accessToken: !!accessToken,
-            refreshToken: !!refreshToken,
-          });
-
-          // If we have no authentication data at all, redirect to login
-          if (!savedUserData && !accessToken && !refreshToken) {
-            toast.error("Please sign in to view your profile");
-            router.push("/login");
-            return;
-          }
-
-          // Try to use the saved data to pre-fill form
-          if (savedUserData) {
-            try {
-              const userData = JSON.parse(savedUserData);
-              setFormData({
-                name: userData.name || "",
-                email: userData.email || "",
-                phone: userData.phone || "",
-                ...formData,
-              });
-            } catch (e) {
-              console.error("Error parsing saved user data:", e);
-            }
-          }
-        } else {
-          // If we have user from context, use it to pre-fill form
-          setFormData({
-            name: user.name || "",
-            email: user.email || "",
-            phone: user.phone || "",
-            ...formData,
-          });
+          toast.error("Please sign in to view your profile");
+          router.push("/login");
+          return;
         }
+
+        // Update form data with user info
+        setFormData({
+          name: user.name || "",
+          email: user.email || "",
+          phone: user.phone || "",
+          ...formData,
+        });
       } catch (error) {
         console.error("Authentication check error:", error);
         toast.error("Authentication error. Please sign in again.");
@@ -79,7 +49,7 @@ function UserProfileContent() {
     };
 
     checkAuth();
-  }, [user, authLoading, router]);
+  }, [user, authLoading, router, formData]);
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
@@ -313,17 +283,5 @@ function UserProfileContent() {
         )}
       </div>
     </div>
-  );
-}
-
-export default function UserProfile() {
-  return (
-    <Suspense fallback={
-      <div className="flex justify-center items-center min-h-screen">
-        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-secondary"></div>
-      </div>
-    }>
-      <UserProfileContent />
-    </Suspense>
   );
 }

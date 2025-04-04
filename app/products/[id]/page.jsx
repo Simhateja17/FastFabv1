@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, use } from "react";
+import { useState, useEffect, useMemo } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
@@ -18,10 +18,11 @@ import {
   FiCreditCard,
 } from "react-icons/fi";
 import { toast } from "react-hot-toast";
+import React from "react";
 
 export default function ProductDetails({ params }) {
-  // Unwrap params at the beginning of the component
-  const unwrappedParams = use(params);
+  // Unwrap params using React.use()
+  const unwrappedParams = React.use(params);
   const productId = unwrappedParams.id;
 
   const router = useRouter();
@@ -29,66 +30,56 @@ export default function ProductDetails({ params }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [selectedImage, setSelectedImage] = useState(0);
-  const [selectedSize, setSelectedSize] = useState("");
   const [selectedColor, setSelectedColor] = useState("");
   const [colorInventories, setColorInventories] = useState([]);
   const { user, loading: authLoading } = useUserAuth();
   const [paymentLoading, setPaymentLoading] = useState(false);
 
+  // Effect 1: Fetch Data
   useEffect(() => {
     async function fetchProduct() {
       try {
         setLoading(true);
-        const res = await fetch(PUBLIC_ENDPOINTS.PRODUCT_DETAIL(productId));
-
-        if (!res.ok) {
-          throw new Error(`Failed to fetch product: ${res.status}`);
-        }
-
-        const data = await res.json();
-        setProduct(data);
-
-        // Fetch color inventories for this product
-        try {
-          const colorRes = await fetch(
-            PUBLIC_ENDPOINTS.PRODUCT_COLORS(productId)
-          );
-          if (colorRes.ok) {
-            const colorData = await colorRes.json();
-            setColorInventories(colorData.colorInventories || []);
-
-            // Set first available color as default
-            if (
-              colorData.colorInventories &&
-              colorData.colorInventories.length > 0
-            ) {
-              const availableColors = colorData.colorInventories.filter(
-                (color) =>
-                  Object.values(color.inventory || {}).some((qty) => qty > 0)
-              );
-
-              if (availableColors.length > 0) {
-                setSelectedColor(availableColors[0].color);
-              }
-            }
+        const timestamp = Date.now();
+        
+        // Fetch product details
+        const productRes = await fetch(`${PUBLIC_ENDPOINTS.PRODUCT_DETAIL(productId)}?_=${timestamp}`, {
+          cache: 'no-store',
+          headers: {
+            'Cache-Control': 'no-cache, no-store, must-revalidate',
+            'Pragma': 'no-cache',
+            'Expires': '0'
           }
-        } catch (colorError) {
-          console.error("Error fetching color inventories:", colorError);
-        }
+        });
+        if (!productRes.ok) throw new Error(`Failed to fetch product: ${productRes.status}`);
+        const productData = await productRes.json();
+        setProduct(productData);
+        console.log("Fetched product data:", productData);
 
-        // Set first available size as default selected
-        if (data.sizeQuantities) {
-          const availableSizes = Object.entries(data.sizeQuantities)
-            .filter(([_, qty]) => qty > 0)
-            .map(([size]) => size);
-
-          if (availableSizes.length > 0) {
-            setSelectedSize(availableSizes[0]);
+        // Fetch color inventories
+        const colorRes = await fetch(`${PUBLIC_ENDPOINTS.PRODUCT_COLORS(productId)}?_=${timestamp}`, {
+          cache: 'no-store',
+          headers: {
+            'Cache-Control': 'no-cache, no-store, must-revalidate',
+            'Pragma': 'no-cache',
+            'Expires': '0'
           }
+        });
+        if (colorRes.ok) {
+          const colorData = await colorRes.json();
+          setColorInventories(colorData.colorInventories || []);
+          console.log("Fetched color inventories:", colorData.colorInventories);
+        } else {
+           console.warn("Failed to fetch color inventories:", colorRes.status);
+           setColorInventories([]); // Ensure it's an empty array on failure
         }
+
       } catch (error) {
-        console.error("Error fetching product:", error);
+        console.error("Error fetching product data:", error);
         setError(error.message);
+        // Reset states on error
+        setProduct(null);
+        setColorInventories([]);
       } finally {
         setLoading(false);
       }
@@ -97,11 +88,34 @@ export default function ProductDetails({ params }) {
     if (productId) {
       fetchProduct();
     }
+    
+    // Set up polling (optional, keep if needed)
+    const refreshInterval = setInterval(() => {
+      console.log("Polling: Refreshing product data...");
+      if (productId) {
+        fetchProduct();
+      }
+    }, 60000);
+    
+    return () => clearInterval(refreshInterval);
   }, [productId]);
 
-  const handleSizeSelect = (size) => {
-    setSelectedSize(size);
-  };
+  // Effect 2: Set Default Color (only runs when data loads)
+  useEffect(() => {
+    if (product && colorInventories.length > 0 && !selectedColor) {
+      const firstAvailableColor = colorInventories.find((inv) =>
+        Object.values(inv.inventory || {}).some((qty) => parseInt(qty) > 0)
+      );
+      if (firstAvailableColor) {
+        setSelectedColor(firstAvailableColor.color);
+        console.log("Default color set:", firstAvailableColor.color);
+      }
+    }
+    // Reset color if product is removed or inventories become empty
+    else if (!product || colorInventories.length === 0) {
+        setSelectedColor("");
+    }
+  }, [product, colorInventories, selectedColor]); // Add selectedColor to dependency array
 
   const handleColorSelect = (color) => {
     setSelectedColor(color);
@@ -128,12 +142,7 @@ export default function ProductDetails({ params }) {
       return;
     }
     
-    // Existing validations
-    if (!selectedSize && Object.keys(product.sizeQuantities || {}).length > 0) {
-      toast.error("Please select a size");
-      return;
-    }
-
+    // Remove size validation, only check for color
     if (!selectedColor && colorInventories.length > 0) {
       toast.error("Please select a color");
       return;
@@ -141,6 +150,20 @@ export default function ProductDetails({ params }) {
 
     try {
       setPaymentLoading(true);
+      
+      // Select the first available size for the selected color
+      let firstAvailableSize = "";
+      if (selectedColor && colorInventories.length > 0) {
+        const colorData = colorInventories.find((inv) => inv.color === selectedColor);
+        if (colorData?.inventory) {
+          const availableSizes = Object.entries(colorData.inventory)
+            .filter(([_, qty]) => parseInt(qty) > 0)
+            .map(([size]) => size);
+          if (availableSizes.length > 0) {
+            firstAvailableSize = availableSizes[0];
+          }
+        }
+      }
       
       // Prepare the order data - Now include user details if available
       const orderData = {
@@ -152,7 +175,7 @@ export default function ProductDetails({ params }) {
           product_id: productId,
           name: product.name,
           price: product.sellingPrice,
-          size: selectedSize,
+          size: firstAvailableSize, // Use automatically selected size
           color: selectedColor,
           quantity: 1
         }
@@ -391,6 +414,96 @@ export default function ProductDetails({ params }) {
                 )}
               </div>
 
+              {/* Color Inventory Display ONLY - Moved here between In Stock and Buy Now */}
+              {selectedColor && colorInventories.length > 0 && (
+                <div className="mb-6">
+                  <div className="bg-primary bg-opacity-15 p-5 rounded-lg border border-primary border-opacity-30 shadow-sm">
+                    <h3 className="text-base font-medium text-primary mb-3">
+                      {selectedColor} Inventory:
+                    </h3>
+                    <div className="flex flex-wrap gap-3">
+                      {colorInventories.find((c) => c.color === selectedColor)
+                        ?.inventory &&
+                        Object.entries(
+                          colorInventories.find(
+                            (c) => c.color === selectedColor
+                          ).inventory
+                        )
+                          .filter(([_, qty]) => parseInt(qty) > 0)
+                          .map(([size, qty]) => (
+                            <div
+                              key={`${selectedColor}-${size}`}
+                              className="bg-white px-4 py-2 rounded-md shadow-sm border border-ui-border flex items-center"
+                            >
+                              <span className="text-sm font-medium text-primary mr-2">
+                                {size}:
+                              </span>
+                              <span className="text-sm font-medium text-secondary">
+                                {qty} available
+                              </span>
+                            </div>
+                          ))}
+                      {!colorInventories.find(
+                        (c) => c.color === selectedColor
+                      )?.inventory ||
+                      Object.values(
+                        colorInventories.find(
+                          (c) => c.color === selectedColor
+                        )?.inventory || {}
+                      ).every((qty) => parseInt(qty) === 0) ? (
+                        <span className="text-sm text-error bg-error bg-opacity-10 px-3 py-1.5 rounded-md">
+                          Out of stock
+                        </span>
+                      ) : null}
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Color Selection */}
+              {colorInventories.length > 0 && (
+                <div className="mb-6">
+                  <h2 className="text-xl font-medium text-text-dark mb-3">
+                    Select Color
+                  </h2>
+                  <div className="flex flex-wrap gap-3 mb-4">
+                    {colorInventories.map((colorInv) => {
+                      // Check if this color has any inventory
+                      const hasInventory = Object.values(
+                        colorInv.inventory || {}
+                      ).some((qty) => parseInt(qty) > 0);
+                      if (!hasInventory) return null;
+
+                      return (
+                        <button
+                          key={colorInv.color}
+                          onClick={() => handleColorSelect(colorInv.color)}
+                          disabled={!hasInventory}
+                          className={`
+                            flex flex-col items-center p-3 rounded-md border transition-all
+                            ${
+                              selectedColor === colorInv.color
+                                ? "border-secondary bg-secondary bg-opacity-10 shadow-md"
+                                : "border-ui-border bg-background-alt hover:border-secondary hover:shadow-sm"
+                            }
+                          `}
+                        >
+                          <div
+                            className="w-10 h-10 rounded-full border border-ui-border shadow-sm mb-1"
+                            style={{
+                              backgroundColor: colorInv.colorCode || "#000000",
+                            }}
+                          ></div>
+                          <span className="text-sm font-medium text-white">
+                            {colorInv.color}
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
               {/* Description */}
               {product.description && (
                 <div className="mb-6">
@@ -407,126 +520,6 @@ export default function ProductDetails({ params }) {
 
               {/* Divider */}
               <div className="border-t border-ui-border my-6"></div>
-
-              {/* Color Selection */}
-              {colorInventories.length > 0 && (
-                <div className="mb-6">
-                  <h2 className="text-lg font-medium text-text-dark mb-3">
-                    Select Color
-                  </h2>
-                  <div className="flex flex-wrap gap-3 mb-4">
-                    {colorInventories.map((colorInv) => {
-                      // Check if this color has any inventory
-                      const hasInventory = Object.values(
-                        colorInv.inventory || {}
-                      ).some((qty) => qty > 0);
-                      if (!hasInventory) return null;
-
-                      return (
-                        <button
-                          key={colorInv.color}
-                          onClick={() => handleColorSelect(colorInv.color)}
-                          disabled={!hasInventory}
-                          className={`
-                            flex flex-col items-center p-2 rounded-md border transition-all
-                            ${
-                              selectedColor === colorInv.color
-                                ? "border-secondary bg-secondary bg-opacity-10 shadow-sm"
-                                : "border-ui-border bg-background-alt hover:border-secondary hover:shadow-sm"
-                            }
-                          `}
-                        >
-                          <div
-                            className="w-8 h-8 rounded-full border border-ui-border shadow-sm mb-1"
-                            style={{
-                              backgroundColor: colorInv.colorCode || "#000000",
-                            }}
-                          ></div>
-                          <span className="text-xs text-white">
-                            {colorInv.color}
-                          </span>
-                        </button>
-                      );
-                    })}
-                  </div>
-
-                  {/* Color Inventory Display */}
-                  {selectedColor && (
-                    <div className="bg-primary p-3 rounded-lg ">
-                      <h3 className="text-sm font-medium text-white mb-2">
-                        {selectedColor} Inventory:
-                      </h3>
-                      <div className="flex flex-wrap gap-2">
-                        {colorInventories.find((c) => c.color === selectedColor)
-                          ?.inventory &&
-                          Object.entries(
-                            colorInventories.find(
-                              (c) => c.color === selectedColor
-                            ).inventory
-                          )
-                            .filter(([_, qty]) => qty > 0)
-                            .map(([size, qty]) => (
-                              <div
-                                key={`${selectedColor}-${size}`}
-                                className="bg-background px-2 py-1 rounded flex items-center"
-                              >
-                                <span className="text-xs font-medium text-primary">
-                                  {size}:
-                                </span>
-                                <span className="text-xs ml-1 text-secondary">
-                                  {qty} available
-                                </span>
-                              </div>
-                            ))}
-                        {!colorInventories.find(
-                          (c) => c.color === selectedColor
-                        )?.inventory ||
-                        Object.values(
-                          colorInventories.find(
-                            (c) => c.color === selectedColor
-                          )?.inventory || {}
-                        ).every((qty) => qty === 0) ? (
-                          <span className="text-xs text-error">
-                            Out of stock
-                          </span>
-                        ) : null}
-                      </div>
-                    </div>
-                  )}
-                </div>
-              )}
-
-              {/* Size Selection */}
-              {Object.keys(product.sizeQuantities || {}).length > 0 && (
-                <div className="mb-6">
-                  <h2 className="text-lg font-medium text-text-dark mb-3">
-                    Select Size
-                  </h2>
-                  <div className="flex flex-wrap gap-2 ">
-                    {Object.entries(product.sizeQuantities).map(
-                      ([size, qty]) => (
-                        <button
-                          key={size}
-                          onClick={() => handleSizeSelect(size)}
-                          disabled={qty <= 0}
-                          className={`
-                          h-10 min-w-[2.5rem] focus:text-white px-3 rounded-md border transition-all
-                          ${
-                            selectedSize === size
-                              ? "border-secondary bg-secondary bg-opacity-10 text-secondary font-medium shadow-sm"
-                              : qty > 0
-                              ? "border-ui-border bg-background-alt text-text hover:border-secondary hover:shadow-sm"
-                              : "border-ui-border bg-background-alt text-text-muted opacity-50 cursor-not-allowed"
-                          }
-                        `}
-                        >
-                          {size}
-                        </button>
-                      )
-                    )}
-                  </div>
-                </div>
-              )}
 
               {/* Buy Now Button */}
               <div className="mb-6">
@@ -599,3 +592,4 @@ export default function ProductDetails({ params }) {
     </div>
   );
 }
+

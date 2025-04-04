@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import axios from "axios";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import Image from 'next/image';
 
 // API endpoint
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000";
@@ -311,15 +312,17 @@ export default function ProductDetailPage({ params }) {
                       key={index}
                       className="aspect-square bg-background-alt rounded-md overflow-hidden relative"
                     >
-                      <img
+                      <Image
                         src={image}
-                        alt={`${product.name} - Image ${index + 1}`}
-                        className="w-full h-full object-cover"
+                        alt={`${product?.name || 'Product'} - Image ${index + 1}`}
+                        fill
+                        className="object-cover"
                         onError={(e) => {
                           e.target.onerror = null;
                           e.target.src =
-                            "https://via.placeholder.com/300x300?text=Image+Not+Found";
+                            "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='300' height='300' viewBox='0 0 300 300' fill='%23eee'%3E%3Ctext x='50%' y='50%' dominant-baseline='middle' text-anchor='middle' font-size='20' fill='%23aaa'%3ENoImg%3C/text%3E%3C/svg%3E";
                         }}
+                        sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
                       />
                     </div>
                   ))

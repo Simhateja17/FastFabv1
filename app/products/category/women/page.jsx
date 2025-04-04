@@ -1,14 +1,14 @@
 "use client";
 
-import { useState, useEffect, useCallback, Suspense } from "react";
+import { useState, useEffect, useCallback } from "react";
 import ProductCard from "@/app/components/ProductCard";
 import LoadingSpinner from "@/app/components/LoadingSpinner";
-import { PUBLIC_ENDPOINTS } from "@/app/config";
 import { FiShoppingBag, FiMapPin, FiFilter } from "react-icons/fi";
 import ProductFilters from "@/app/components/ProductFilters";
 import { useLocationStore } from "@/app/lib/locationStore";
 import LocationRequiredMessage from "@/app/components/LocationRequiredMessage";
 
+// This prevents any useSearchParams calls during server rendering
 function WomenProductsContent() {
   const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -166,7 +166,7 @@ function WomenProductsContent() {
             Expanding to Your Area!
           </h3>
           <p className="mt-2 text-gray-500 max-w-md mx-auto">
-            Currently we're expanding into your region, we'll be soon delivering you the outfits you love
+            Currently we&apos;re expanding into your region, we&apos;ll be soon delivering you the outfits you love
           </p>
           <p className="mt-4 text-sm text-gray-500">
             You can try setting a different location or check back later.
@@ -234,8 +234,8 @@ function WomenProductsContent() {
         <>
           {/* Page Title */}
           <div className="mb-6">
-            <h1 className="text-2xl font-bold text-text-dark">Women's Collection</h1>
-            <p className="text-text-muted">Browse our latest women's fashion</p>
+            <h1 className="text-2xl font-bold text-text-dark">Women&apos;s Collection</h1>
+            <p className="text-text-muted">Browse our latest women&apos;s fashion</p>
           </div>
           
           {/* Filters and Products Section using Grid */}
@@ -250,9 +250,9 @@ function WomenProductsContent() {
             </div>
             
             {/* Products - Takes up 3 columns on large screens */}
-            <div className="lg:col-span-3 mt-6 lg:mt-0">
+            <div className="lg:col-span-3 mt-8 lg:mt-0">
               {loading ? (
-                <div className="flex justify-center py-20">
+                <div className="flex justify-center items-center py-16">
                   <LoadingSpinner size="large" color="secondary" />
                 </div>
               ) : error ? (
@@ -260,22 +260,42 @@ function WomenProductsContent() {
                   error={error} 
                   onRetry={() => fetchProducts(userLocation, filters)} 
                 />
-              ) : products.length > 0 ? (
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 md:gap-6">
-                  {products.map((product) => (
-                    <ProductCard key={product.id} product={product} />
-                  ))}
-                </div>
-              ) : (
-                <div className="text-center py-12 bg-white rounded-lg shadow-sm">
-                  <FiShoppingBag className="w-12 h-12 mx-auto text-gray-400" />
+              ) : products.length === 0 ? (
+                <div className="text-center py-16 bg-white rounded-lg shadow-sm">
+                  <FiShoppingBag className="w-12 h-12 mx-auto text-secondary opacity-40" />
                   <h3 className="mt-4 text-lg font-medium text-gray-900">
-                    No Products Found
+                    No products found
                   </h3>
                   <p className="mt-2 text-gray-500 max-w-md mx-auto">
-                    There are no women's products matching your filters. Try changing your filters or check back later.
+                    We couldn&apos;t find any women&apos;s products matching your criteria.
                   </p>
+                  <button
+                    onClick={() => setFilters({
+                      ...filters,
+                      subcategory: "",
+                      size: "",
+                      minPrice: null,
+                      maxPrice: null,
+                      sort: ""
+                    })}
+                    className="mt-4 text-primary hover:underline"
+                  >
+                    Clear filters
+                  </button>
                 </div>
+              ) : (
+                <>
+                  <div className="mb-4 flex justify-between items-center">
+                    <p className="text-text font-medium">
+                      {products.length} {products.length === 1 ? 'product' : 'products'} found
+                    </p>
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+                    {products.map((product) => (
+                      <ProductCard key={product.id} product={product} />
+                    ))}
+                  </div>
+                </>
               )}
             </div>
           </div>
@@ -285,14 +305,7 @@ function WomenProductsContent() {
   );
 }
 
+// The default export of the page
 export default function WomenProductsPage() {
-  return (
-    <Suspense fallback={
-      <div className="flex justify-center items-center min-h-screen">
-        <LoadingSpinner size="large" color="primary" />
-      </div>
-    }>
-      <WomenProductsContent />
-    </Suspense>
-  );
+  return <WomenProductsContent />;
 }

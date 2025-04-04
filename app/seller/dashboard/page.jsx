@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useAuth } from "@/app/context/AuthContext";
 import Link from "next/link";
 import ProtectedRoute from "@/app/components/ProtectedRoute";
@@ -21,36 +21,39 @@ function DashboardContent() {
   const [isVisible, setIsVisible] = useState(true);
   const [isToggling, setIsToggling] = useState(false);
   
-  // Declare the fetchVisibilityStatus function at component level
-  const fetchVisibilityStatus = async () => {
+  const fetchVisibilityStatus = useCallback(async () => {
     try {
-      const backendApiUrl = process.env.NEXT_PUBLIC_SELLER_SERVICE_URL || 'http://localhost:8000/api';
-      const apiUrl = `${backendApiUrl}/seller/visibility`; // Correct backend endpoint
-      console.log(`Fetching visibility status from: ${apiUrl}`);
+      // Debug log
+      console.log('Fetching visibility status from API');
       
-      const response = await authFetch(apiUrl);
+      const backendApiUrl = process.env.NEXT_PUBLIC_SELLER_SERVICE_URL || 'http://localhost:8000/api';
+      const response = await authFetch(`${backendApiUrl}/seller/visibility`);
       
       if (response.ok) {
         const data = await response.json();
-        console.log('Fetched visibility status:', data);
-        setIsVisible(data.isVisible);
+        console.log('Visibility status response:', data);
+        
+        if (data.isVisible !== undefined) {
+          setIsVisible(data.isVisible);
+        }
       } else {
         console.error('Failed to fetch visibility status:', response.status);
-        // Fallback to seller data from context if API fails
+        // Fallback to the seller data we already have
         if (seller && seller.isVisible !== undefined) {
-          console.log('Using fallback visibility from seller context');
           setIsVisible(seller.isVisible);
         }
       }
     } catch (error) {
       console.error('Error fetching visibility status:', error);
-      // Fallback to seller data from context
+      // Fallback to the seller data we already have
       if (seller && seller.isVisible !== undefined) {
-        console.log('Using fallback visibility from seller context after error');
         setIsVisible(seller.isVisible);
+      } else {
+        console.log('No seller context data after error, defaulting to visible');
+        setIsVisible(true);
       }
     }
-  };
+  }, [authFetch, seller]);
   
   useEffect(() => {
     if (seller) {
@@ -62,7 +65,7 @@ function DashboardContent() {
       // Also fetch the latest visibility status from the API
       fetchVisibilityStatus();
     }
-  }, [seller, authFetch]);
+  }, [seller, fetchVisibilityStatus]);
 
   const handleVisibilityToggle = async () => {
     try {

@@ -9,6 +9,7 @@ import { Inter } from "next/font/google";
 import { Analytics } from "@vercel/analytics/react";
 import Script from "next/script";
 import LocationPermissionHandler from "./components/LocationPermissionHandler";
+import { Suspense } from "react";
 
 // Load Inter font
 const inter = Inter({
@@ -22,7 +23,7 @@ export const metadata = {
     icon: "./logo.svg",
   },
   title: "Fast & Fab",
-  description: "Seller re gistration and management platform",
+  description: "Seller registration and management platform",
 };
 
 export default function RootLayout({ children }) {
@@ -42,7 +43,13 @@ export default function RootLayout({ children }) {
                 <Navbar />
                 <main className="flex-grow">
                   <LocationPermissionHandler>
-                    {children}
+                    <Suspense fallback={
+                      <div className="min-h-screen flex items-center justify-center">
+                        <div className="w-12 h-12 border-4 border-primary border-solid rounded-full border-t-transparent animate-spin"></div>
+                      </div>
+                    }>
+                      {children}
+                    </Suspense>
                   </LocationPermissionHandler>
                 </main>
                 <Footer />

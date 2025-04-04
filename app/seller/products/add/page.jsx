@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/app/context/AuthContext";
 import Image from "next/image";
@@ -156,41 +156,41 @@ export default function AddProduct() {
   const [selectedCategory, setSelectedCategory] = useState("");
   const [availableSubcategories, setAvailableSubcategories] = useState([]);
 
-  // Save current page data before switching
-  const saveCurrentPageData = () => {
-    // Only save if we have valid page data
-    if (currentPage <= 0 || currentPage > productPages.length) {
-      return;
-    }
+  const saveCurrentPageData = useCallback(() => {
+    if (currentPage === 0) return; // Skip if on introduction screen
     
-    // Find color code from name
-    let colorCode = "";
-    if (selectedColor) {
-      const colorObj = COLORS.find(c => c.name === selectedColor);
-      if (colorObj) {
-        colorCode = colorObj.hex;
-      }
-    }
-    
-    const updatedProductPages = [...productPages];
-    updatedProductPages[currentPage - 1] = {
-      name: formData.name || "",
-      description: formData.description || "",
-      mrpPrice: formData.mrpPrice || "",
-      sellingPrice: formData.sellingPrice || "",
-      category: formData.category || "",
-      subcategory: formData.subcategory || "",
+    // Deep clone the current form data for this page
+    let pageData = {
+      name: formData.name,
+      description: formData.description,
+      mrpPrice: formData.mrpPrice,
+      sellingPrice: formData.sellingPrice,
+      category: formData.category,
+      subcategory: formData.subcategory,
       isReturnable: formData.isReturnable,
-      selectedColor: selectedColor,
-      colorCode: colorCode,
-      selectedSizes: [...selectedSizes], // Create deep copy
-      images: [...previewImages], // Create deep copy
-      files: [...selectedFiles] // Create deep copy
     };
     
-    console.log(`Saving data for page ${currentPage}:`, updatedProductPages[currentPage - 1]);
-    setProductPages(updatedProductPages);
-  };
+    // If this is the base variant, include size quantities directly
+    if (currentPage === 1) {
+      pageData.sizeQuantities = { ...formData.sizeQuantities };
+    }
+    
+    // Save data for this specific variant (color/size page)
+    let allPageData = [...productPages];
+    
+    // For the current page, store both form data and selected sizes/color
+    allPageData[currentPage - 1] = {
+      ...pageData,
+      selectedColor: selectedColor,
+      selectedSizes: selectedSizes,
+      files: selectedFiles,
+      previewImages: previewImages,
+    };
+    
+    setProductPages(allPageData);
+    
+    console.log(`Page ${currentPage} data saved:`, allPageData[currentPage - 1]);
+  }, [currentPage, formData, selectedColor, selectedSizes, selectedFiles, previewImages, productPages]);
 
   // Remove current variant page
   const removeVariant = () => {
@@ -830,7 +830,7 @@ export default function AddProduct() {
       
       return () => clearTimeout(saveTimeout);
     }
-  }, [formData, selectedColor, selectedSizes, previewImages, selectedFiles]);
+  }, [formData, selectedColor, selectedSizes, previewImages, selectedFiles, currentPage, saveCurrentPageData]);
 
   return (
     <div className="max-w-4xl mx-auto p-4 md:p-6 bg-background min-h-screen">

@@ -1,25 +1,3 @@
 {
-  "extends": "next/core-web-vitals",
-  "rules": {
-    "react/no-unescaped-entities": "off",
-    "@next/next/no-img-element": "off",
-    "react-hooks/exhaustive-deps": "warn",
-    "react-hooks/rules-of-hooks": "warn",
-    "no-console": ["warn", { "allow": ["warn", "error"] }],
-    "no-unused-vars": ["warn", { "argsIgnorePattern": "^_", "varsIgnorePattern": "^_" }],
-    "no-undef": "error",
-    "no-empty": "warn",
-    "@next/next/no-html-link-for-pages": "off",
-    "@next/next/no-sync-scripts": "warn",
-    "jsx-a11y/alt-text": "warn",
-    "jsx-a11y/aria-props": "warn"
-  },
-  "ignorePatterns": [
-    "node_modules/",
-    ".next/",
-    "out/",
-    "public/",
-    "*.config.js",
-    "*.config.mjs"
-  ]
+  "extends": "next/core-web-vitals"
 }

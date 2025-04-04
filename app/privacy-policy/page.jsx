@@ -301,7 +301,7 @@ function PrivacyPolicyContent() {
 
 export default function PrivacyPolicy() {
   return (
-    <Suspense fallback={<div className="p-8 text-center">Loading privacy policy...</div>}>
+    <Suspense fallback={<div className="min-h-screen flex items-center justify-center">Loading...</div>}>
       <PrivacyPolicyContent />
     </Suspense>
   );

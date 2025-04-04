@@ -1,65 +1,90 @@
 import { NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
 import { auth } from "@/app/lib/auth";
-import { createErrorResponse, createSuccessResponse } from '@/app/api/error';
 
-export async function GET(request) {
-  try {
-    const authResult = await auth(request);
-    
-    if (!authResult.success) {
-      return createErrorResponse(authResult.message, 401);
-    }
-    
-    const sellerId = authResult.sellerId;
-    
+// Server-side error handler functions (direct implementations instead of imports)
+function createErrorResponse(message, status = 500) {
+  return NextResponse.json(
+    { error: true, message },
+    { status }
+  );
+}
+
+function createSuccessResponse(data, status = 200) {
+  return NextResponse.json(
+    { error: false, ...data },
+    { status }
+  );
+}
+
+// Server-side error handler wrapper
+function withErrorHandler(handler) {
+  return async function(req, context) {
     try {
-      const apiUrl = `${process.env.NEXT_PUBLIC_API_URL}/seller/products`;
+      // Call the original handler
+      return await handler(req, context);
+    } catch (error) {
+      console.error('API Error:', error);
+
+      // Ensure we return JSON instead of allowing Next.js to render an HTML error page
+      return NextResponse.json(
+        { 
+          error: true, 
+          message: error.message || 'An unexpected error occurred',
+          stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
+        },
+        { status: error.status || 500 }
+      );
+    }
+  };
+}
+
+export const GET = withErrorHandler(async (request) => {
+  const authResult = await auth(request);
+  
+  if (!authResult.success) {
+    return createErrorResponse(authResult.message, 401);
+  }
+  
+  const sellerId = authResult.sellerId;
+  
+  try {
+    const apiUrl = `${process.env.NEXT_PUBLIC_API_URL}/seller/products`;
+    
+    const response = await fetch(apiUrl, {
+      headers: {
+        'Authorization': `Bearer ${authResult.token}`,
+        'Content-Type': 'application/json'
+      }
+    });
+    
+    if (!response.ok) {
+      const contentType = response.headers.get('content-type') || '';
       
-      const response = await fetch(apiUrl, {
-        headers: {
-          'Authorization': `Bearer ${authResult.token}`,
-          'Content-Type': 'application/json'
-        }
-      });
-      
-      if (!response.ok) {
-        const contentType = response.headers.get('content-type') || '';
-        
-        // For HTML responses (error pages), return a clean error
-        if (contentType.includes('text/html')) {
-          throw new Error('Server error occurred while fetching products');
-        }
-        
-        // Try to get detailed error message from the response
-        try {
-          const errorData = await response.json();
-          return createErrorResponse(
-            errorData.message || `Error fetching products: ${response.status}`,
-            response.status
-          );
-        } catch (e) {
-          return createErrorResponse(`Error fetching products: ${response.status}`, response.status);
-        }
+      // For HTML responses (error pages), return a clean error
+      if (contentType.includes('text/html')) {
+        throw new Error('Server error occurred while fetching products');
       }
       
-      const data = await response.json();
-      return createSuccessResponse(data);
-    } catch (error) {
-      console.error('Error in seller products API:', error);
-      return createErrorResponse(error.message || 'Failed to fetch products');
+      // Try to get detailed error message from the response
+      try {
+        const errorData = await response.json();
+        return createErrorResponse(
+          errorData.message || `Error fetching products: ${response.status}`,
+          response.status
+        );
+      } catch (e) {
+        return createErrorResponse(`Error fetching products: ${response.status}`, response.status);
+      }
     }
+    
+    const data = await response.json();
+    return createSuccessResponse(data);
   } catch (error) {
-    console.error('Error in seller products API GET handler:', error);
-    return NextResponse.json(
-      { 
-        error: true, 
-        message: error.message || 'An unexpected error occurred'
-      },
-      { status: error.status || 500 }
-    );
+    console.error('Error in seller products API:', error);
+    return createErrorResponse(error.message || 'Failed to fetch products');
   }
-}
+});
 
 // Also handle POST, PUT, DELETE for products
 export async function POST(request) {

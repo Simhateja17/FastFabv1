@@ -3,20 +3,24 @@ import { cookies } from 'next/headers';
 
 async function handleProductColorsRequest(request, productId) {
   try {
-    // 1. Get Authentication Token
+    // 1. Get Authentication Token from either cookies or Authorization header
     const cookieStore = cookies();
     let accessToken = (await cookieStore.get('accessToken'))?.value;
     
+    // If not in cookies, check headers - important for client-side requests
     if (!accessToken && request.headers.has('authorization')) {
       const authHeader = request.headers.get('authorization');
       if (authHeader && authHeader.startsWith('Bearer ')) {
         accessToken = authHeader.substring(7);
+        console.log('Using access token from Authorization header');
       }
     }
     
+    // If still no token, try localStorage backup from client
     if (!accessToken) {
+      console.error('No access token found in cookies or auth header');
       return NextResponse.json(
-        { message: 'Authentication required' },
+        { message: 'Authentication required. Please login again.' },
         { status: 401 }
       );
     }
@@ -101,6 +105,7 @@ async function handleProductColorsRequest(request, productId) {
 
 // Export the GET handler
 export async function GET(request, { params }) {
-  // params.id should contain the product ID from the URL
-  return handleProductColorsRequest(request, params.id); 
+  // Extract ID from params
+  const { id } = params;
+  return handleProductColorsRequest(request, id); 
 } 

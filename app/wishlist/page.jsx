@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { useUserAuth } from "@/app/context/UserAuthContext";
 import { USER_ENDPOINTS } from "@/app/config";
@@ -15,47 +15,7 @@ export default function Wishlist() {
   const [wishlistItems, setWishlistItems] = useState([]);
   const [loading, setLoading] = useState(true);
 
-  // Fetch wishlist on component mount
-  useEffect(() => {
-    const checkAuth = async () => {
-      if (authLoading) return; // Skip if auth context is still loading
-
-      console.log("Wishlist page - Checking auth:", !!user);
-
-      try {
-        // If no user in context, check localStorage as fallback
-        if (!user) {
-          const savedUserData = localStorage.getItem("userData");
-          const accessToken = localStorage.getItem("userAccessToken");
-          const refreshToken = localStorage.getItem("userRefreshToken");
-
-          console.log("Wishlist page - Auth fallbacks:", {
-            savedUserData: !!savedUserData,
-            accessToken: !!accessToken,
-            refreshToken: !!refreshToken,
-          });
-
-          // If we have no authentication data at all, redirect to login
-          if (!savedUserData && !accessToken && !refreshToken) {
-            toast.error("Please sign in to view your wishlist");
-            router.push("/login");
-            return;
-          }
-        }
-
-        // Proceed with fetching wishlist - userAuthFetch will handle token refresh if needed
-        await fetchWishlist();
-      } catch (error) {
-        console.error("Authentication check error:", error);
-        toast.error("Authentication error. Please sign in again.");
-        router.push("/login");
-      }
-    };
-
-    checkAuth();
-  }, [user, authLoading, router]);
-
-  const fetchWishlist = async () => {
+  const fetchWishlist = useCallback(async () => {
     setLoading(true);
     try {
       const response = await userAuthFetch(USER_ENDPOINTS.WISHLIST);
@@ -103,7 +63,47 @@ export default function Wishlist() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [userAuthFetch, router]);
+
+  // Fetch wishlist on component mount
+  useEffect(() => {
+    const checkAuth = async () => {
+      if (authLoading) return; // Skip if auth context is still loading
+
+      console.log("Wishlist page - Checking auth:", !!user);
+
+      try {
+        // If no user in context, check localStorage as fallback
+        if (!user) {
+          const savedUserData = localStorage.getItem("userData");
+          const accessToken = localStorage.getItem("userAccessToken");
+          const refreshToken = localStorage.getItem("userRefreshToken");
+
+          console.log("Wishlist page - Auth fallbacks:", {
+            savedUserData: !!savedUserData,
+            accessToken: !!accessToken,
+            refreshToken: !!refreshToken,
+          });
+
+          // If we have no authentication data at all, redirect to login
+          if (!savedUserData && !accessToken && !refreshToken) {
+            toast.error("Please sign in to view your wishlist");
+            router.push("/login");
+            return;
+          }
+        }
+
+        // Proceed with fetching wishlist - userAuthFetch will handle token refresh if needed
+        await fetchWishlist();
+      } catch (error) {
+        console.error("Authentication check error:", error);
+        toast.error("Authentication error. Please sign in again.");
+        router.push("/login");
+      }
+    };
+
+    checkAuth();
+  }, [user, authLoading, router, fetchWishlist]);
 
   const removeFromWishlist = async (itemId) => {
     try {

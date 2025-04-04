@@ -1,15 +1,16 @@
 "use client";
 
+import React, { Suspense } from "react";
 import { useState, useEffect } from "react";
 import axios from "axios";
-import { useRouter } from "next/navigation";
+import { useRouter, useParams } from "next/navigation";
 import Link from "next/link";
 
 // API endpoint
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000";
 
-export default function UserDetailPage({ params }) {
-  const userId = params.id;
+function OrganizationUsersContent() {
+  const { id } = useParams();
   const router = useRouter();
 
   const [user, setUser] = useState(null);
@@ -34,7 +35,7 @@ export default function UserDetailPage({ params }) {
       try {
         setLoading(true);
         const userResponse = await axios.get(
-          `${API_BASE_URL}/admin/users/${userId}`
+          `${API_BASE_URL}/admin/users/${id}`
         );
         setUser(userResponse.data.user);
         setFormData({
@@ -46,7 +47,7 @@ export default function UserDetailPage({ params }) {
 
         // Also fetch user's orders
         const ordersResponse = await axios.get(
-          `${API_BASE_URL}/admin/users/${userId}/orders`
+          `${API_BASE_URL}/admin/users/${id}/orders`
         );
         setOrders(ordersResponse.data.orders || []);
       } catch (error) {
@@ -57,10 +58,10 @@ export default function UserDetailPage({ params }) {
       }
     };
 
-    if (userId) {
+    if (id) {
       fetchUserData();
     }
-  }, [userId]);
+  }, [id]);
 
   // Handle form change
   const handleChange = (e) => {
@@ -76,7 +77,7 @@ export default function UserDetailPage({ params }) {
     e.preventDefault();
     try {
       const response = await axios.patch(
-        `${API_BASE_URL}/admin/users/${userId}`,
+        `${API_BASE_URL}/admin/users/${id}`,
         formData
       );
       setUser(response.data.user);
@@ -93,7 +94,7 @@ export default function UserDetailPage({ params }) {
       setBlockLoading(true);
       const newBlockedStatus = !user.isBlocked;
       const response = await axios.patch(
-        `${API_BASE_URL}/admin/users/${userId}`,
+        `${API_BASE_URL}/admin/users/${id}`,
         {
           isBlocked: newBlockedStatus,
         }
@@ -115,7 +116,7 @@ export default function UserDetailPage({ params }) {
   const handleDeleteUser = async () => {
     try {
       setDeleteLoading(true);
-      await axios.delete(`${API_BASE_URL}/admin/users/${userId}`);
+      await axios.delete(`${API_BASE_URL}/admin/users/${id}`);
       router.push("/admin/superadmin/users");
     } catch (error) {
       console.error("Error deleting user:", error);
@@ -534,5 +535,13 @@ export default function UserDetailPage({ params }) {
         </div>
       )}
     </div>
+  );
+}
+
+export default function OrganizationUsersPage() {
+  return (
+    <Suspense fallback={<div>Loading organization users...</div>}>
+      <OrganizationUsersContent />
+    </Suspense>
   );
 }

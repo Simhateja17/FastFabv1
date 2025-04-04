@@ -18,8 +18,9 @@ export async function GET(request) {
     const longitude = parseFloat(searchParams.get('longitude'));
     const radius = parseFloat(searchParams.get('radius') || '3'); // Default 3km
     const category = searchParams.get('category'); // Optional category filter
+    const sellerId = searchParams.get('sellerId'); // Add sellerId parameter
     
-    console.log('Location filter parameters:', { latitude, longitude, radius, category });
+    console.log('Filter parameters:', { latitude, longitude, radius, category, sellerId });
     
     // Check if we need to filter by location
     const hasLocationFilter = !isNaN(latitude) && !isNaN(longitude);
@@ -27,7 +28,13 @@ export async function GET(request) {
     // If we have location coordinates, get nearby sellers first
     let sellerFilter = {};
     
-    if (hasLocationFilter) {
+    // Check if sellerId is provided - this takes precedence over location filtering
+    if (sellerId) {
+      console.log(`Filtering by specific seller ID: ${sellerId}`);
+      sellerFilter = {
+        sellerId: sellerId
+      };
+    } else if (hasLocationFilter) {
       console.log('Filtering sellers by location');
       
       // Get all sellers with coordinates
@@ -87,6 +94,20 @@ export async function GET(request) {
       ...sellerFilter,
       ...categoryFilter,
     };
+    
+    // If no sellerId and no location filter, return only products from visible sellers
+    if (!sellerId && !hasLocationFilter) {
+      // Get IDs of visible sellers
+      const visibleSellers = await prisma.seller.findMany({
+        where: { isVisible: true },
+        select: { id: true },
+      });
+      const visibleSellerIds = visibleSellers.map(s => s.id);
+      
+      // Add visible sellers filter
+      whereClause.sellerId = { in: visibleSellerIds };
+      console.log(`Restricting to ${visibleSellerIds.length} visible sellers`);
+    }
     
     console.log('Final query filter:', JSON.stringify(whereClause));
     

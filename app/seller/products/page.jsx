@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
 import Link from "next/link";
@@ -24,20 +24,21 @@ function ProductsListContent() {
   const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(true);
   const { authFetch } = useAuth();
+  // Add timestamp state to force refetch on navigation
+  const [refreshTimestamp, setRefreshTimestamp] = useState(Date.now());
 
-  useEffect(() => {
-    fetchProducts();
-  }, []);
-
-  const fetchProducts = async () => {
+  const fetchProducts = useCallback(async () => {
     try {
       setLoading(true);
       const backendApiUrl = process.env.NEXT_PUBLIC_SELLER_SERVICE_URL || 'http://localhost:8000/api'; // Define backend URL
       
+      // Add cache-busting timestamp to prevent stale data
+      const timestamp = Date.now();
+      
       // Call the correct backend endpoint directly
-      console.log(`Fetching products from: ${backendApiUrl}/products`); // Add log
+      console.log(`Fetching products from: ${backendApiUrl}/products?_=${timestamp}`); // Add log
       const response = await authFetch(
-        `${backendApiUrl}/products` // Corrected endpoint
+        `${backendApiUrl}/products?_=${timestamp}` // Add timestamp parameter to prevent caching
       );
 
       // Check if response is not OK
@@ -92,7 +93,42 @@ function ProductsListContent() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [authFetch]);
+
+  useEffect(() => {
+    fetchProducts();
+    
+    // Set up an event listener for when focus returns to the window
+    // This will refresh the data when a user comes back from editing a product
+    const handleFocus = () => {
+      // Check if there's a flag indicating the product list was updated
+      const productListUpdated = localStorage.getItem('product_list_updated');
+      if (productListUpdated) {
+        console.log("Product list update detected, refreshing products list");
+        // Clear the flag
+        localStorage.removeItem('product_list_updated');
+        // Refresh the products
+        setRefreshTimestamp(Date.now());
+      } else {
+        console.log("Window focused, checking if refresh needed");
+        setRefreshTimestamp(Date.now());
+      }
+    };
+    
+    window.addEventListener('focus', handleFocus);
+    
+    // Clean up the event listener
+    return () => {
+      window.removeEventListener('focus', handleFocus);
+    };
+  }, [fetchProducts]);
+  
+  // Add another useEffect to refetch when timestamp changes
+  useEffect(() => {
+    if (refreshTimestamp) {
+      fetchProducts();
+    }
+  }, [refreshTimestamp, fetchProducts]);
 
   const handleDelete = async (productId) => {
     if (!window.confirm("Are you sure you want to delete this product?")) {
@@ -348,6 +384,10 @@ function ProductsListContent() {
                     )
                       .filter(([_, qty]) => parseInt(qty) > 0)
                       .map(([size]) => size);
+                    
+                    // Debug log to check what sizes are actually in the product
+                    console.log(`Product ${product.id} sizes:`, product.sizeQuantities);
+                    console.log(`Available sizes for ${product.name}:`, availableSizes);
 
                     return (
                       <tr key={product.id} className="hover:bg-background-alt">

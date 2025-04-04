@@ -4,9 +4,7 @@ import { Cashfree } from 'cashfree-pg';
 // Initialize Cashfree SDK
 Cashfree.XClientId = process.env.CASHFREE_APP_ID;
 Cashfree.XClientSecret = process.env.CASHFREE_SECRET_KEY;
-Cashfree.XEnvironment = process.env.CASHFREE_API_ENV === 'PRODUCTION' 
-  ? Cashfree.Environment.PRODUCTION 
-  : Cashfree.Environment.SANDBOX;
+Cashfree.XEnvironment = Cashfree.Environment.SANDBOX; // Or Cashfree.Environment.PRODUCTION
 
 export async function POST(request) {
   try {
@@ -14,7 +12,7 @@ export async function POST(request) {
     // TODO: Add validation for request body (amount, currency, customer details etc.)
     console.log("Request Body:", reqBody);
 
-    const { amount, customer_id, customer_email, customer_phone, order_note, order_items } = reqBody;
+    const { amount, customer_id, customer_email, customer_phone } = reqBody;
     const order_id = `order_${Date.now()}`; // Generate a unique order ID
 
     const orderRequest = {
@@ -29,10 +27,9 @@ export async function POST(request) {
       order_meta: {
         // Optional: Add any metadata you want to associate with the order
         return_url: `${process.env.NEXT_PUBLIC_BASE_URL}/payment-status?order_id={order_id}`, // Redirect URL after payment
-        notify_url: `${process.env.NEXT_PUBLIC_BASE_URL}/api/payment-webhook`, // URL for server-to-server notifications
+        // notify_url: "YOUR_WEBHOOK_URL", // Optional: URL for server-to-server notifications
       },
-      order_note: order_note || "FastFab order", // Optional order note
-      order_items: order_items || [], // Optional items details
+      order_note: "Test order for FastFab integration", // Optional order note
     };
 
     console.log("Creating Cashfree Order with Request:", orderRequest);
