@@ -2,22 +2,17 @@
 
 import { useState, useEffect, useCallback, Suspense, useMemo } from "react";
 import Link from "next/link";
+import Image from "next/image";
 import { useSearchParams, useRouter } from 'next/navigation';
 import ProductCard from "@/app/components/ProductCard";
 import { PUBLIC_ENDPOINTS } from "@/app/config";
-import { FiShoppingBag, FiMapPin, FiCompass, FiAlertCircle } from "react-icons/fi";
+import { FiShoppingBag, FiMapPin, FiCompass, FiAlertCircle, FiClock, FiPackage, FiBox, FiShield } from "react-icons/fi";
 import LoadingSpinner from "@/app/components/LoadingSpinner";
 import SellerBanner from "@/app/components/SellerBanner";
 import { SafeLocationConsumer } from "@/app/components/SafeLocationWrapper";
 import LocationRequiredMessage from "@/app/components/LocationRequiredMessage";
 import { useLocationStore } from "@/app/lib/locationStore";
 import { toast } from 'react-hot-toast';
-import HeroSection from './components/HeroSection';
-import ProductSection from './components/ProductSection';
-import FeaturesSection from './components/FeaturesSection';
-import TestimonialsSection from './components/TestimonialsSection';
-import NewsletterSection from './components/NewsletterSection';
-import CategorySection from './components/CategorySection';
 
 // New component to hold the main content and hook logic
 function HomePageContent({ userLocation: contextLocation, loading: locationLoading }) {
@@ -28,8 +23,6 @@ function HomePageContent({ userLocation: contextLocation, loading: locationLoadi
   const [error, setError] = useState(null);
   const [locationError, setLocationError] = useState(false);
   const [lastUserLocation, setLastUserLocation] = useState(null);
-  const [featuredProducts, setFeaturedProducts] = useState([]);
-  const [newArrivals, setNewArrivals] = useState([]);
 
   const searchTerm = searchParams.get("q") || "";
 
@@ -135,81 +128,51 @@ function HomePageContent({ userLocation: contextLocation, loading: locationLoadi
   const groupedProducts = useMemo(() => groupProductsByCategory(products), [products]);
   const categories = useMemo(() => Object.keys(groupedProducts), [groupedProducts]);
 
-  const LocationErrorMessage = () => (
-    <div className="text-center py-12 bg-red-50 rounded-lg shadow-sm mb-8">
-      <FiAlertCircle className="w-12 h-12 mx-auto text-red-400" />
-      <h3 className="mt-4 text-lg font-medium text-red-600">Location Error</h3>
-      <p className="mt-2 text-red-500 max-w-md mx-auto">
-        We couldn&apos;t get your location. Please enable location services or set your location manually.
-      </p>
-      {/* Optionally add a button to trigger location setting */}
-    </div>
-  );
-
-  const LocationRequiredMessage = () => (
-    <div className="text-center py-12 bg-blue-50 rounded-lg shadow-sm mb-8">
-      <FiCompass className="w-12 h-12 mx-auto text-blue-400" />
-      <h3 className="mt-4 text-lg font-medium text-blue-600">Set Your Location</h3>
-      <p className="mt-2 text-blue-500 max-w-md mx-auto">
-        Please set your location to see products available near you.
-      </p>
-      {/* You might want a button here to open the location modal */}
-    </div>
-  );
-
-  // Moved return statement here
   const isLocationSet = userLocation?.latitude && userLocation?.longitude;
 
-  // Fetch featured products
-  const fetchFeaturedProducts = useCallback(async () => {
-    setLoading(true);
-    try {
-      const response = await fetch('/api/products/featured');
-      const data = await response.json();
-      
-      if (!response.ok) {
-        throw new Error(data.message || 'Failed to fetch products');
-      }
-      
-      setFeaturedProducts(data.featuredProducts || []);
-      setNewArrivals(data.newArrivals || []);
-    } catch (err) {
-      console.error('Error fetching products:', err);
-      setError('Failed to load products. Please try again later.');
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    fetchFeaturedProducts();
-  }, [fetchFeaturedProducts]);
-
   return (
-    <main className="min-h-screen bg-background">
+    <main className="bg-white">
       {/* Seller Banner Modal */}
       <SellerBanner />
 
-      {/* Main Category Buttons - Moved directly below search */}
-      <div className="flex justify-center gap-6 mt-24 mb-8 px-4 sm:px-6 lg:px-8">
-        <Link
-          href="/products/category/men"
-          className="inline-block bg-secondary text-white px-10 py-3 rounded-md hover:bg-secondary-dark transition-colors text-lg font-medium"
-        >
-          Men
-        </Link>
-        <Link
-          href="/products/category/women"
-          className="inline-block bg-primary text-white px-10 py-3 rounded-md hover:bg-primary-dark transition-colors text-lg font-medium"
-        >
-          Women
-        </Link>
+      {/* Main Category Buttons */}
+      <div className="max-w-7xl mx-auto px-4 py-8 sm:px-6 lg:px-8">
+        <div className="flex justify-center gap-6 mb-8">
+          <Link
+            href="/products/category/men"
+            className="inline-block bg-black text-white px-10 py-3 rounded-md hover:bg-gray-800 transition-colors text-lg font-medium"
+          >
+            Men
+          </Link>
+          <Link
+            href="/products/category/women"
+            className="inline-block bg-black text-white px-10 py-3 rounded-md hover:bg-gray-800 transition-colors text-lg font-medium"
+          >
+            Women
+          </Link>
+        </div>
       </div>
       
       {/* Products by Category */}
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 space-y-16">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-16">
         {/* Show location required message if location is not set */}
-        {!isLocationSet && !loading && !locationLoading && <LocationRequiredMessage />}
+        {!isLocationSet && !loading && !locationLoading && (
+          <div className="bg-white border border-gray-200 rounded-lg shadow-sm p-8 text-center">
+            <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
+              <FiMapPin className="w-8 h-8 text-gray-700" />
+            </div>
+            <h3 className="text-xl font-medium text-gray-900 mb-2">Set Your Location</h3>
+            <p className="text-gray-600 max-w-md mx-auto mb-6">
+              Please set your location to see products available for fast delivery near you.
+            </p>
+            <button
+              className="bg-black text-white px-6 py-2 rounded-md font-medium hover:bg-gray-800"
+              onClick={() => {/* Trigger location modal */}}
+            >
+              Set Location
+            </button>
+          </div>
+        )}
         
         {/* Only show the rest of the content if location is set */}
         {(loading || locationLoading) ? (
@@ -221,10 +184,10 @@ function HomePageContent({ userLocation: contextLocation, loading: locationLoadi
             searchTerm.trim() !== "" ? (
               // Search results view
               <section>
-                <h2 className="text-2xl font-semibold text-primary mb-8">
+                <h2 className="text-2xl font-bold text-gray-900 mb-8 border-b border-gray-200 pb-4">
                   Search Results for &quot;{searchTerm}&quot; 
                 </h2>
-                <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-3 md:gap-6">
+                <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 md:gap-6">
                   {filteredProducts.map((product) => (
                     <ProductCard key={product.id} product={product} />
                   ))}
@@ -234,18 +197,18 @@ function HomePageContent({ userLocation: contextLocation, loading: locationLoadi
               // Category view (only show if no search term active)
               categories.map((category) => (
                 <section key={category}>
-                  <div className="flex items-center justify-between mb-8">
-                    <h2 className="text-2xl font-semibold text-primary">
+                  <div className="flex items-center justify-between mb-6 border-b border-gray-200 pb-4">
+                    <h2 className="text-2xl font-bold text-gray-900">
                       {category}
                     </h2>
                     <Link
                       href={`/products/category/${category.toLowerCase()}`}
-                      className="text-sm text-secondary hover:text-secondary-dark font-medium"
+                      className="text-sm text-gray-600 hover:text-black font-medium flex items-center"
                     >
-                      View All &rarr;
+                      View All <span className="ml-1">→</span>
                     </Link>
                   </div>
-                  <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-3 md:gap-6">
+                  <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 md:gap-6">
                     {groupedProducts[category].map((product) => (
                       <ProductCard key={product.id} product={product} />
                     ))}
@@ -253,48 +216,46 @@ function HomePageContent({ userLocation: contextLocation, loading: locationLoadi
                 </section>
               ))
             )
+          ) : locationError ? (
+            <div className="bg-white border border-gray-200 rounded-lg shadow-sm p-8 text-center">
+              <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                <FiAlertCircle className="w-8 h-8 text-red-500" />
+              </div>
+              <h3 className="text-xl font-medium text-gray-900 mb-2">Location Error</h3>
+              <p className="text-gray-600 max-w-md mx-auto mb-6">
+                We couldn&apos;t access your location. Please enable location services in your browser or set your location manually.
+              </p>
+              <button
+                className="bg-black text-white px-6 py-2 rounded-md font-medium hover:bg-gray-800"
+                onClick={() => {/* Trigger location modal */}}
+              >
+                Set Location Manually
+              </button>
+            </div>
           ) : (
-            locationError ? <LocationErrorMessage /> : (
-              searchTerm.trim() !== "" ? (
-                // No results found for search term
-                <div className="text-center py-12 bg-background-card rounded-lg shadow-sm">
-                  <FiShoppingBag className="w-12 h-12 mx-auto text-gray-400" />
-                  <h3 className="mt-4 text-lg font-medium text-gray-900">No Products Found</h3>
-                  <p className="mt-2 text-gray-500 max-w-md mx-auto">
-                    We couldn&apos;t find any products matching &quot;{searchTerm}&quot;. Please try a different search term.
-                  </p>
-                </div>
-              ) : null // Optionally show a generic "No products nearby" message if needed
-            )
+            <div className="bg-white border border-gray-200 rounded-lg shadow-sm p-8 text-center">
+              <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                <FiShoppingBag className="w-8 h-8 text-gray-700" />
+              </div>
+              <h3 className="text-xl font-medium text-gray-900 mb-2">
+                No Products Found
+              </h3>
+              <p className="text-gray-600 max-w-md mx-auto mb-6">
+                {searchTerm.trim() !== "" 
+                  ? `We couldn't find any products matching "${searchTerm}". Please try a different search term.`
+                  : "We couldn't find any products in your area. Try expanding your search radius or check back later."
+                }
+              </p>
+              <Link
+                href="/"
+                className="bg-black text-white px-6 py-2 rounded-md font-medium hover:bg-gray-800 inline-block"
+              >
+                Browse All Products
+              </Link>
+            </div>
           )
         )}
       </div>
-
-      <HeroSection />
-      
-      <CategorySection />
-      
-      <ProductSection 
-        title="Featured Products"
-        products={featuredProducts}
-        loading={loading}
-        error={error}
-        onRetry={fetchFeaturedProducts}
-      />
-      
-      <FeaturesSection />
-      
-      <ProductSection 
-        title="New Arrivals"
-        products={newArrivals}
-        loading={loading}
-        error={error}
-        onRetry={fetchFeaturedProducts}
-      />
-      
-      <TestimonialsSection />
-      
-      <NewsletterSection />
     </main>
   );
 }
@@ -310,14 +271,10 @@ function HomeContentWrapper() {
   );
 }
 
-export default function Home() {
+// Export the wrapper as the default component
+export default function HomePage() {
   return (
-    <Suspense fallback={
-      <div className="min-h-screen flex items-center justify-center">
-        <LoadingSpinner size="large" color="primary" />
-      </div>
-    }>
-      {/* Render the wrapper which handles location context */}
+    <Suspense fallback={<LoadingSpinner size="large" color="secondary" />}>
       <HomeContentWrapper />
     </Suspense>
   );
