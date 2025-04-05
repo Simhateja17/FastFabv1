@@ -147,9 +147,62 @@ export async function GET(request) {
         }
       });
     }
+
+    // Process products to ensure they have all required fields
+    const processedProducts = products.map(product => {
+      // Extract seller data while removing sensitive fields
+      const { seller, ...productData } = product;
+      
+      // Get important seller info without sensitive data
+      const sellerInfo = seller ? {
+        sellerId: seller.id,
+        shopName: seller.shopName || 'Unknown Shop',
+        city: seller.city,
+        state: seller.state,
+        // Include distance if available
+        ...(product.distance !== undefined ? { distance: product.distance } : {})
+      } : null;
+      
+      // Return a clean product object with all required fields
+      return {
+        ...productData,
+        // Add back the seller info we want to keep
+        seller: sellerInfo,
+        // Ensure these critical fields are always present with fallbacks
+        id: productData.id,
+        name: productData.name || 'Unnamed Product',
+        description: productData.description || '',
+        sellingPrice: typeof productData.sellingPrice === 'number' ? productData.sellingPrice : 0,
+        mrpPrice: typeof productData.mrpPrice === 'number' ? productData.mrpPrice : 0,
+        discountPercentage: productData.mrpPrice && productData.sellingPrice
+          ? Math.round(100 - ((productData.sellingPrice / productData.mrpPrice) * 100))
+          : 0,
+        category: productData.category || 'General',
+        subcategory: productData.subcategory || '',
+        // Ensure images is always a valid array of URLs
+        images: Array.isArray(productData.images) 
+          ? productData.images.filter(img => img && typeof img === 'string')
+          : [],
+        // Include any other fields needed by ProductCard
+        sizeQuantities: productData.sizeQuantities || {},
+        isActive: productData.isActive !== false, // Default to true if undefined
+        createdAt: productData.createdAt || new Date().toISOString(),
+      };
+    });
+    
+    // Debug log the first processed product
+    if (processedProducts.length > 0) {
+      console.log('First processed product sample:', {
+        id: processedProducts[0].id,
+        name: processedProducts[0].name,
+        hasImages: Array.isArray(processedProducts[0].images) && processedProducts[0].images.length > 0,
+        hasPrice: processedProducts[0].sellingPrice !== undefined,
+        imageCount: Array.isArray(processedProducts[0].images) ? processedProducts[0].images.length : 0
+      });
+    }
     
     return NextResponse.json({
-      products,
+      products: processedProducts,
       locationUsed: hasLocationFilter,
       sellersFound: hasLocationFilter ? sellerFilter.sellerId.in.length : null,
     });
