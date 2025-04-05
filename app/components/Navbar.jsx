@@ -450,6 +450,41 @@ function NavbarContent() {
     }, 300);
   };
 
+  // Handle search form submission
+  const handleSearchSubmit = (e) => {
+    e.preventDefault();
+    
+    if (searchInputValue.trim()) {
+      const params = new URLSearchParams();
+      params.set('search', searchInputValue.trim());
+      
+      // Get user location from location store if available
+      try {
+        const locationStore = require('@/app/lib/locationStore').useLocationStore.getState();
+        const userLocation = locationStore.userLocation;
+        
+        if (userLocation?.latitude && userLocation?.longitude) {
+          // Ensure values are valid numbers and convert to string
+          const lat = parseFloat(userLocation.latitude);
+          const lng = parseFloat(userLocation.longitude);
+          
+          if (!isNaN(lat) && !isNaN(lng)) {
+            params.set('latitude', lat.toString());
+            params.set('longitude', lng.toString());
+            params.set('radius', '3'); // Default 3km radius
+            console.log(`Adding location to search: lat=${lat}, lon=${lng}`);
+          }
+        }
+      } catch (err) {
+        console.error('Error accessing location store:', err);
+      }
+      
+      // Navigate to products page with search
+      console.log(`Form submit - searching for: ${searchInputValue.trim()}`);
+      router.push(`/products?${params.toString()}`);
+    }
+  };
+
   // Authentication verification logic...
   useEffect(() => {
     // ... (existing verifyAuth logic) ...
@@ -540,16 +575,23 @@ function NavbarContent() {
             {/* Middle Section: Search Bar - Show on non-seller/non-admin routes */}
             {!isSellerRoute && !isAdminRoute && (
               <div className="flex-1 mx-2 max-w-lg pr-2"> 
-                <div className="relative">
-                    <input
-                      type="text"
-                      value={searchInputValue}
-                      onChange={handleSearchInputChange}
-                      placeholder="Search products..."
-                      className="w-full p-1.5 pl-8 border border-ui-border rounded-md focus:outline-none focus:ring-1 focus:ring-primary bg-input text-sm"
-                    />
-                    <FiSearch className="absolute left-3 top-1/2 transform -translate-y-1/2 text-text-muted" />
-                </div>
+                <form onSubmit={handleSearchSubmit} className="relative">
+                  <input
+                    type="text"
+                    value={searchInputValue}
+                    onChange={handleSearchInputChange}
+                    placeholder="Search products..."
+                    className="w-full p-1.5 pl-8 border border-ui-border rounded-md focus:outline-none focus:ring-1 focus:ring-primary bg-input text-sm"
+                  />
+                  <FiSearch className="absolute left-3 top-1/2 transform -translate-y-1/2 text-text-muted" />
+                  <button 
+                    type="submit" 
+                    className="absolute right-3 top-1/2 transform -translate-y-1/2 text-text-muted"
+                    aria-label="Search"
+                  >
+                    <span className="sr-only">Search</span>
+                  </button>
+                </form>
               </div>
             )}
             
@@ -700,17 +742,24 @@ function NavbarContent() {
         </div>
         
         {/* Second Row: Search Bar */}
-        <div className="bg-white border-t border-gray-100 py-2 px-3">
-          <div className="relative">
+        <div className="bg-white py-2 px-4">
+          <form onSubmit={handleSearchSubmit} className="relative">
             <input
               type="text"
               value={searchInputValue}
               onChange={handleSearchInputChange}
               placeholder="Search products..."
-              className="w-full p-2 pl-9 border border-ui-border rounded-full focus:outline-none focus:ring-1 focus:ring-primary bg-white text-sm"
+              className="w-full p-2 pl-8 border border-ui-border rounded-md focus:outline-none focus:ring-1 focus:ring-primary bg-input text-sm"
             />
             <FiSearch className="absolute left-3 top-1/2 transform -translate-y-1/2 text-text-muted" />
-          </div>
+            <button 
+              type="submit" 
+              className="absolute right-3 top-1/2 transform -translate-y-1/2 text-text-muted"
+              aria-label="Search"
+            >
+              <span className="sr-only">Search</span>
+            </button>
+          </form>
         </div>
         
         {/* Location Bar - Removed as it's now in the top row */}
