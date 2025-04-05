@@ -38,7 +38,6 @@ export default function ProductDetails({ params }) {
   const { user, loading: authLoading } = useUserAuth();
   const [paymentLoading, setPaymentLoading] = useState(false);
   const [selectedSize, setSelectedSize] = useState("");
-  const [activeTab, setActiveTab] = useState("SPECIFICATION");
 
   // Effect 1: Fetch Data
   useEffect(() => {
@@ -447,12 +446,12 @@ export default function ProductDetails({ params }) {
                       onClick={() => handleColorSelect(colorData.color)}
                       className={`w-10 h-10 rounded-full border-2 ${
                         selectedColor === colorData.color
-                          ? "border-primary"
+                          ? "border-black"
                           : "border-transparent"
                       }`}
                       style={{
                         backgroundColor: colorData.color.toLowerCase(),
-                        boxShadow: selectedColor === colorData.color ? "0 0 0 2px #fff, 0 0 0 4px #3b82f6" : "none",
+                        boxShadow: selectedColor === colorData.color ? "0 0 0 2px #fff, 0 0 0 4px #000000" : "none",
                       }}
                       aria-label={`Select ${colorData.color} color`}
                     ></button>
@@ -537,134 +536,6 @@ export default function ProductDetails({ params }) {
                   <FiPackage className="w-6 h-6 text-gray-700" />
                 </div>
                 <span className="text-xs font-medium">1 Day Return</span>
-              </div>
-            </div>
-
-            {/* Product information tabs */}
-            <div className="border-t border-gray-200 mt-8">
-              {/* Tab buttons */}
-              <div className="flex border-b border-gray-200">
-                <button
-                  className={`py-3 px-4 text-sm font-medium ${
-                    activeTab === "SPECIFICATION"
-                      ? "border-b-2 border-primary text-primary"
-                      : "text-gray-500 hover:text-gray-700"
-                  }`}
-                  onClick={() => setActiveTab("SPECIFICATION")}
-                >
-                  SPECIFICATION
-                </button>
-                <button
-                  className={`py-3 px-4 text-sm font-medium ${
-                    activeTab === "DESCRIPTION"
-                      ? "border-b-2 border-primary text-primary"
-                      : "text-gray-500 hover:text-gray-700"
-                  }`}
-                  onClick={() => setActiveTab("DESCRIPTION")}
-                >
-                  DESCRIPTION
-                </button>
-              </div>
-
-              {/* Tab content */}
-              <div className="py-4">
-                {activeTab === "SPECIFICATION" && (
-                  <div className="divide-y divide-gray-200">
-                    {/* Category */}
-                    <div className="py-3 grid grid-cols-2">
-                      <span className="text-sm text-gray-500">Category</span>
-                      <span className="text-sm font-medium text-gray-900">
-                        {product.categoryDetails?.name || "Ethnic & Fusion Wear"}
-                      </span>
-                    </div>
-
-                    {/* Sub Category */}
-                    <div className="py-3 grid grid-cols-2">
-                      <span className="text-sm text-gray-500">Sub Category</span>
-                      <span className="text-sm font-medium text-gray-900">
-                        {product.subcategoryDetails?.name || "Kurtas"}
-                      </span>
-                    </div>
-
-                    {/* Product Type */}
-                    <div className="py-3 grid grid-cols-2">
-                      <span className="text-sm text-gray-500">Product Type</span>
-                      <span className="text-sm font-medium text-gray-900">
-                        {product.pattern || "Sequence"}
-                      </span>
-                    </div>
-
-                    {/* Size */}
-                    <div className="py-3 grid grid-cols-2">
-                      <span className="text-sm text-gray-500">Size</span>
-                      <span className="text-sm font-medium text-gray-900">
-                        {selectedSize || availableSizes[0] || "Standard"}
-                      </span>
-                    </div>
-
-                    {/* Fit */}
-                    <div className="py-3 grid grid-cols-2">
-                      <span className="text-sm text-gray-500">Fit</span>
-                      <span className="text-sm font-medium text-gray-900">
-                        {product.fit || "Regular Fit"}
-                      </span>
-                    </div>
-
-                    {/* Fabric */}
-                    <div className="py-3 grid grid-cols-2">
-                      <span className="text-sm text-gray-500">Fabric</span>
-                      <span className="text-sm font-medium text-gray-900">
-                        {product.material || "Cotton Blend"}
-                      </span>
-                    </div>
-
-                    {/* Pattern */}
-                    <div className="py-3 grid grid-cols-2">
-                      <span className="text-sm text-gray-500">Pattern</span>
-                      <span className="text-sm font-medium text-gray-900">
-                        {product.pattern || "Sequence"}
-                      </span>
-                    </div>
-
-                    {/* Neck Type */}
-                    <div className="py-3 grid grid-cols-2">
-                      <span className="text-sm text-gray-500">Neck Type</span>
-                      <span className="text-sm font-medium text-gray-900">
-                        {product.neckType || "Mandarin"}
-                      </span>
-                    </div>
-
-                    {/* Product Code */}
-                    <div className="py-3 grid grid-cols-2">
-                      <span className="text-sm text-gray-500">Product Code</span>
-                      <span className="text-sm font-medium text-gray-900">
-                        {product.sku || `K-${product.id?.slice(-4)}`}
-                      </span>
-                    </div>
-
-                    {/* Origin Country */}
-                    <div className="py-3 grid grid-cols-2">
-                      <span className="text-sm text-gray-500">Origin Country</span>
-                      <span className="text-sm font-medium text-gray-900">
-                        India
-                      </span>
-                    </div>
-
-                    {/* From */}
-                    <div className="py-3 grid grid-cols-2">
-                      <span className="text-sm text-gray-500">From</span>
-                      <span className="text-sm font-medium text-gray-900">
-                        {product.seller?.storeName || product.seller?.name || "FastFab Seller"}
-                      </span>
-                    </div>
-                  </div>
-                )}
-
-                {activeTab === "DESCRIPTION" && (
-                  <div className="prose prose-sm max-w-none">
-                    <p>{product.description || "No description available for this product."}</p>
-                  </div>
-                )}
               </div>
             </div>
           </div>

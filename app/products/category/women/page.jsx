@@ -1,9 +1,10 @@
 "use client";
 
 import { useState, useEffect, useCallback, useMemo } from "react";
+import Link from "next/link";
 import ProductCard from "@/app/components/ProductCard";
 import LoadingSpinner from "@/app/components/LoadingSpinner";
-import { FiShoppingBag, FiMapPin, FiFilter, FiAlertCircle } from "react-icons/fi";
+import { FiShoppingBag, FiMapPin, FiFilter, FiAlertCircle, FiChevronRight } from "react-icons/fi";
 import ProductFilters from "@/app/components/ProductFilters";
 import { useLocationStore } from "@/app/lib/locationStore";
 import LocationRequiredMessage from "@/app/components/LocationRequiredMessage";
@@ -134,74 +135,85 @@ function WomenProductsContent() {
   const isLocationSet = userLocation?.latitude && userLocation?.longitude;
 
   return (
-    <div className="max-w-7xl mx-auto px-4 py-6 sm:px-6 lg:px-8">
-      {/* Show location required message if location is not set */}
-      {!isLocationSet && !loading && <LocationRequiredMessage />}
-      
-      {/* Only show content if location is set or loading */}
-      {loading ? (
-        <div className="flex justify-center items-center py-20">
-          <LoadingSpinner size="large" color="secondary" />
-        </div>
-      ) : locationError ? (
-        <LocationErrorMessage />
-      ) : error ? (
-        <div className="text-center py-12 bg-red-50 rounded-lg shadow-sm mb-8">
-          <FiAlertCircle className="w-12 h-12 mx-auto text-red-400" />
-          <h3 className="mt-4 text-lg font-medium text-red-600">Error Loading Products</h3>
-          <p className="mt-2 text-red-500 max-w-md mx-auto">{error}</p>
-          <button 
-            onClick={() => fetchProducts(userLocation, filters)} 
-            className="mt-4 px-4 py-2 bg-primary text-white rounded-md hover:bg-primary-dark"
-          >
-            Try Again
-          </button>
-        </div>
-      ) : isLocationSet ? (
-        <>
-          {/* Page Title */}
-          <div className="mb-6">
-            <h1 className="text-2xl font-bold text-text-dark">Women&apos;s Collection</h1>
-            <p className="text-text-muted">Browse our latest women&apos;s fashion</p>
+    <div className="bg-white">
+      <div className="max-w-7xl mx-auto px-4 py-8 sm:px-6 lg:px-8">
+        {/* Breadcrumbs */}
+        <nav className="flex items-center text-sm mb-6">
+          <Link href="/" className="text-gray-500 hover:text-primary">
+            Home
+          </Link>
+          <FiChevronRight className="mx-2 text-gray-400" />
+          <span className="text-gray-900 font-medium">Women&apos;s Collection</span>
+        </nav>
+
+        {/* Show location required message if location is not set */}
+        {!isLocationSet && !loading && <LocationRequiredMessage />}
+        
+        {/* Only show content if location is set or loading */}
+        {loading ? (
+          <div className="min-h-screen flex items-center justify-center">
+            <LoadingSpinner size="large" color="secondary" />
           </div>
-          
-          {/* Filters and Products Section using Grid */}
-          <div className="lg:grid lg:grid-cols-4 lg:gap-8">
-            {/* Filters - Takes up 1 column on large screens */}
-            <div className="lg:col-span-1">
-              <ProductFilters
-                filters={filters}
-                setFilters={setFilters}
-                availableCategories={["WOMEN"]} 
-              />
+        ) : locationError ? (
+          <LocationErrorMessage />
+        ) : error ? (
+          <div className="text-center py-12 border border-red-200 rounded-lg mb-8">
+            <FiAlertCircle className="w-12 h-12 mx-auto text-red-400" />
+            <h3 className="mt-4 text-lg font-medium text-red-600">Error Loading Products</h3>
+            <p className="mt-2 text-red-500 max-w-md mx-auto">{error}</p>
+            <button 
+              onClick={() => fetchProducts(userLocation, filters)} 
+              className="mt-4 px-4 py-2 bg-black text-white rounded-md hover:bg-gray-800"
+            >
+              Try Again
+            </button>
+          </div>
+        ) : isLocationSet ? (
+          <>
+            {/* Page Title */}
+            <div className="mb-8 border-b border-gray-200 pb-4">
+              <h1 className="text-xl md:text-2xl font-bold text-gray-900">Women&apos;s Collection</h1>
+              <p className="text-gray-500 mt-1">Browse our latest women&apos;s fashion</p>
             </div>
             
-            {/* Products - Takes up 3 columns on large screens */}
-            <div className="lg:col-span-3 mt-6 lg:mt-0">
-              {/* Product grid */}
-              {products.length > 0 ? (
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                  {products.map((product) => (
-                    <ProductCard key={product.id} product={product} />
-                  ))}
-                </div>
-              ) : (
-                <div className="text-center py-12 bg-gray-50 rounded-lg">
-                  <FiShoppingBag className="w-12 h-12 mx-auto text-gray-400" />
-                  <h3 className="mt-4 text-lg font-medium text-gray-900">
-                    No Products Found
-                  </h3>
-                  <p className="mt-2 text-gray-500 max-w-md mx-auto">
-                    We couldn&apos;t find any products matching your criteria.
-                  </p>
-                </div>
-              )}
+            {/* Filters and Products Section using Grid */}
+            <div className="lg:grid lg:grid-cols-4 lg:gap-8">
+              {/* Filters - Takes up 1 column on large screens */}
+              <div className="lg:col-span-1 border-r border-gray-200 pr-6">
+                <ProductFilters
+                  filters={filters}
+                  setFilters={setFilters}
+                  availableCategories={["WOMEN"]} 
+                />
+              </div>
+              
+              {/* Products - Takes up 3 columns on large screens */}
+              <div className="lg:col-span-3 mt-6 lg:mt-0 lg:pl-6">
+                {/* Product grid */}
+                {products.length > 0 ? (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+                    {products.map((product) => (
+                      <ProductCard key={product.id} product={product} />
+                    ))}
+                  </div>
+                ) : (
+                  <div className="text-center py-12 border border-gray-200 rounded-lg">
+                    <FiShoppingBag className="w-12 h-12 mx-auto text-gray-400" />
+                    <h3 className="mt-4 text-lg font-medium text-gray-900">
+                      No Products Found
+                    </h3>
+                    <p className="mt-2 text-gray-500 max-w-md mx-auto">
+                      We couldn&apos;t find any products matching your criteria.
+                    </p>
+                  </div>
+                )}
+              </div>
             </div>
-          </div>
-        </>
-      ) : (
-        <LocationRequiredMessage />
-      )}
+          </>
+        ) : (
+          <LocationRequiredMessage />
+        )}
+      </div>
     </div>
   );
 }
