@@ -3,15 +3,13 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
-import { FiHeart, FiShoppingCart } from 'react-icons/fi';
-import { useCartStore } from '../lib/cartStore';
+import { FiHeart } from 'react-icons/fi';
 import { useWishlistStore } from '../lib/wishlistStore';
 import { useRouter } from 'next/navigation';
 
 export default function ProductCard({ product }) {
   // --- ALL hooks called unconditionally at the top level ---
   const router = useRouter();
-  const addToCart = useCartStore((state) => state.addItem);
   const addToWishlist = useWishlistStore((state) => state.addItem);
   const isInWishlist = useWishlistStore((state) => 
     product && product.id ? state.isInWishlist(product.id) : false
@@ -89,22 +87,6 @@ export default function ProductCard({ product }) {
       : 0), 
     [productDiscountPercentage, productMrpPrice, productSellingPrice]
   );
-
-  // Cart handler
-  const handleAddToCart = useCallback((e) => {
-    e.preventDefault();
-    e.stopPropagation();
-    if (productIsOutOfStock) return;
-    
-    addToCart({
-      id: productId,
-      name: productName,
-      price: productSellingPrice || productMrpPrice,
-      image: finalImageUrl,
-      quantity: 1,
-      size: 'M'
-    });
-  }, [addToCart, finalImageUrl, productId, productIsOutOfStock, productMrpPrice, productName, productSellingPrice]);
 
   // Wishlist handler
   const handleAddToWishlist = useCallback((e) => {
