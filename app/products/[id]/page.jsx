@@ -252,34 +252,6 @@ export default function ProductDetails({ params }) {
     }
   };
 
-  // Add item to cart
-  const handleAddToCart = () => {
-    if (authLoading) {
-      toast("Checking authentication...");
-      return;
-    }
-    
-    if (!user) {
-      toast.error("Please log in or sign up to add items to your bag.");
-      router.push('/signup');
-      return;
-    }
-    
-    if (!selectedColor && colorInventories.length > 0) {
-      toast.error("Please select a color");
-      return;
-    }
-    
-    if (!selectedSize && availableSizes.length > 0) {
-      toast.error("Please select a size");
-      return;
-    }
-    
-    // Add to cart logic
-    // This would typically call a function from your cart store
-    toast.success("Added to bag!");
-  };
-
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
