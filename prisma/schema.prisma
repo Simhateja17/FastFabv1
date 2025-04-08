@@ -98,6 +98,10 @@ model Order {
   cancelledAt       DateTime?
   createdAt         DateTime      @default(now())
   updatedAt         DateTime
+
+  @@index([userId, status])
+  @@index([status, paymentStatus])
+  @@index([createdAt])
 }
 
 model OrderItem {
@@ -113,6 +117,10 @@ model OrderItem {
   discount    Float    @default(0)
   createdAt   DateTime @default(now())
   updatedAt   DateTime
+
+  @@index([orderId])
+  @@index([productId])
+  @@index([sellerId])
 }
 
 model PaymentTransaction {
@@ -151,6 +159,9 @@ model Product {
   colorInventory ColorInventory[]
 
   @@index([isActive, sellerId], map: "idx_product_active_seller")
+  @@index([category, subcategory])
+  @@index([createdAt])
+  @@index([sellerId, isActive])
 }
 
 model ProductVariantGroup {
