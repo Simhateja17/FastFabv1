@@ -199,10 +199,12 @@ model Seller {
   gstNumber       String?
   isVisible       Boolean   @default(true)
   manuallyHidden  Boolean   @default(false)
+  location        Unsupported("geography(Point)")?
   products        Product[]
 
   @@index([manuallyHidden], map: "idx_seller_manually_hidden")
   @@index([isVisible], map: "idx_seller_visibility")
+  @@index([location], type: Gist)
 }
 
 model SuperAdmin {
