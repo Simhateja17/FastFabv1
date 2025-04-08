@@ -1,3 +1,0 @@
--- THIS IS A MANUAL MIGRATION
--- Updated API endpoints for product creation and editing
--- No database changes required

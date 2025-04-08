@@ -1,4 +1,0 @@
--- Add missing fields to WhatsAppOTP table
-ALTER TABLE "WhatsAppOTP" ADD COLUMN IF NOT EXISTS "name" TEXT;
-ALTER TABLE "WhatsAppOTP" ADD COLUMN IF NOT EXISTS "email" TEXT;
-ALTER TABLE "WhatsAppOTP" ADD COLUMN IF NOT EXISTS "isNewUser" BOOLEAN DEFAULT false; 
