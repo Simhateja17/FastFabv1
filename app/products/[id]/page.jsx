@@ -35,7 +35,7 @@ export default function ProductDetails({ params }) {
   const [selectedImage, setSelectedImage] = useState(0);
   const [selectedColor, setSelectedColor] = useState("");
   const [colorInventories, setColorInventories] = useState([]);
-  const { user, loading: authLoading } = useUserAuth();
+  const { user, loading: authLoading, authFetch } = useUserAuth();
   const [paymentLoading, setPaymentLoading] = useState(false);
   const [selectedSize, setSelectedSize] = useState("");
 
@@ -168,80 +168,72 @@ export default function ProductDetails({ params }) {
 
   // Function to handle the "Buy Now" button click
   const handleBuyNow = async () => {
-    // Check if user is logged in
     if (authLoading) {
       toast("Checking authentication...");
-      return; // Don't proceed if auth state is still loading
+      return;
     }
     
     if (!user) {
-      toast.error("Please log in or sign up to buy this product.");
-      router.push('/signup'); // Redirect to signup page
+      toast.error("Please log in to continue");
+      router.push('/login');
       return;
     }
     
-    // Remove size validation, only check for color
-    if (!selectedColor && colorInventories.length > 0) {
+    if (!selectedColor && product.colorInventory?.length > 0) {
       toast.error("Please select a color");
       return;
     }
+    
+    if (!selectedSize) {
+      toast.error("Please select a size");
+      return;
+    }
+
+    setPaymentLoading(true);
 
     try {
-      setPaymentLoading(true);
+      // First, get the user's default address
+      const addressResponse = await authFetch('/user/address');
+      const addressData = await addressResponse.json();
       
-      // Select the first available size for the selected color
-      let firstAvailableSize = "";
-      if (selectedColor && colorInventories.length > 0) {
-        const colorData = colorInventories.find((inv) => inv.color === selectedColor);
-        if (colorData?.inventory) {
-          const availableSizes = Object.entries(colorData.inventory)
-            .filter(([_, qty]) => parseInt(qty) > 0)
-            .map(([size]) => size);
-          if (availableSizes.length > 0) {
-            firstAvailableSize = availableSizes[0];
-          }
-        }
+      if (!addressResponse.ok) {
+        throw new Error(addressData.message || "Failed to fetch address");
       }
-      
-      // Prepare the order data - Now include user details if available
-      const orderData = {
-        amount: product.sellingPrice,
-        customer_id: user.id, // Use logged-in user's ID
-        customer_email: user.email || `guest_${user.id}@example.com`, // Use user's email or generate one
-        customer_phone: user.phone, // Use user's phone
-        product_details: {
-          product_id: productId,
-          name: product.name,
-          price: product.sellingPrice,
-          size: firstAvailableSize, // Use automatically selected size
-          color: selectedColor,
-          quantity: 1
-        }
-      };
 
-      // Call your payment creation API
-      const response = await fetch("/api/create-payment-order", {
-        method: "POST",
+      const defaultAddress = addressData.addresses?.find(addr => addr.isDefault) || addressData.addresses?.[0];
+      
+      if (!defaultAddress) {
+        toast.error("Please add a delivery address first");
+        router.push('/address');
+        return;
+      }
+
+      // Create order and initialize payment
+      const response = await authFetch('/orders/direct-checkout', {
+        method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify(orderData),
+        body: JSON.stringify({
+          productId: product.id,
+          quantity: 1,
+          size: selectedSize,
+          color: selectedColor,
+          addressId: defaultAddress.id,
+          paymentMethod: 'ONLINE',
+        }),
       });
 
+      const data = await response.json();
+
       if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.message || "Failed to create payment");
+        throw new Error(data.message || "Failed to create payment");
       }
 
-      // Get the payment session from the response
-      const paymentData = await response.json();
-      
-      // Use router.push for client-side navigation
-      if (paymentData.payment_session_id) {
-        toast.success("Proceeding to checkout...");
-        router.push(`/checkout?session_id=${paymentData.payment_session_id}&order_id=${paymentData.order_id}`);
+      if (data.data.paymentUrl) {
+        window.location.href = data.data.paymentUrl;
       } else {
-        throw new Error("Payment initialization failed: No session ID received");
+        throw new Error("Payment initialization failed: No payment URL received");
       }
       
     } catch (error) {
@@ -470,16 +462,11 @@ export default function ProductDetails({ params }) {
             {/* Action buttons */}
             <div className="mb-6">
               <button
-                type="button"
                 onClick={handleBuyNow}
-                disabled={paymentLoading}
-                className="w-full bg-black text-white py-3 px-4 rounded-md font-medium hover:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary"
+                disabled={paymentLoading || !isInStock}
+                className="w-full py-3 bg-primary text-white rounded-md hover:bg-primary-dark transition-colors disabled:bg-gray-400 disabled:cursor-not-allowed"
               >
-                {paymentLoading ? (
-                  <LoadingSpinner size="small" color="primary" />
-                ) : (
-                  "Buy Now"
-                )}
+                {paymentLoading ? 'Processing...' : 'Buy Now'}
               </button>
             </div>
 
