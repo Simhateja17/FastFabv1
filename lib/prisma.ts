@@ -5,15 +5,15 @@ const prismaClientSingleton = () => {
     log: ['error', 'warn'],
     datasources: {
       db: {
-        url: process.env.DATABASE_URL
-      }
+        url: process.env.DATABASE_URL,
+      },
     }
   });
 };
 
-// Define the global type without TypeScript syntax
-const globalForPrisma = global;
-globalForPrisma.prisma = globalForPrisma.prisma || undefined;
+const globalForPrisma = globalThis as unknown as {
+  prisma: ReturnType<typeof prismaClientSingleton> | undefined;
+};
 
 // Singleton pattern to prevent multiple instances
 const prisma = globalForPrisma.prisma ?? prismaClientSingleton();
@@ -53,4 +53,4 @@ process.on('beforeExit', async () => {
   await prisma.$disconnect();
 });
 
-export default prisma;
+export default prisma; 
