@@ -1,14 +1,11 @@
 import { NextResponse } from 'next/server';
-import { PrismaClient } from '@prisma/client';
-import { findSellersInRadius } from '@/app/api/utils/haversine';
-
-const prisma = new PrismaClient();
+import prisma from '@/app/api/lib/prisma';
 
 /**
- * Get sellers near a specific location
+ * Get sellers near a specific location using PostGIS spatial queries
  */
 export async function GET(request) {
-  console.log('Nearby Sellers API called');
+  console.log('Nearby Sellers API called (PostGIS implementation)');
   
   try {
     const { searchParams } = new URL(request.url);
@@ -16,9 +13,10 @@ export async function GET(request) {
     // Get location parameters
     const latitude = parseFloat(searchParams.get('latitude'));
     const longitude = parseFloat(searchParams.get('longitude'));
-    const radius = parseFloat(searchParams.get('radius') || '3'); // Default 3km
+    const radius = Math.min(parseFloat(searchParams.get('radius') || '3'), 3); // Default and max 3km
+    const categories = searchParams.get('categories')?.split(',').filter(Boolean);
     
-    console.log('Location parameters:', { latitude, longitude, radius });
+    console.log('Search parameters:', { latitude, longitude, radius, categories });
     
     // Validate required parameters
     if (isNaN(latitude) || isNaN(longitude)) {
@@ -30,43 +28,43 @@ export async function GET(request) {
         { status: 400 }
       );
     }
+
+    // Use PostGIS function to find nearby sellers
+    const nearbySellers = await prisma.$queryRaw`
+      SELECT * FROM find_nearby_sellers(
+        ${latitude}::float8,
+        ${longitude}::float8,
+        ${radius}::float8,
+        ${categories ? categories : null}
+      )
+    `;
     
-    // Get all sellers with coordinates
-    const sellers = await prisma.seller.findMany({
-      where: {
-        latitude: { not: null },
-        longitude: { not: null },
-      },
-      select: {
-        id: true,
-        shopName: true,
-        address: true,
-        city: true,
-        state: true,
-        pincode: true,
-        categories: true,
-        latitude: true,
-        longitude: true,
-      },
-    });
+    console.log(`Found ${nearbySellers.length} sellers within ${radius}km using PostGIS`);
     
-    console.log(`Found ${sellers.length} sellers with coordinates`);
-    
-    // Find sellers within radius
-    const nearbySellers = findSellersInRadius(sellers, latitude, longitude, radius);
-    
-    console.log(`Found ${nearbySellers.length} sellers within ${radius}km`);
-    
+    // Transform the results to match the expected format
+    const formattedSellers = nearbySellers.map(seller => ({
+      id: seller.id,
+      shopName: seller.shop_name,
+      address: seller.address,
+      city: seller.city,
+      state: seller.state,
+      pincode: seller.pincode,
+      categories: seller.categories || [],
+      latitude: seller.latitude,
+      longitude: seller.longitude,
+      distance: parseFloat(seller.distance.toFixed(2))
+    }));
+
     return NextResponse.json({
-      sellers: nearbySellers,
-      total: nearbySellers.length,
-      radius,
+      sellers: formattedSellers,
+      total: formattedSellers.length,
+      radius
     });
     
   } catch (error) {
-    console.error('Error fetching nearby sellers:', error);
+    console.error('Error in nearby sellers endpoint:', error);
     return NextResponse.json(
-      { error: 'Failed to fetch nearby sellers', details: error.message },
+      { error: 'Failed to find nearby sellers' },
       { status: 500 }
     );
   }

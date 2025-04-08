@@ -1,2 +1,0 @@
--- This is a migration created after pulling the schema
--- No SQL changes needed as schema was pulled from the database
