@@ -78,7 +78,6 @@ function ProductsContent() {
   const locationFilterKey = JSON.stringify(locationFilter);
 
   // Initialize location filter from user's location store if available
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
     // Import can't be at the top level in a React component
     import('@/app/lib/locationStore').then(({ useLocationStore }) => {
@@ -97,12 +96,9 @@ function ProductsContent() {
         });
       }
     });
-    // This effect should only run once on mount if location isn't set,
-    // adding locationFilter.location would cause it to potentially run unnecessarily.
-  }, []);
+  }, [locationFilter.location]);
 
   // This useEffect triggers the fetch based on stable keys derived from state/props
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
     console.log(
       `[Effect Trigger] Params: ${searchParamsString}, Filters: ${filtersKey}, Location: ${locationFilterKey}`
@@ -295,10 +291,21 @@ function ProductsContent() {
       }
     };
 
-    fetchData(); // Execute the fetch logic
-    // Dependencies are intentionally stringified keys (searchParamsString, filtersKey, locationFilterKey)
-    // to prevent re-fetches on object reference changes. Direct dependencies are covered by these keys.
-  }, [searchParamsString, filtersKey, locationFilterKey]);
+    fetchData();
+  }, [
+    searchParamsString,
+    filtersKey,
+    locationFilterKey,
+    currentSearchTerm,
+    filters.category,
+    filters.maxPrice,
+    filters.minPrice,
+    locationFilter.enabled,
+    locationFilter.location?.latitude,
+    locationFilter.location?.longitude,
+    locationFilter.radius,
+    searchParams
+  ]);
 
   // Handler for location filter changes - Memoize this handler
   const handleLocationFilterChange = useCallback((newLocationFilter) => {
