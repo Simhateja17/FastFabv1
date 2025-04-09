@@ -744,6 +744,7 @@ export function UserAuthProvider({ children }) {
     sendWhatsAppOTP,
     verifyWhatsAppOTP,
     registerWithPhone,
+    authFetch: userAuthFetch
   };
 
   return (

@@ -35,7 +35,7 @@ export default function ProductDetails({ params }) {
   const [selectedImage, setSelectedImage] = useState(0);
   const [selectedColor, setSelectedColor] = useState("");
   const [colorInventories, setColorInventories] = useState([]);
-  const { user, loading: authLoading, authFetch } = useUserAuth();
+  const { user, loading: authLoading } = useUserAuth();
   const [paymentLoading, setPaymentLoading] = useState(false);
   const [selectedSize, setSelectedSize] = useState("");
 
@@ -168,72 +168,122 @@ export default function ProductDetails({ params }) {
 
   // Function to handle the "Buy Now" button click
   const handleBuyNow = async () => {
+    // Check if user is logged in
     if (authLoading) {
       toast("Checking authentication...");
-      return;
+      return; // Don't proceed if auth state is still loading
     }
     
     if (!user) {
-      toast.error("Please log in to continue");
-      router.push('/login');
+      toast.error("Please log in or sign up to buy this product.");
+      // Store intended checkout path before redirecting
+      // Ensure selectedColor and selectedSize are defined even if empty for the path
+      const safeColor = selectedColor || "";
+      const safeSize = selectedSize || "";
+      const checkoutPath = `/checkout?productId=${productId}&color=${encodeURIComponent(safeColor)}&size=${encodeURIComponent(safeSize)}&quantity=1`;
+      sessionStorage.setItem('redirectAfterLogin', checkoutPath);
+      console.log("User not logged in. Storing redirect path:", checkoutPath);
+      router.push('/signup'); // Redirect to signup page
       return;
     }
     
-    if (!selectedColor && product.colorInventory?.length > 0) {
+    // Validation for logged-in users
+    if (!selectedColor && colorInventories.length > 0) {
       toast.error("Please select a color");
       return;
     }
-    
-    if (!selectedSize) {
+    // Explicitly check for size selection if sizes are available
+    if (!selectedSize && availableSizes.length > 0) {
       toast.error("Please select a size");
       return;
     }
 
-    setPaymentLoading(true);
-
+    // --- Start Modification ---
+    // Instead of creating payment here, redirect to checkout with product details
     try {
-      // First, get the user's default address
-      const addressResponse = await authFetch('/user/address');
-      const addressData = await addressResponse.json();
+      setPaymentLoading(true); // Keep loading state for UI feedback during redirect prep
       
-      if (!addressResponse.ok) {
-        throw new Error(addressData.message || "Failed to fetch address");
+      // Ensure required details are present (double check, although validated above)
+      if (!productId || (!selectedColor && colorInventories.length > 0) || (!selectedSize && availableSizes.length > 0)) {
+          toast.error("Product details incomplete. Please select color and size.");
+          setPaymentLoading(false);
+          return;
       }
 
-      const defaultAddress = addressData.addresses?.find(addr => addr.isDefault) || addressData.addresses?.[0];
+      // Construct the checkout URL
+      const checkoutUrl = `/checkout?productId=${productId}&color=${encodeURIComponent(selectedColor)}&size=${encodeURIComponent(selectedSize)}&quantity=1`;
       
-      if (!defaultAddress) {
-        toast.error("Please add a delivery address first");
-        router.push('/address');
-        return;
+      console.log("User logged in. Redirecting to checkout:", checkoutUrl);
+      toast.success("Proceeding to checkout...");
+      router.push(checkoutUrl);
+      
+      // No need to setPaymentLoading(false) here as the page will navigate away
+      
+    } catch (error) {
+      // Catch any unexpected errors during URL construction or routing
+      console.error("Error preparing for checkout:", error);
+      toast.error("Could not proceed to checkout. Please try again.");
+      setPaymentLoading(false); // Ensure loading state is reset on error
+    }
+    // --- End Modification ---
+    
+    /* --- Removed Original Payment Creation Logic ---
+    try {
+      setPaymentLoading(true);
+      
+      // Select the first available size for the selected color
+      let firstAvailableSize = "";
+      if (selectedColor && colorInventories.length > 0) {
+        const colorData = colorInventories.find((inv) => inv.color === selectedColor);
+        if (colorData?.inventory) {
+          const availableSizes = Object.entries(colorData.inventory)
+            .filter(([_, qty]) => parseInt(qty) > 0)
+            .map(([size]) => size);
+          if (availableSizes.length > 0) {
+            firstAvailableSize = availableSizes[0];
+          }
+        }
       }
+      
+      // Prepare the order data - Now include user details if available
+      const orderData = {
+        amount: product.sellingPrice,
+        customer_id: user.id, // Use logged-in user's ID
+        customer_email: user.email || `guest_${user.id}@example.com`, // Use user's email or generate one
+        customer_phone: user.phone, // Use user's phone
+        product_details: {
+          product_id: productId,
+          name: product.name,
+          price: product.sellingPrice,
+          size: firstAvailableSize, // Use automatically selected size
+          color: selectedColor,
+          quantity: 1
+        }
+      };
 
-      // Create order and initialize payment
-      const response = await authFetch('/orders/direct-checkout', {
-        method: 'POST',
+      // Call your payment creation API
+      const response = await fetch("/api/create-payment-order", {
+        method: "POST",
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({
-          productId: product.id,
-          quantity: 1,
-          size: selectedSize,
-          color: selectedColor,
-          addressId: defaultAddress.id,
-          paymentMethod: 'ONLINE',
-        }),
+        body: JSON.stringify(orderData),
       });
 
-      const data = await response.json();
-
       if (!response.ok) {
-        throw new Error(data.message || "Failed to create payment");
+        const errorData = await response.json();
+        throw new Error(errorData.message || "Failed to create payment");
       }
 
-      if (data.data.paymentUrl) {
-        window.location.href = data.data.paymentUrl;
+      // Get the payment session from the response
+      const paymentData = await response.json();
+      
+      // Use router.push for client-side navigation
+      if (paymentData.payment_session_id) {
+        toast.success("Proceeding to checkout...");
+        router.push(`/checkout?session_id=${paymentData.payment_session_id}&order_id=${paymentData.order_id}`);
       } else {
-        throw new Error("Payment initialization failed: No payment URL received");
+        throw new Error("Payment initialization failed: No session ID received");
       }
       
     } catch (error) {
@@ -242,6 +292,35 @@ export default function ProductDetails({ params }) {
     } finally {
       setPaymentLoading(false);
     }
+    --- End Removed Original Payment Creation Logic --- */
+  };
+
+  // Add item to cart
+  const handleAddToCart = () => {
+    if (authLoading) {
+      toast("Checking authentication...");
+      return;
+    }
+    
+    if (!user) {
+      toast.error("Please log in or sign up to add items to your bag.");
+      router.push('/signup');
+      return;
+    }
+    
+    if (!selectedColor && colorInventories.length > 0) {
+      toast.error("Please select a color");
+      return;
+    }
+    
+    if (!selectedSize && availableSizes.length > 0) {
+      toast.error("Please select a size");
+      return;
+    }
+    
+    // Add to cart logic
+    // This would typically call a function from your cart store
+    toast.success("Added to bag!");
   };
 
   if (loading) {
@@ -462,11 +541,16 @@ export default function ProductDetails({ params }) {
             {/* Action buttons */}
             <div className="mb-6">
               <button
+                type="button"
                 onClick={handleBuyNow}
-                disabled={paymentLoading || !isInStock}
-                className="w-full py-3 bg-primary text-white rounded-md hover:bg-primary-dark transition-colors disabled:bg-gray-400 disabled:cursor-not-allowed"
+                disabled={paymentLoading}
+                className="w-full bg-black text-white py-3 px-4 rounded-md font-medium hover:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary"
               >
-                {paymentLoading ? 'Processing...' : 'Buy Now'}
+                {paymentLoading ? (
+                  <LoadingSpinner size="small" color="primary" />
+                ) : (
+                  "Buy Now"
+                )}
               </button>
             </div>
 

@@ -2,7 +2,7 @@ import { Inter } from "next/font/google";
 import "./globals.css";
 import { Analytics } from '@vercel/analytics/react';
 import { AuthContextProvider } from "@/app/context/AuthContext";
-import { UserAuthContextProvider } from "@/app/context/UserAuthContext";
+import { UserAuthProvider } from "@/app/context/UserAuthContext";
 import { Toaster } from "react-hot-toast";
 
 // For consistent font across the app
@@ -49,7 +49,7 @@ export default function RootLayout({ children }) {
       </head>
       <body className={inter.className}>
         <AuthContextProvider>
-          <UserAuthContextProvider>
+          <UserAuthProvider>
             {children}
             <Toaster
               position="top-center"
@@ -62,7 +62,7 @@ export default function RootLayout({ children }) {
                 },
               }}
             />
-          </UserAuthContextProvider>
+          </UserAuthProvider>
         </AuthContextProvider>
         <Analytics />
       </body>
