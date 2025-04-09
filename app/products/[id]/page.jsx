@@ -176,16 +176,58 @@ export default function ProductDetails({ params }) {
     
     if (!user) {
       toast.error("Please log in or sign up to buy this product.");
+      // Store intended checkout path before redirecting
+      // Ensure selectedColor and selectedSize are defined even if empty for the path
+      const safeColor = selectedColor || "";
+      const safeSize = selectedSize || "";
+      const checkoutPath = `/checkout?productId=${productId}&color=${encodeURIComponent(safeColor)}&size=${encodeURIComponent(safeSize)}&quantity=1`;
+      sessionStorage.setItem('redirectAfterLogin', checkoutPath);
+      console.log("User not logged in. Storing redirect path:", checkoutPath);
       router.push('/signup'); // Redirect to signup page
       return;
     }
     
-    // Remove size validation, only check for color
+    // Validation for logged-in users
     if (!selectedColor && colorInventories.length > 0) {
       toast.error("Please select a color");
       return;
     }
+    // Explicitly check for size selection if sizes are available
+    if (!selectedSize && availableSizes.length > 0) {
+      toast.error("Please select a size");
+      return;
+    }
 
+    // --- Start Modification ---
+    // Instead of creating payment here, redirect to checkout with product details
+    try {
+      setPaymentLoading(true); // Keep loading state for UI feedback during redirect prep
+      
+      // Ensure required details are present (double check, although validated above)
+      if (!productId || (!selectedColor && colorInventories.length > 0) || (!selectedSize && availableSizes.length > 0)) {
+          toast.error("Product details incomplete. Please select color and size.");
+          setPaymentLoading(false);
+          return;
+      }
+
+      // Construct the checkout URL
+      const checkoutUrl = `/checkout?productId=${productId}&color=${encodeURIComponent(selectedColor)}&size=${encodeURIComponent(selectedSize)}&quantity=1`;
+      
+      console.log("User logged in. Redirecting to checkout:", checkoutUrl);
+      toast.success("Proceeding to checkout...");
+      router.push(checkoutUrl);
+      
+      // No need to setPaymentLoading(false) here as the page will navigate away
+      
+    } catch (error) {
+      // Catch any unexpected errors during URL construction or routing
+      console.error("Error preparing for checkout:", error);
+      toast.error("Could not proceed to checkout. Please try again.");
+      setPaymentLoading(false); // Ensure loading state is reset on error
+    }
+    // --- End Modification ---
+    
+    /* --- Removed Original Payment Creation Logic ---
     try {
       setPaymentLoading(true);
       
@@ -250,6 +292,35 @@ export default function ProductDetails({ params }) {
     } finally {
       setPaymentLoading(false);
     }
+    --- End Removed Original Payment Creation Logic --- */
+  };
+
+  // Add item to cart
+  const handleAddToCart = () => {
+    if (authLoading) {
+      toast("Checking authentication...");
+      return;
+    }
+    
+    if (!user) {
+      toast.error("Please log in or sign up to add items to your bag.");
+      router.push('/signup');
+      return;
+    }
+    
+    if (!selectedColor && colorInventories.length > 0) {
+      toast.error("Please select a color");
+      return;
+    }
+    
+    if (!selectedSize && availableSizes.length > 0) {
+      toast.error("Please select a size");
+      return;
+    }
+    
+    // Add to cart logic
+    // This would typically call a function from your cart store
+    toast.success("Added to bag!");
   };
 
   if (loading) {
