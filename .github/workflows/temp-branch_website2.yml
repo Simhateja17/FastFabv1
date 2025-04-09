@@ -23,7 +23,17 @@ jobs:
         with:
           node-version: '20.x'
 
+      # NOTE: Added npm install steps based on previous context - ensure these are correct for your project
+      - name: npm install, build, and test
+        run: |
+          npm install
+          npm run build --if-present
+          npm run test --if-present
+
       - name: Zip artifact for deployment
+        # Make sure this command correctly captures all necessary files for deployment
+        # Excluding node_modules is generally recommended if the server runs npm install
+        # Example: zip release.zip ./* -r -x node_modules\\*
         run: zip release.zip ./* -r
 
       - name: Upload artifact for deployment job
@@ -36,11 +46,11 @@ jobs:
     runs-on: ubuntu-latest
     needs: build
     environment:
-      name: 'Production'
+      name: 'Production' # Ensure this environment exists in your GitHub repo settings if you use env-specific secrets/rules
       url: ${{ steps.deploy-to-webapp.outputs.webapp-url }}
     permissions:
-      id-token: write #This is required for requesting the JWT
-      contents: read #This is required for actions/checkout
+      id-token: write # Required for OIDC (Federated Credentials)
+      contents: read
 
     steps:
       - name: Download artifact from build job
@@ -50,19 +60,19 @@ jobs:
 
       - name: Unzip artifact for deployment
         run: unzip release.zip
-      
+
+      # Corrected Login Step using valid secret names
       - name: Login to Azure
         uses: azure/login@v2
         with:
-          client-id: ${{ secrets.AZURE_CLIENT_ID_933859e9-188f-4604-b63b-417985f56322 }}
-          tenant-id: ${{ secrets.AZURE_TENANT_ID_b8ebbb61-a506-4726-a463-5e574be595fc }}
-          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID_6a36459a-143c-4a16-b99a-32c082143f00 }}
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
       - name: 'Deploy to Azure Web App'
         id: deploy-to-webapp
         uses: azure/webapps-deploy@v3
         with:
-          app-name: 'Website2'
-          slot-name: 'Production'
-          package: .
-          
+          app-name: 'Website2' # Make sure this is the correct Azure Web App name
+          slot-name: 'Production' # Use 'production' or remove if deploying to the main slot
+          package: . # Deploy the contents of the current directory after unzipping
