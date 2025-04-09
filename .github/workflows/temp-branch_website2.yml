@@ -46,9 +46,11 @@ jobs:
     runs-on: ubuntu-latest
     needs: build
     environment:
+      # Keep the version from temp-branch (includes helpful comment)
       name: 'Production' # Ensure this environment exists in your GitHub repo settings if you use env-specific secrets/rules
       url: ${{ steps.deploy-to-webapp.outputs.webapp-url }}
     permissions:
+      # Keep the version from temp-branch (includes helpful comment)
       id-token: write # Required for OIDC (Federated Credentials)
       contents: read
 
@@ -61,7 +63,7 @@ jobs:
       - name: Unzip artifact for deployment
         run: unzip release.zip
 
-      # Corrected Login Step using valid secret names
+      # Keep the Corrected Login Step using valid secret names from temp-branch
       - name: Login to Azure
         uses: azure/login@v2
         with:
