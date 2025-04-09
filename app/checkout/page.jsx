@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback, Suspense } from "react";
+import { useState, useEffect, useCallback, Suspense, useRef } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { toast } from "react-hot-toast";
 import { useCartStore } from "../lib/cartStore";
@@ -26,7 +26,6 @@ function CheckoutContent() {
   const [isBuyNow, setIsBuyNow] = useState(false);
   const [paymentMethod] = useState("online");
   const [error, setError] = useState(null);
-  const [cashfreeLoaded, setCashfreeLoaded] = useState(false);
   
   useEffect(() => {
     const initializeCheckout = async () => {
@@ -100,13 +99,6 @@ function CheckoutContent() {
     }
   }, [user, authLoading, router]);
   
-  useEffect(() => {
-    // Initialize Cashfree SDK when the script is loaded
-    if (window.Cashfree) {
-      setCashfreeLoaded(true);
-    }
-  }, []);
-  
   const subtotal = checkoutItems.reduce(
     (total, item) => total + (item.price || 0) * (item.quantity || 0),
     0
@@ -172,24 +164,42 @@ function CheckoutContent() {
         throw new Error("Payment session ID not received from server");
       }
 
-      // Initialize Cashfree payment
-      if (!cashfreeLoaded) {
-        throw new Error("Cashfree SDK not loaded");
-      }
-
-      const cashfree = new window.Cashfree();
-      const paymentConfig = {
+      // UPDATED: Use the checkout() method as per Cashfree documentation
+      const checkoutOptions = {
         paymentSessionId: data.payment_session_id,
         returnUrl: window.location.origin + '/payment-status',
+        // Add any custom styles if needed
+        style: {
+          backgroundColor: "#ffffff",
+          color: "#11385b",
+          fontFamily: "Lato",
+          fontSize: "14px",
+          errorColor: "#ff0000",
+          theme: "light" //"dark" | "light"
+        }
       };
-
-      cashfree.initialiseDropin(document.getElementById("payment-form"), paymentConfig);
 
       // Clear cart before payment if it's a cart checkout
       if (!isBuyNow) {
         clearCart();
         console.log("Cart cleared before payment");
       }
+
+      // Initialize checkout using window.cashfree
+      if (typeof window.cashfree?.checkout !== 'function') {
+        console.error("Cashfree checkout method not available");
+        throw new Error("Payment system not ready. Please refresh the page.");
+      }
+
+      const result = await window.cashfree.checkout(checkoutOptions);
+      
+      if (result.error) {
+        console.error("Checkout error:", result.error);
+        throw new Error(result.error.message || "Payment initialization failed");
+      }
+
+      // If we reach here without errors, the checkout should have redirected
+      console.log("Checkout initiated successfully");
       
     } catch (error) {
       console.error("Error during order placement:", error);
@@ -238,8 +248,7 @@ function CheckoutContent() {
     <div>
       <Script
         src="https://sdk.cashfree.com/js/v3/cashfree.js"
-        strategy="lazyOnload"
-        onLoad={() => setCashfreeLoaded(true)}
+        strategy="beforeInteractive"
       />
       <PageHero title="Checkout" subtitle="Complete your purchase" />
       
@@ -361,8 +370,6 @@ function CheckoutContent() {
             </div>
           </div>
         </div>
-        
-        <div id="payment-form" className="mt-4"></div>
       </div>
     </div>
   );
