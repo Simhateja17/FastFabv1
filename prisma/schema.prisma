@@ -24,8 +24,6 @@ model Address {
   longitude Float?
   createdAt DateTime @default(now())
   updatedAt DateTime
-  user      User     @relation(fields: [userId], references: [id])
-  orders    Order[]
 }
 
 model AdminRefreshToken {
@@ -81,29 +79,25 @@ model OTP {
 }
 
 model Order {
-  id                String             @id
-  orderNumber       String             @unique
+  id                String        @id
+  orderNumber       String        @unique
   userId            String
   totalAmount       Float
-  status            OrderStatus        @default(PENDING)
-  paymentStatus     PaymentStatus      @default(PENDING)
-  paymentMethod     PaymentMethod      @default(COD)
+  status            OrderStatus   @default(PENDING)
+  paymentStatus     PaymentStatus @default(PENDING)
+  paymentMethod     PaymentMethod @default(COD)
   addressId         String?
-  discount          Float              @default(0)
-  shippingFee       Float              @default(0)
-  tax               Float              @default(0)
+  discount          Float         @default(0)
+  shippingFee       Float         @default(0)
+  tax               Float         @default(0)
   notes             String?
   deliveryNotes     String?
   estimatedDelivery DateTime?
   trackingNumber    String?
   deliveredAt       DateTime?
   cancelledAt       DateTime?
-  createdAt         DateTime           @default(now())
+  createdAt         DateTime      @default(now())
   updatedAt         DateTime
-  user              User               @relation(fields: [userId], references: [id])
-  address           Address?           @relation(fields: [addressId], references: [id])
-  items             OrderItem[]
-  transactions      PaymentTransaction[]
 
   @@index([userId, status])
   @@index([status, paymentStatus])
@@ -123,7 +117,6 @@ model OrderItem {
   discount    Float    @default(0)
   createdAt   DateTime @default(now())
   updatedAt   DateTime
-  order       Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
 
   @@index([orderId])
   @@index([productId])
@@ -144,8 +137,6 @@ model PaymentTransaction {
   paymentLinkExpiry DateTime?
   createdAt         DateTime      @default(now())
   updatedAt         DateTime
-  user              User          @relation(fields: [userId], references: [id])
-  order             Order?        @relation(fields: [orderId], references: [id])
 }
 
 model Product {
@@ -237,26 +228,22 @@ model SuperAdmin {
 }
 
 model User {
-  id                 String               @id @default(dbgenerated("gen_random_uuid()"))
-  email              String?              @unique
-  phone              String?              @unique
+  id                 String    @id @default(dbgenerated("gen_random_uuid()"))
+  email              String?   @unique
+  phone              String?   @unique
   password           String
   name               String?
   profilePicture     String?
-  isVerified         Boolean              @default(false)
+  isVerified         Boolean   @default(false)
   verificationToken  String?
   passwordResetToken String?
   resetTokenExpiry   DateTime?
-  createdAt          DateTime             @default(now())
+  createdAt          DateTime  @default(now())
   updatedAt          DateTime
-  isPhoneVerified    Boolean              @default(false)
+  isPhoneVerified    Boolean   @default(false)
   lastLoginAt        DateTime?
-  role               UserRole             @default(USER)
-  tokenVersion       Int                  @default(0)
-  addresses          Address[]
-  orders             Order[]
-  payments           PaymentTransaction[]
-  refreshTokens      UserRefreshToken[]
+  role               UserRole  @default(USER)
+  tokenVersion       Int       @default(0)
 }
 
 model UserRefreshToken {
@@ -265,7 +252,6 @@ model UserRefreshToken {
   userId    String
   expiresAt DateTime
   createdAt DateTime @default(now())
-  user      User     @relation(fields: [userId], references: [id])
 }
 
 model WhatsAppOTP {
