@@ -11,6 +11,7 @@ import Image from "next/image";
 import { PUBLIC_ENDPOINTS, USER_ENDPOINTS, API_URL } from "@/app/config";
 import LoadingSpinner from "@/app/components/LoadingSpinner";
 import { FiMapPin } from "react-icons/fi";
+import Script from 'next/script';
 
 function CheckoutContent() {
   const searchParams = useSearchParams();
@@ -25,6 +26,7 @@ function CheckoutContent() {
   const [isBuyNow, setIsBuyNow] = useState(false);
   const [paymentMethod] = useState("online");
   const [error, setError] = useState(null);
+  const [cashfreeLoaded, setCashfreeLoaded] = useState(false);
   
   useEffect(() => {
     const initializeCheckout = async () => {
@@ -98,6 +100,13 @@ function CheckoutContent() {
     }
   }, [user, authLoading, router]);
   
+  useEffect(() => {
+    // Initialize Cashfree SDK when the script is loaded
+    if (window.Cashfree) {
+      setCashfreeLoaded(true);
+    }
+  }, []);
+  
   const subtotal = checkoutItems.reduce(
     (total, item) => total + (item.price || 0) * (item.quantity || 0),
     0
@@ -148,7 +157,7 @@ function CheckoutContent() {
           customer_id: user?.id || `user_${Date.now()}`,
           customer_email: user?.email || "",
           customer_phone: user?.phone || "",
-          order_details: orderData // Include full order details for reference
+          order_details: orderData
         })
       });
       
@@ -159,24 +168,27 @@ function CheckoutContent() {
 
       const data = await response.json();
       
-      // Redirect to Cashfree hosted payment page
-      if (data.payment_link) {
-        // Use the payment link directly
-        window.location.href = data.payment_link;
-      } else if (data.payment_session_id) {
-        // Construct the payment URL using session ID
-        const paymentUrl = `https://sandbox.cashfree.com/pg/orders/${data.order_id}/pay?payment_session_id=${data.payment_session_id}`;
-        window.location.href = paymentUrl;
-      } else {
-        throw new Error("Payment URL not received from server");
+      if (!data.payment_session_id) {
+        throw new Error("Payment session ID not received from server");
       }
 
-      console.log("Order placed successfully. Redirecting to payment gateway.");
-      
-      // Clear cart before redirecting if it's a cart checkout
+      // Initialize Cashfree payment
+      if (!cashfreeLoaded) {
+        throw new Error("Cashfree SDK not loaded");
+      }
+
+      const cashfree = new window.Cashfree();
+      const paymentConfig = {
+        paymentSessionId: data.payment_session_id,
+        returnUrl: window.location.origin + '/payment-status',
+      };
+
+      cashfree.initialiseDropin(document.getElementById("payment-form"), paymentConfig);
+
+      // Clear cart before payment if it's a cart checkout
       if (!isBuyNow) {
         clearCart();
-        console.log("Cart cleared before payment redirect");
+        console.log("Cart cleared before payment");
       }
       
     } catch (error) {
@@ -224,6 +236,11 @@ function CheckoutContent() {
   
   return (
     <div>
+      <Script
+        src="https://sdk.cashfree.com/js/v3/cashfree.js"
+        strategy="lazyOnload"
+        onLoad={() => setCashfreeLoaded(true)}
+      />
       <PageHero title="Checkout" subtitle="Complete your purchase" />
       
       <div className="container mx-auto px-4 py-8">
@@ -344,6 +361,8 @@ function CheckoutContent() {
             </div>
           </div>
         </div>
+        
+        <div id="payment-form" className="mt-4"></div>
       </div>
     </div>
   );
