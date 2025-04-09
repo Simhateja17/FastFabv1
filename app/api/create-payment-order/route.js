@@ -2,9 +2,16 @@ import { NextResponse } from 'next/server';
 import { Cashfree } from 'cashfree-pg';
 
 // Initialize Cashfree SDK
+console.log('Environment Check:', {
+  NODE_ENV: process.env.NODE_ENV,
+  CASHFREE_APP_ID: process.env.CASHFREE_APP_ID,
+  CASHFREE_API_ENV: process.env.CASHFREE_API_ENV,
+  BASE_URL: process.env.NEXT_PUBLIC_BASE_URL // Add this to debug
+});
+
 Cashfree.XClientId = process.env.CASHFREE_APP_ID;
 Cashfree.XClientSecret = process.env.CASHFREE_SECRET_KEY;
-Cashfree.XEnvironment = Cashfree.Environment.SANDBOX; // Or Cashfree.Environment.PRODUCTION
+Cashfree.XEnvironment = Cashfree.Environment.PRODUCTION; // Changed from SANDBOX to PRODUCTION
 
 export async function POST(request) {
   try {
@@ -14,6 +21,9 @@ export async function POST(request) {
 
     const { amount, customer_id, customer_email, customer_phone } = reqBody;
     const order_id = `order_${Date.now()}`; // Generate a unique order ID
+
+    // Set a default base URL if environment variable is not available
+    const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || 'https://fastandfab.in';
 
     const orderRequest = {
       order_id: order_id,
@@ -26,10 +36,10 @@ export async function POST(request) {
       },
       order_meta: {
         // Optional: Add any metadata you want to associate with the order
-        return_url: `${process.env.NEXT_PUBLIC_BASE_URL}/payment-status?order_id={order_id}`, // Redirect URL after payment
+        return_url: `${baseUrl}/payment-status?order_id={order_id}`, // Redirect URL after payment
         // notify_url: "YOUR_WEBHOOK_URL", // Optional: URL for server-to-server notifications
       },
-      order_note: "Test order for FastFab integration", // Optional order note
+      order_note: "FastFab order payment", // Optional order note
     };
 
     console.log("Creating Cashfree Order with Request:", orderRequest);
@@ -49,8 +59,9 @@ export async function POST(request) {
 
   } catch (error) {
     console.error("Error creating Cashfree order:", error);
+    console.error("Error response data:", error.response?.data); // Add this to see detailed error
     // Extract more specific error info if available from Cashfree's response structure
-    const errorDetails = error.response ? error.response.data : { message: error.message };
+    const errorDetails = error.response?.data || { message: error.message };
     return NextResponse.json({ error: 'Internal Server Error', details: errorDetails }, { status: 500 });
   }
 } 

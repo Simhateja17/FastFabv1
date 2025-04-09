@@ -1,106 +1,83 @@
 import { NextResponse } from 'next/server';
-import { Cashfree } from 'cashfree-pg';
 
-// Initialize Cashfree SDK
-Cashfree.XClientId = process.env.CASHFREE_APP_ID;
-Cashfree.XClientSecret = process.env.CASHFREE_SECRET_KEY;
-Cashfree.XEnvironment = process.env.CASHFREE_API_ENV === 'PRODUCTION' 
-  ? Cashfree.Environment.PRODUCTION 
-  : Cashfree.Environment.SANDBOX;
+const CASHFREE_API_KEY = process.env.CASHFREE_API_KEY;
+const CASHFREE_SECRET_KEY = process.env.CASHFREE_SECRET_KEY;
+const CASHFREE_BASE_URL = process.env.NODE_ENV === 'production' 
+  ? 'https://api.cashfree.com/pg'
+  : 'https://sandbox.cashfree.com/pg';
 
-export async function GET(request) {
+export async function POST(request) {
   try {
-    const { searchParams } = new URL(request.url);
-    const order_id = searchParams.get('order_id');
-    const payment_id = searchParams.get('payment_id');
+    const { order_id, payment_id } = await request.json();
 
     if (!order_id) {
-      return NextResponse.json({
-        success: false,
-        message: 'Missing order_id parameter',
-      }, { status: 400 });
+      return NextResponse.json(
+        { error: 'Order ID is required' },
+        { status: 400 }
+      );
     }
 
-    console.log('Verifying payment for order:', order_id, 'payment ID:', payment_id);
-
-    try {
-      // Call Cashfree API to get order details
-      const orderResponse = await Cashfree.PGFetchOrder("2023-08-01", {
-        order_id: order_id
-      });
-
-      console.log('Cashfree order response:', orderResponse.data);
-
-      if (orderResponse.data && orderResponse.data.order_status) {
-        const { order_status, order_amount, order_currency } = orderResponse.data;
-        
-        let payment_status;
-        switch (order_status.toLowerCase()) {
-          case 'paid':
-            payment_status = 'SUCCESS';
-            break;
-          case 'failed':
-            payment_status = 'FAILED';
-            break;
-          case 'active':
-            payment_status = 'PENDING';
-            break;
-          default:
-            payment_status = 'UNKNOWN';
-            break;
-        }
-
-        return NextResponse.json({
-          success: true,
-          payment_status,
-          order_details: {
-            order_id,
-            amount: order_amount,
-            currency: order_currency
-          }
-        });
-      } else {
-        // If we don't get expected response format
-        console.error('Unexpected response format from Cashfree:', orderResponse);
-        return NextResponse.json({
-          success: false,
-          payment_status: 'UNKNOWN',
-          message: 'Could not determine payment status'
-        }, { status: 500 });
+    // Get order details from Cashfree
+    const response = await fetch(
+      `${CASHFREE_BASE_URL}/orders/${order_id}/payments`,
+      {
+        headers: {
+          'x-api-version': '2022-09-01',
+          'x-client-id': CASHFREE_API_KEY,
+          'x-client-secret': CASHFREE_SECRET_KEY,
+        },
       }
-    } catch (apiError) {
-      console.error('Cashfree API error:', apiError);
-      
-      // If Cashfree API fails, use any payment ID info we have
-      if (payment_id) {
-        // Try to determine status from payment ID parameter
-        // This is a fallback only and shouldn't be relied upon in production
-        return NextResponse.json({
-          success: true,
-          payment_status: payment_id.includes('FAILED') ? 'FAILED' : 'PENDING',
-          message: 'Status based on payment ID pattern (fallback)',
-          order_details: {
-            order_id,
-            amount: 'N/A',
-            currency: 'INR'
-          }
-        });
-      }
-      
-      // If all else fails
-      return NextResponse.json({
-        success: false,
-        payment_status: 'UNKNOWN',
-        message: 'Failed to fetch payment status',
-        error: apiError.message
-      }, { status: 500 });
+    );
+
+    if (!response.ok) {
+      throw new Error('Failed to fetch payment status from Cashfree');
     }
-  } catch (error) {
-    console.error('Error verifying payment:', error);
+
+    const data = await response.json();
+    
+    // If payment_id is provided, find the specific payment
+    let payment = payment_id 
+      ? data.find(p => p.payment_id === payment_id)
+      : data[0]; // Get the latest payment if no specific payment_id
+
+    if (!payment) {
+      return NextResponse.json(
+        { error: 'Payment not found' },
+        { status: 404 }
+      );
+    }
+
+    // Map Cashfree payment status to our application status
+    let payment_status;
+    switch (payment.payment_status) {
+      case 'SUCCESS':
+        payment_status = 'PAID';
+        break;
+      case 'FAILED':
+      case 'CANCELLED':
+        payment_status = 'failed';
+        break;
+      default:
+        payment_status = 'processing';
+    }
+
     return NextResponse.json({
-      success: false,
-      message: 'Internal server error',
-      error: error.message
-    }, { status: 500 });
+      payment_status,
+      order_details: {
+        order_id,
+        payment_id: payment.payment_id,
+        amount: payment.payment_amount,
+        currency: payment.payment_currency,
+        payment_method: payment.payment_method,
+        payment_time: payment.payment_completion_time,
+      }
+    });
+
+  } catch (error) {
+    console.error('Payment verification error:', error);
+    return NextResponse.json(
+      { error: 'Failed to verify payment status' },
+      { status: 500 }
+    );
   }
 } 

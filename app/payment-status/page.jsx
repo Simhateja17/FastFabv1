@@ -7,6 +7,8 @@ import Link from "next/link";
 import { FiCheckCircle, FiXCircle, FiArrowLeft, FiArrowRight } from "react-icons/fi";
 import { toast } from "react-hot-toast";
 import { useCartStore } from "../lib/cartStore";
+import PageHero from '@/app/components/PageHero';
+import LoadingSpinner from '@/app/components/LoadingSpinner';
 
 function PaymentStatusContent() {
   const searchParams = useSearchParams();
@@ -14,13 +16,14 @@ function PaymentStatusContent() {
   const clearCart = useCartStore((state) => state.clearCart);
   
   const [loading, setLoading] = useState(true);
-  const [status, setStatus] = useState(null);
+  const [status, setStatus] = useState("processing");
   const [orderDetails, setOrderDetails] = useState(null);
   const [user, setUser] = useState(null);
   const [authLoading, setAuthLoading] = useState(true);
+  const [error, setError] = useState(null);
 
   const orderId = searchParams.get("order_id");
-  const paymentId = searchParams.get("cf_payment_id");
+  const paymentId = searchParams.get("payment_id");
   const txStatus = searchParams.get("txStatus");
 
   useEffect(() => {
@@ -67,34 +70,32 @@ function PaymentStatusContent() {
   }, [user]);
 
   useEffect(() => {
-    async function verifyPayment() {
-      if (!orderId) {
-        router.push("/");
-        return;
-      }
-
-      setLoading(true);
-
+    const verifyPayment = async () => {
       try {
-        const accessToken = localStorage.getItem("accessToken");
-        const headers = {
-          "Content-Type": "application/json",
-          ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
-        };
-
-        const response = await fetch(
-          `/api/verify-payment?order_id=${orderId}&payment_id=${
-            paymentId || ""
-          }`,
-          { headers }
-        );
-
-        if (!response.ok) {
-          throw new Error("Failed to verify payment status");
+        if (!orderId) {
+          throw new Error('Order ID not found in the response');
         }
 
+        setLoading(true);
+
+        const response = await fetch('/api/verify-payment', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            order_id: orderId,
+            payment_id: paymentId
+          }),
+        });
+
         const data = await response.json();
-        setStatus(data.payment_status || txStatus || "PENDING");
+
+        if (!response.ok) {
+          throw new Error(data.error || 'Payment verification failed');
+        }
+
+        setStatus(data.payment_status);
         setOrderDetails(
           data.order_details || {
             order_id: orderId,
@@ -103,8 +104,9 @@ function PaymentStatusContent() {
           }
         );
       } catch (error) {
-        console.error("Payment verification error:", error);
-        setStatus(txStatus || "UNKNOWN");
+        console.error('Error verifying payment:', error);
+        setError(error.message);
+        setStatus('failed');
         setOrderDetails({
           order_id: orderId,
           amount: "N/A",
@@ -113,10 +115,10 @@ function PaymentStatusContent() {
       } finally {
         setLoading(false);
       }
-    }
+    };
 
     verifyPayment();
-  }, [orderId, paymentId, txStatus, router]);
+  }, [orderId, paymentId]);
 
   useEffect(() => {
     const getUser = async () => {
@@ -150,13 +152,12 @@ function PaymentStatusContent() {
     if (loading) {
       return (
         <div className="text-center py-16">
-          <div className="animate-spin h-12 w-12 border-4 border-primary border-t-transparent rounded-full mx-auto mb-4"></div>
-          <p className="text-gray-600">Verifying payment status...</p>
+          <LoadingSpinner />
         </div>
       );
     }
 
-    if (status === "SUCCESS") {
+    if (status === "PAID") {
       return (
         <div className="text-center py-12">
           <div className="mx-auto w-20 h-20 bg-green-100 rounded-full flex items-center justify-center mb-6">
@@ -184,7 +185,7 @@ function PaymentStatusContent() {
       );
     }
 
-    if (status === "FAILED" || status === "CANCELLED") {
+    if (status === "failed") {
       return (
         <div className="text-center py-12">
           <div className="mx-auto w-20 h-20 bg-red-100 rounded-full flex items-center justify-center mb-6">
@@ -196,7 +197,7 @@ function PaymentStatusContent() {
           <p className="text-gray-600 mb-8">
             Your payment for order #{orderDetails.order_id} could not be
             processed.
-            {status === "CANCELLED" ? " The transaction was cancelled." : ""}
+            {error}
           </p>
           <div className="flex justify-center space-x-4">
             <Link
@@ -284,7 +285,37 @@ function PaymentStatusContent() {
         </div>
 
         <div className="bg-white rounded-lg shadow-sm">
-          {renderStatusContent()}
+          <PageHero title="Payment Status" subtitle="Transaction Result" />
+          <div className={`text-center mb-6 ${
+            status === 'PAID' ? 'text-green-600' : 
+            status === 'failed' ? 'text-red-600' : 'text-yellow-600'
+          }`}>
+            <h2 className="text-2xl font-bold mb-4">
+              {status === 'PAID' ? '✅ Payment Successful!' :
+               status === 'failed' ? '❌ Payment Failed' : '⏳ Processing Payment...'}
+            </h2>
+            
+            {error && (
+              <p className="text-red-600 mt-2">{error}</p>
+            )}
+            
+            <p className="text-gray-600 mt-4">
+              {status === 'PAID' 
+                ? 'Thank you for your purchase! Your order has been confirmed.'
+                : status === 'failed'
+                ? 'We were unable to process your payment. Please try again.'
+                : 'Please wait while we confirm your payment...'}
+            </p>
+          </div>
+
+          <div className="text-center mt-8">
+            <Link 
+              href="/"
+              className="inline-block bg-primary text-white px-6 py-2 rounded-md hover:bg-primary-dark transition-colors"
+            >
+              Return to Home
+            </Link>
+          </div>
         </div>
       </div>
     </div>
