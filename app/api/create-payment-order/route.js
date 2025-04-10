@@ -15,9 +15,9 @@ export async function POST(request) {
   try {
     const { amount, currency = 'INR', customer_details } = await request.json();
 
-    if (!amount || !customer_details?.customer_id || !customer_details?.customer_email || !customer_details?.customer_phone) {
+    if (!amount || !customer_details?.customer_id || !customer_details?.customer_phone) {
       return NextResponse.json(
-        { error: 'Missing required fields: amount, customer_id, customer_email, customer_phone' },
+        { error: 'Missing required fields: amount, customer_id, customer_phone' },
         { status: 400 }
       );
     }
@@ -30,7 +30,6 @@ export async function POST(request) {
       order_currency: currency,
       customer_details: {
         customer_id: customer_details.customer_id,
-        customer_email: customer_details.customer_email,
         customer_phone: customer_details.customer_phone,
         customer_name: customer_details.customer_name || '',
       },
@@ -42,6 +41,11 @@ export async function POST(request) {
         source: 'web'
       }
     };
+
+    // Add email to the payload only if it exists
+    if (customer_details.customer_email) {
+      orderPayload.customer_details.customer_email = customer_details.customer_email;
+    }
 
     console.log('Creating Cashfree order with payload:', JSON.stringify(orderPayload, null, 2));
 

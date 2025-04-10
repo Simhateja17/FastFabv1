@@ -29,9 +29,6 @@ function CheckoutContent() {
   const [cashfreeLoaded, setCashfreeLoaded] = useState(false);
   const [cashfreeInstance, setCashfreeInstance] = useState(null);
   const [isProcessingPayment, setIsProcessingPayment] = useState(false);
-  const [retryCount, setRetryCount] = useState(0);
-  const [lastError, setLastError] = useState(null);
-  const MAX_RETRIES = 3;
   
   useEffect(() => {
     const initializeCheckout = async () => {
@@ -106,16 +103,17 @@ function CheckoutContent() {
   }, [user, authLoading, router]);
   
   useEffect(() => {
-    if (cashfreeLoaded && window.Cashfree) {
+    if (cashfreeLoaded) {
       try {
-        console.log('Initializing Cashfree SDK...');
+        console.log('Attempting to initialize Cashfree...');
         const mode = process.env.NODE_ENV === 'production' ? 'production' : 'sandbox';
-        console.log('Cashfree mode:', mode);
-        
-        const cashfree = new window.Cashfree(mode);
+        const cashfree = window.Cashfree({
+          mode: mode
+        });
+        console.log('Cashfree initialization successful');
         setCashfreeInstance(cashfree);
       } catch (err) {
-        console.error("Failed to initialize Cashfree SDK:", err);
+        console.error("SDK initialization error:", err);
         toast.error("Payment gateway failed to load. Please refresh.");
         setError("Payment system error.");
       }
@@ -130,22 +128,6 @@ function CheckoutContent() {
   const shipping = subtotal > 0 ? 99 : 0;
   const total = subtotal + shipping;
   
-  const handlePaymentError = async (error) => {
-    console.error('Payment error:', error);
-    setLastError(error.message || 'Payment failed');
-    
-    if (retryCount < MAX_RETRIES) {
-      toast.error(`Payment failed. Retrying... (Attempt ${retryCount + 1}/${MAX_RETRIES})`);
-      setRetryCount(prev => prev + 1);
-      await new Promise(resolve => setTimeout(resolve, 2000)); // Wait 2 seconds before retry
-      await handlePlaceOrder();
-    } else {
-      toast.error('Maximum payment retries reached. Please try again later or use a different payment method.');
-      setIsProcessingPayment(false);
-      setRetryCount(0);
-    }
-  };
-
   const handlePlaceOrder = async () => {
     if (checkoutItems.length === 0) {
       toast.error("There are no items to check out.");
@@ -164,18 +146,16 @@ function CheckoutContent() {
     
     setIsProcessingPayment(true);
     setError(null);
-    setLastError(null);
     
     try {
       const customerDetailsPayload = {
         customer_id: user?.id || `guest_${Date.now()}`,
-        customer_email: user?.email || '',
         customer_phone: user?.phone || '',
         customer_name: user?.displayName || user?.name || '',
       };
 
-      if (!customerDetailsPayload.customer_email || !customerDetailsPayload.customer_phone) {
-        toast.error("Email and phone number are required for payment. Please update your profile.");
+      if (!customerDetailsPayload.customer_phone) {
+        toast.error("Phone number is required for payment. Please update your profile.");
         setIsProcessingPayment(false);
         return;
       }
@@ -206,30 +186,22 @@ function CheckoutContent() {
 
       const checkoutOptions = {
         paymentSessionId: data.payment_session_id,
-        returnUrl: window.location.origin + '/payment-status',
-        onError: (error) => {
-          console.error('Cashfree checkout error:', error);
-          handlePaymentError(error);
-        },
+        redirectTarget: "_self",
       };
       
       console.log("Launching Cashfree checkout with options:", checkoutOptions);
       
-      const result = await cashfreeInstance.initiatePayment(checkoutOptions);
-      
-      if (result.error) {
-        throw new Error(result.error.message || "Payment initiation failed");
-      }
+      cashfreeInstance.checkout(checkoutOptions);
 
-      // Reset retry count on successful initiation
-      setRetryCount(0);
-      
       if (!isBuyNow) {
         clearCart();
       }
 
     } catch (error) {
-      handlePaymentError(error);
+      console.error("Payment error:", error);
+      toast.error(error.message || "Payment failed. Please try again.");
+      setError(error.message || "Payment failed");
+      setIsProcessingPayment(false);
     }
   };
 
@@ -270,19 +242,16 @@ function CheckoutContent() {
    }
   
   return (
-    <div>
+    <div className="min-h-screen bg-gray-50">
       <Script
-        id="cashfree-sdk"
-        src="https://sdk.cashfree.com/js/ui/2.0.0/cashfree.prod.js"
-        strategy="beforeInteractive"
+        src="https://sdk.cashfree.com/js/v3/cashfree.js"
         onLoad={() => {
-          console.log("Cashfree SDK loaded successfully");
+          console.log('Cashfree SDK loaded');
           setCashfreeLoaded(true);
         }}
         onError={(e) => {
-          console.error("Failed to load Cashfree SDK:", e);
-          toast.error("Failed to load payment gateway. Please refresh the page.");
-          setError("Payment system failed to load.");
+          console.error('Error loading Cashfree SDK:', e);
+          toast.error('Failed to load payment system. Please refresh the page.');
         }}
       />
       <PageHero title="Checkout" subtitle="Complete your purchase" />
@@ -410,17 +379,6 @@ function CheckoutContent() {
         </div>
         
         <div id="payment-form" className="mt-4"></div>
-
-        {lastError && (
-          <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-6">
-            <p className="text-red-700 text-sm">{lastError}</p>
-            {retryCount < MAX_RETRIES && (
-              <p className="text-red-600 text-xs mt-1">
-                Retrying payment... Attempt {retryCount + 1}/{MAX_RETRIES}
-              </p>
-            )}
-          </div>
-        )}
       </div>
     </div>
   );
