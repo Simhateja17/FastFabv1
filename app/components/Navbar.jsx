@@ -129,9 +129,11 @@ const AuthLinks = () => (
   <div className="flex items-center space-x-4">
     <Link
       href="/signup"
-      className="bg-primary text-white px-4 py-2 rounded-md hover:bg-primary-dark"
+      className="bg-white text-black px-6 py-2.5 rounded-lg hover:bg-gray-100 transition-colors duration-200 font-medium text-sm shadow-sm hover:shadow-md flex items-center space-x-2 z-50 border border-gray-200"
+      style={{ position: 'relative', display: 'flex' }}
     >
-      Login/Signup
+      <BsPerson className="w-5 h-5" />
+      <span>Login/Signup</span>
     </Link>
   </div>
 );
@@ -529,28 +531,27 @@ function NavbarContent() {
   // const breadcrumbs = getBreadcrumbs(); 
 
   // Decide whether to show the navbar
-  const showNavbar = !["/seller/signin", "/admin-login", "/signup"].includes(
-    pathname
-  );
+  const showNavbar = true; // Remove the path-based restriction
 
   if (!showNavbar) {
     return null;
   }
 
   return (
-    <nav className="bg-navbar shadow-sm fixed top-0 left-0 right-0 z-10 w-full sticky-nav">
+    <nav className="bg-white border-b border-gray-200 fixed top-0 left-0 right-0 z-50 w-full">
       {/* Desktop Navbar - hidden on mobile */}
       <div className="hidden md:block">
-        <div className="max-w-7xl mx-auto px-0">
-          <div className="flex items-center justify-between h-16">
+        <div className="max-w-7xl mx-auto px-4">
+          <div className="relative flex items-center justify-between h-16">
             {/* Left Section: Logo and Location */}
-            <div className="flex items-center">
-              <Link href={`${redirect}`} className="flex-shrink-0 pl-1">
+            <div className="flex items-center flex-shrink-0">
+              <Link href={`${redirect}`} className="flex-shrink-0">
                 <Image
                   src="/logo.svg"
                   alt="Fast&Fab Logo"
                   width={90}
                   height={25}
+                  className="block"
                 />
               </Link>
               
