@@ -1,67 +1,91 @@
 import { NextResponse } from 'next/server';
-import { Cashfree } from 'cashfree-pg';
+import { v4 as uuidv4 } from 'uuid'; // For generating unique order IDs
 
-// Initialize Cashfree SDK
-console.log('Environment Check:', {
-  NODE_ENV: process.env.NODE_ENV,
-  CASHFREE_APP_ID: process.env.CASHFREE_APP_ID,
-  CASHFREE_API_ENV: process.env.CASHFREE_API_ENV,
-  BASE_URL: process.env.NEXT_PUBLIC_BASE_URL // Add this to debug
-});
+const CASHFREE_API_KEY = process.env.CASHFREE_API_KEY;
+const CASHFREE_SECRET_KEY = process.env.CASHFREE_SECRET_KEY;
+const CASHFREE_API_VERSION = '2023-08-01';
+const CASHFREE_BASE_URL = process.env.NODE_ENV === 'production' 
+  ? 'https://api.cashfree.com/pg'
+  : 'https://sandbox.cashfree.com/pg';
 
-Cashfree.XClientId = process.env.CASHFREE_APP_ID;
-Cashfree.XClientSecret = process.env.CASHFREE_SECRET_KEY;
-Cashfree.XEnvironment = Cashfree.Environment.PRODUCTION; // Changed from SANDBOX to PRODUCTION
+// Ensure this URL matches your deployment structure
+// It must include the {order_id} placeholder for Cashfree
+const RETURN_URL = `${process.env.NEXT_PUBLIC_APP_URL}/payment-status?order_id={order_id}`;
 
 export async function POST(request) {
   try {
-    const reqBody = await request.json();
-    // TODO: Add validation for request body (amount, currency, customer details etc.)
-    console.log("Request Body:", reqBody);
+    const { amount, currency = 'INR', customer_details } = await request.json();
 
-    const { amount, customer_id, customer_email, customer_phone } = reqBody;
-    const order_id = `order_${Date.now()}`; // Generate a unique order ID
-
-    // Set a default base URL if environment variable is not available
-    const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || 'https://fastandfab.in';
-
-    const orderRequest = {
-      order_id: order_id,
-      order_amount: amount,
-      order_currency: "INR", // Assuming INR, change if needed
-      customer_details: {
-        customer_id: customer_id || `cust_${Date.now()}`, // Use provided or generate one
-        customer_email: customer_email || "default@example.com", // Use provided or a default
-        customer_phone: customer_phone || "9999999999",     // Use provided or a default
-      },
-      order_meta: {
-        // Optional: Add any metadata you want to associate with the order
-        return_url: `${baseUrl}/payment-status?order_id={order_id}`, // Redirect URL after payment
-        // notify_url: "YOUR_WEBHOOK_URL", // Optional: URL for server-to-server notifications
-      },
-      order_note: "FastFab order payment", // Optional order note
-    };
-
-    console.log("Creating Cashfree Order with Request:", orderRequest);
-
-    // Use Cashfree SDK to create the order
-    const response = await Cashfree.PGCreateOrder("2023-08-01", orderRequest); // Use the correct API version
-
-    console.log("Cashfree API Response:", response.data);
-
-    if (response.data && response.data.payment_session_id) {
-      return NextResponse.json(response.data);
-    } else {
-      // Handle cases where order creation might fail or response is unexpected
-      console.error("Failed to create Cashfree order or missing payment_session_id:", response);
-      return NextResponse.json({ error: 'Failed to create payment session', details: response.data }, { status: 500 });
+    if (!amount || !customer_details?.customer_id || !customer_details?.customer_email || !customer_details?.customer_phone) {
+      return NextResponse.json(
+        { error: 'Missing required fields: amount, customer_id, customer_email, customer_phone' },
+        { status: 400 }
+      );
     }
 
+    const order_id = `order_${uuidv4()}`;
+
+    const orderPayload = {
+      order_id: order_id,
+      order_amount: amount,
+      order_currency: currency,
+      customer_details: {
+        customer_id: customer_details.customer_id,
+        customer_email: customer_details.customer_email,
+        customer_phone: customer_details.customer_phone,
+        customer_name: customer_details.customer_name || '', // Optional
+      },
+      order_meta: {
+        return_url: RETURN_URL.replace('{order_id}', order_id), // Replace placeholder
+        // notify_url: "YOUR_WEBHOOK_URL", // Optional: For server-to-server notifications
+      },
+      order_note: customer_details.order_note || 'Order from FastFab', // Optional
+    };
+
+    console.log('Creating Cashfree order with payload:', JSON.stringify(orderPayload, null, 2));
+    console.log('Using Return URL:', orderPayload.order_meta.return_url);
+
+    const response = await fetch(`${CASHFREE_BASE_URL}/orders`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-version': CASHFREE_API_VERSION,
+        'x-client-id': CASHFREE_API_KEY,
+        'x-client-secret': CASHFREE_SECRET_KEY,
+      },
+      body: JSON.stringify(orderPayload),
+    });
+
+    const responseData = await response.json();
+
+    if (!response.ok) {
+      console.error('Cashfree API Error Response:', responseData);
+      throw new Error(
+        responseData.message || 'Failed to create Cashfree order'
+      );
+    }
+
+    console.log('Cashfree Order Creation Success:', responseData);
+
+    // Essential fields for the frontend SDK
+    const { payment_session_id, order_id: cf_order_id } = responseData;
+
+    if (!payment_session_id || !cf_order_id) {
+       console.error('Missing payment_session_id or order_id in Cashfree response', responseData);
+       throw new Error('Invalid response from Cashfree');
+    }
+
+    return NextResponse.json({ 
+      success: true, 
+      payment_session_id, 
+      order_id: cf_order_id 
+    });
+
   } catch (error) {
-    console.error("Error creating Cashfree order:", error);
-    console.error("Error response data:", error.response?.data); // Add this to see detailed error
-    // Extract more specific error info if available from Cashfree's response structure
-    const errorDetails = error.response?.data || { message: error.message };
-    return NextResponse.json({ error: 'Internal Server Error', details: errorDetails }, { status: 500 });
+    console.error('Error creating Cashfree payment order:', error);
+    return NextResponse.json(
+      { success: false, error: error.message || 'Internal server error' },
+      { status: 500 }
+    );
   }
 } 

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback, Suspense, useRef } from "react";
+import { useState, useEffect, useCallback, Suspense } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { toast } from "react-hot-toast";
 import { useCartStore } from "../lib/cartStore";
@@ -26,6 +26,9 @@ function CheckoutContent() {
   const [isBuyNow, setIsBuyNow] = useState(false);
   const [paymentMethod] = useState("online");
   const [error, setError] = useState(null);
+  const [cashfreeLoaded, setCashfreeLoaded] = useState(false);
+  const [cashfreeInstance, setCashfreeInstance] = useState(null);
+  const [isProcessingPayment, setIsProcessingPayment] = useState(false);
   
   useEffect(() => {
     const initializeCheckout = async () => {
@@ -99,6 +102,21 @@ function CheckoutContent() {
     }
   }, [user, authLoading, router]);
   
+  useEffect(() => {
+    if (cashfreeLoaded && window.Cashfree) {
+      try {
+        const mode = process.env.NEXT_PUBLIC_CASHFREE_MODE === 'production' ? 'production' : 'sandbox';
+        console.log(`Initializing Cashfree SDK in ${mode} mode.`);
+        const cashfree = new window.Cashfree({ mode: mode });
+        setCashfreeInstance(cashfree);
+      } catch (err) {
+        console.error("Failed to initialize Cashfree SDK:", err);
+        toast.error("Payment gateway failed to load. Please refresh.");
+        setError("Payment system error.");
+      }
+    }
+  }, [cashfreeLoaded]);
+  
   const subtotal = checkoutItems.reduce(
     (total, item) => total + (item.price || 0) * (item.quantity || 0),
     0
@@ -117,28 +135,32 @@ function CheckoutContent() {
         toast.error("Delivery location is not set. Please select a location from the navigation bar.");
         return;
     }
+
+    if (!cashfreeInstance) {
+        toast.error("Payment gateway is not ready. Please wait or refresh the page.");
+        return;
+    }
     
-    setLoading(true);
+    setIsProcessingPayment(true);
+    setError(null);
     
     try {
-      const orderItemsPayload = checkoutItems.map(item => ({
-        productId: item.id,
-        quantity: item.quantity,
-        price: item.price,
-        size: item.size, 
-        color: item.color 
-      }));
-
-      const orderData = {
-        deliveryLocationName: userLocation.label,
-        paymentMethod: paymentMethod,
-        items: orderItemsPayload,
-        isBuyNow: isBuyNow
+      const customerDetailsPayload = {
+        customer_id: user?.id || `guest_${Date.now()}`,
+        customer_email: user?.email || '',
+        customer_phone: user?.phone || '',
+        customer_name: user?.displayName || user?.name || '',
       };
-      
-      console.log("Placing order with data:", orderData);
 
-      // First, create a payment order
+      if (!customerDetailsPayload.customer_email || !customerDetailsPayload.customer_phone) {
+          toast.error("Email and phone number are required for payment. Please update your profile.");
+          setIsProcessingPayment(false);
+          return;
+      }
+
+      console.log("Initiating payment process for total:", total);
+      console.log("Customer details for payment:", customerDetailsPayload);
+
       const response = await fetch('/api/create-payment-order', {
         method: "POST",
         headers: {
@@ -146,65 +168,43 @@ function CheckoutContent() {
         },
         body: JSON.stringify({
           amount: total,
-          customer_id: user?.id || `user_${Date.now()}`,
-          customer_email: user?.email || "",
-          customer_phone: user?.phone || "",
-          order_details: orderData
+          currency: 'INR',
+          customer_details: customerDetailsPayload
         })
       });
       
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || "Failed to create payment order");
-      }
-
       const data = await response.json();
-      
-      if (!data.payment_session_id) {
-        throw new Error("Payment session ID not received from server");
+
+      if (!response.ok || !data.success) {
+        console.error("Failed to create payment order:", data);
+        throw new Error(data.error || "Could not initiate payment process.");
       }
 
-      // UPDATED: Use the checkout() method as per Cashfree documentation
-      const checkoutOptions = {
-        paymentSessionId: data.payment_session_id,
-        returnUrl: window.location.origin + '/payment-status',
-        // Add any custom styles if needed
-        style: {
-          backgroundColor: "#ffffff",
-          color: "#11385b",
-          fontFamily: "Lato",
-          fontSize: "14px",
-          errorColor: "#ff0000",
-          theme: "light" //"dark" | "light"
-        }
-      };
+      if (!data.payment_session_id) {
+        console.error("Payment session ID not received:", data);
+        throw new Error("Payment session could not be created.");
+      }
 
-      // Clear cart before payment if it's a cart checkout
+      console.log("Payment order created, Session ID:", data.payment_session_id);
+
+      const checkoutOptions = {
+          paymentSessionId: data.payment_session_id,
+          redirectTarget: "_self"
+      };
+      
+      console.log("Launching Cashfree checkout with options:", checkoutOptions);
+      cashfreeInstance.checkout(checkoutOptions);
+      
       if (!isBuyNow) {
         clearCart();
-        console.log("Cart cleared before payment");
+        console.log("Cart cleared after initiating payment.");
       }
 
-      // Initialize checkout using window.cashfree
-      if (typeof window.cashfree?.checkout !== 'function') {
-        console.error("Cashfree checkout method not available");
-        throw new Error("Payment system not ready. Please refresh the page.");
-      }
-
-      const result = await window.cashfree.checkout(checkoutOptions);
-      
-      if (result.error) {
-        console.error("Checkout error:", result.error);
-        throw new Error(result.error.message || "Payment initialization failed");
-      }
-
-      // If we reach here without errors, the checkout should have redirected
-      console.log("Checkout initiated successfully");
-      
     } catch (error) {
-      console.error("Error during order placement:", error);
-      toast.error(error.message || "Error placing order. Please try again.");
-      setLoading(false);
+      console.error("Error during payment initiation:", error);
+      toast.error(error.message || "Error initiating payment. Please try again.");
+      setError(error.message || "Could not start payment.");
+      setIsProcessingPayment(false);
     }
   };
 
@@ -247,8 +247,18 @@ function CheckoutContent() {
   return (
     <div>
       <Script
+        id="cashfree-sdk"
         src="https://sdk.cashfree.com/js/v3/cashfree.js"
-        strategy="beforeInteractive"
+        strategy="lazyOnload"
+        onLoad={() => {
+          console.log("Cashfree SDK script loaded.");
+          setCashfreeLoaded(true);
+        }}
+        onError={(e) => {
+            console.error("Failed to load Cashfree SDK script:", e);
+            toast.error("Failed to load payment gateway. Please check your connection and refresh.");
+            setError("Payment system failed to load.");
+        }}
       />
       <PageHero title="Checkout" subtitle="Complete your purchase" />
       
@@ -358,18 +368,23 @@ function CheckoutContent() {
               
               <button
                 onClick={handlePlaceOrder}
-                disabled={loading || !userLocation?.label || checkoutItems.length === 0}
-                className="w-full py-3 mt-4 bg-primary text-white rounded-md font-medium hover:bg-primary-dark transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                disabled={!cashfreeInstance || isProcessingPayment || !userLocation?.label}
+                className={`w-full py-3 mt-4 rounded-md font-medium text-white transition-colors ${(!cashfreeInstance || isProcessingPayment || !userLocation?.label) ? 'bg-gray-400 cursor-not-allowed' : 'bg-primary hover:bg-primary-dark'}`}
               >
-                {loading ? (
+                {isProcessingPayment ? (
                     <span className="flex items-center justify-center">
-                        <LoadingSpinner size="small" color="white" className="mr-2"/> Processing...
+                        <LoadingSpinner size="small" color="white"/>
+                        <span className="ml-2">Processing...</span>
                     </span>
-                ) : 'Place Order'}
+                ) : (
+                    `Pay ₹${total.toFixed(2)} Securely`
+                )}
               </button>
             </div>
           </div>
         </div>
+        
+        <div id="payment-form" className="mt-4"></div>
       </div>
     </div>
   );
