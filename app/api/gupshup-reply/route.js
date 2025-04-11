@@ -9,6 +9,18 @@ import {
 const prisma = new PrismaClient();
 
 /**
+ * GET handler for Gupshup validation requests
+ * This allows Gupshup to validate the webhook URL
+ */
+export async function GET(request) {
+  console.log('Received GET request for webhook validation');
+  return NextResponse.json({ 
+    message: 'Webhook endpoint is active and ready to receive messages',
+    status: 'success'
+  }, { status: 200 });
+}
+
+/**
  * Handler for Gupshup WhatsApp reply webhook
  * This endpoint receives seller responses to order notifications
  */
