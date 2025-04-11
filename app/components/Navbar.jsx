@@ -34,8 +34,8 @@ const LocationModal = dynamic(() => import("./LocationModal"), {
 
 // User Avatar Component
 const UserAvatar = ({ user }) => (
-  <div className="w-8 h-8 rounded-full bg-primary text-white flex items-center justify-center">
-    {user?.name ? user.name.charAt(0).toUpperCase() : <BsPerson />}
+  <div className="w-8 h-8 rounded-full bg-primary flex items-center justify-center">
+    <BsPerson className="text-black w-5 h-5" />
   </div>
 );
 
@@ -225,19 +225,6 @@ const MobileMenu = ({ isOpen, seller, user, onUserLogout, onSellerLogout }) => {
             Become a Seller
           </Link>
         )}
-
-        <div className="flex items-center pl-3 pr-4 py-2">
-          <div className="flex items-center bg-white">
-            <Image 
-              src="/delivery-icon.png.png" 
-              alt="Fast Delivery" 
-              width={55} 
-              height={55}
-              className="mx-1"
-              style={{ backgroundColor: "white", objectFit: "contain" }}
-            />
-          </div>
-        </div>
 
         {/* User Authentication Links for Mobile */}
         {!seller && !user && (
@@ -542,7 +529,7 @@ function NavbarContent() {
       {/* Desktop Navbar - hidden on mobile */}
       <div className="hidden md:block">
         <div className="max-w-7xl mx-auto px-4">
-          <div className="relative flex items-center justify-between h-16">
+          <div className="relative flex items-center justify-evenly h-16">
             {/* Left Section: Logo and Location */}
             <div className="flex items-center flex-shrink-0">
               <Link href={`${redirect}`} className="flex-shrink-0">
@@ -609,7 +596,7 @@ function NavbarContent() {
             )}
 
             {/* Right Section: Desktop Navigation & Auth */}
-            <div className="hidden md:flex md:items-center md:space-x-6">
+            <div className="hidden md:flex md:items-center md:space-x-4">
                {/* Show standard links only if not seller/admin */}
               {!isSellerRoute && !isAdminRoute && (
                 <>
@@ -619,16 +606,6 @@ function NavbarContent() {
                   >
                     Become a Seller
                   </Link>
-                  <div className="flex items-center bg-white">
-                    <Image 
-                      src="/delivery-icon.png.png" 
-                      alt="Fast Delivery" 
-                      width={55} 
-                      height={55}
-                      className="mx-1"
-                      style={{ backgroundColor: "white", objectFit: "contain" }}
-                    />
-                  </div>
                 </>
               )}
 
@@ -665,7 +642,7 @@ function NavbarContent() {
       {/* Mobile Navbar - Amazon style - visible only on mobile */}
       <div className="md:hidden">
         {/* Top Row: Logo, Location, Delivery Icon, User, Menu Button */}
-        <div className="bg-white py-2 px-3 flex items-center justify-between">
+        <div className="bg-white py-2 px-4 flex items-center justify-between">
           <div className="flex items-center">
             <Link href={`${redirect}`} className="flex-shrink-0">
               <Image
@@ -693,19 +670,7 @@ function NavbarContent() {
           </div>
           
           <div className="flex items-center space-x-3">
-            {/* Delivery Icon */}
-            <div className="flex items-center">
-              <div className="flex items-center bg-white">
-                <Image 
-                  src="/delivery-icon.png.png" 
-                  alt="Fast Delivery" 
-                  width={55} 
-                  height={55}
-                  className="mx-1"
-                  style={{ backgroundColor: "white", objectFit: "contain" }}
-                />
-              </div>
-            </div>
+            {/* Delivery Icon - Removed the div containing the image */}
             
             {/* User/Auth */}
             <div className="flex items-center">
