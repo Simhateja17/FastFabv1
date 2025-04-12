@@ -181,143 +181,99 @@ const checkSellerExists = async (phoneNumber) => {
 export async function POST(request) {
   try {
     const requestData = await request.json();
-    
-    console.log('OTP verify request:', {
-      phoneNumber: requestData.phoneNumber ? 'provided' : 'missing',
-      otpCode: requestData.otpCode ? 'provided' : 'missing'
-    });
-    
-    // Forward request to seller service
-    const apiUrl = process.env.SELLER_SERVICE_URL || 'http://localhost:8000';
-    // Try the correct path for the seller service
-    const endpoint = '/api/seller-whatsapp-otp/verify';
-    console.log(`Forwarding OTP verification to: ${apiUrl}${endpoint}`);
-    
-    const response = await fetch(`${apiUrl}${endpoint}`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(requestData),
-    });
-    
-    // If that fails with 404, try an alternative endpoint
-    if (response.status === 404) {
-      console.log('Endpoint not found, trying alternative path');
-      
-      // Try alternative endpoint path
-      const altEndpoint = '/api/auth/verify-otp';
-      console.log(`Trying alternative path: ${apiUrl}${altEndpoint}`);
-      
-      const altResponse = await fetch(`${apiUrl}${altEndpoint}`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(requestData),
-      });
-      
-      console.log(`Alternative endpoint response: ${altResponse.status} ${altResponse.statusText}`);
-      
-      // If alternative also fails, fall back to local implementation
-      if (altResponse.status === 404) {
-        console.log('Both endpoints not found, falling back to local implementation');
-        
-        // Format phone number
-        const phoneNumber = formatPhoneNumber(requestData.phoneNumber);
-        const otpCode = requestData.otpCode;
-        
-        // Attempt to verify OTP
-        const verificationResult = await verifyOTP(phoneNumber, otpCode);
-        console.log('Verification result:', verificationResult);
-        
-        if (!verificationResult.success) {
-          return NextResponse.json({
-            success: false,
-            message: verificationResult.message,
-            verified: false
-          }, { status: 400 });
-        }
-        
-        // Check if a seller already exists with this phone number
-        const sellerCheck = await checkSellerExists(phoneNumber);
-        
-        return NextResponse.json({
-          success: true,
-          message: 'OTP verified successfully',
-          isNewSeller: !sellerCheck.exists,
-          isExistingSeller: sellerCheck.exists,
-          sellerId: sellerCheck.sellerId || null,
-          isSellerComplete: sellerCheck.isComplete || false
-        });
-      }
-      
-      // Use the alternative endpoint response
-      return handleResponse(altResponse);
-    }
-    
-    // Handle response from primary endpoint
-    return handleResponse(response);
-    
-  } catch (error) {
-    console.error('OTP verification error:', error);
-    return NextResponse.json(
-      { 
-        success: false, 
-        message: 'Failed to verify OTP', 
-        error: error.message 
-      },
-      { status: 500 }
-    );
-  }
-}
 
-// Helper function to handle response
-async function handleResponse(response) {
-  console.log(`OTP verification response status: ${response.status} ${response.statusText}`);
-  
-  if (!response.ok) {
-    let errorMessage = 'Failed to verify OTP';
-    try {
-      const errorData = await response.json();
-      console.error('OTP verification error data:', errorData);
-      errorMessage = errorData.message || errorMessage;
-    } catch (e) {
-      console.error('Failed to parse error response from OTP verification');
-      try {
-        const errorText = await response.text();
-        console.error('Error response text:', errorText);
-      } catch (textError) {
-        // Ignore if we can't get text
-      }
+    console.log('Seller OTP verify request:', {
+      phoneNumber: requestData.phoneNumber ? 'provided' : 'missing',
+      otpCode: requestData.otpCode ? 'provided' : 'missing',
+    });
+
+    if (!requestData.phoneNumber || !requestData.otpCode) {
+      return NextResponse.json({
+        success: false,
+        message: 'Phone number and OTP code are required',
+        verified: false
+      }, { status: 400 });
     }
-    
-    return NextResponse.json(
-      { 
-        success: false, 
-        message: errorMessage 
-      },
-      { status: response.status }
-    );
-  }
-  
-  try {
-    const data = await response.json();
-    console.log('OTP verification successful:', data);
-    
+
+    // Directly use local verification
+    console.log('Using local OTP verification implementation.');
+
+    // Format phone number
+    const phoneNumber = formatPhoneNumber(requestData.phoneNumber);
+    const otpCode = requestData.otpCode;
+
+    // Attempt to verify OTP locally
+    const verificationResult = await verifyOTP(phoneNumber, otpCode);
+    console.log('Local verification result:', verificationResult);
+
+    if (!verificationResult.success) {
+      return NextResponse.json({
+        success: false,
+        message: verificationResult.message || 'Invalid OTP or OTP expired', // Provide default message
+        verified: false
+      }, { status: 400 });
+    }
+
+    // OTP is valid, now check if a seller already exists with this phone number
+    const sellerCheck = await checkSellerExists(phoneNumber);
+    console.log('Seller existence check:', sellerCheck);
+
+    // Determine if the seller profile is complete (for existing sellers)
+    const isProfileComplete = sellerCheck.exists ? sellerCheck.isComplete : false;
+
     return NextResponse.json({
       success: true,
       message: 'OTP verified successfully',
-      isNewSeller: data.isNewSeller,
-      isExistingSeller: data.isExistingSeller,
-      sellerId: data.sellerId,
-      isSellerComplete: data.isSellerComplete
-    });
-  } catch (e) {
-    console.error('Failed to parse success response:', e);
+      verified: true, // Explicitly set verified to true on success
+      isNewSeller: !sellerCheck.exists,
+      isExistingSeller: sellerCheck.exists,
+      sellerId: sellerCheck.sellerId || null,
+      isProfileComplete: isProfileComplete, // Add completion status
+      // Include any other necessary fields from the original successful response if needed
+    }, { status: 200 });
+
+  } catch (error) {
+    console.error('Error in seller OTP verification route:', error);
+
+    // Handle potential Prisma initialization errors or other unexpected errors
+     if (error.message.includes('Failed to connect to database')) {
+      return NextResponse.json({
+        success: false,
+        message: 'Database connection error. Please try again later.',
+        verified: false
+      }, { status: 503 }); // Service Unavailable
+    }
+    
+    if (error instanceof SyntaxError) { // Handle JSON parsing errors
+        return NextResponse.json({ 
+          success: false, 
+          message: 'Invalid request format.',
+          verified: false
+        }, { status: 400 });
+    }
+
     return NextResponse.json({
-      success: true,
-      message: 'OTP verified successfully but got invalid response format'
-    });
+      success: false,
+      message: 'An unexpected error occurred during OTP verification.',
+      verified: false,
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined // Show specific error only in dev
+    }, { status: 500 });
   }
-} 
+}
+
+// Ensure Prisma client disconnects gracefully on server shutdown
+process.on('SIGTERM', async () => {
+  if (prisma) {
+    await prisma.$disconnect();
+    console.log('PrismaClient disconnected on SIGTERM');
+  }
+  process.exit(0);
+});
+
+process.on('SIGINT', async () => {
+  if (prisma) {
+    await prisma.$disconnect();
+    console.log('PrismaClient disconnected on SIGINT');
+  }
+  process.exit(0);
+}); 
