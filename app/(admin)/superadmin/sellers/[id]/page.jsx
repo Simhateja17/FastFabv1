@@ -1,13 +1,10 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import axios from "axios";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import Image from 'next/image';
-
-// API endpoint
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000";
+import getAdminApiClient from "@/app/utils/apiClient";
 
 export default function SellerDetailPage({ params }) {
   const sellerId = params.id;
@@ -26,8 +23,11 @@ export default function SellerDetailPage({ params }) {
   useEffect(() => {
     const fetchSellerData = async () => {
       try {
-        const response = await axios.get(
-          `${API_BASE_URL}/admin/sellers/${sellerId}`
+        // Get API client with admin authorization
+        const apiClient = getAdminApiClient();
+        
+        const response = await apiClient.get(
+          `/api/admin/sellers/${sellerId}`
         );
         setSeller(response.data);
         setProducts(response.data.products || []);
@@ -90,8 +90,9 @@ export default function SellerDetailPage({ params }) {
     setSaveError(null);
 
     try {
-      const response = await axios.put(
-        `${API_BASE_URL}/admin/sellers/${sellerId}`,
+      const apiClient = getAdminApiClient();
+      const response = await apiClient.put(
+        `/api/admin/sellers/${sellerId}`,
         formData
       );
       setSeller(response.data.seller);
@@ -108,7 +109,7 @@ export default function SellerDetailPage({ params }) {
 
   // View product details
   const viewProductDetails = (productId) => {
-    router.push(`/admin/superadmin/products/${productId}`);
+    router.push(`/superadmin/products/${productId}`);
   };
 
   // Cancel editing
@@ -134,7 +135,8 @@ export default function SellerDetailPage({ params }) {
     if (!confirm("Are you sure you want to delete this product?")) return;
 
     try {
-      await axios.delete(`${API_BASE_URL}/admin/products/${productId}`);
+      const apiClient = getAdminApiClient();
+      await apiClient.delete(`/api/admin/products/${productId}`);
       setProducts(products.filter((product) => product.id !== productId));
     } catch (error) {
       console.error("Error deleting product:", error);

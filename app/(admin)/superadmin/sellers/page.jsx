@@ -91,7 +91,7 @@ export default function SellersPage() {
 
   // View seller details
   const viewSellerDetails = (sellerId) => {
-    router.push(`/admin/superadmin/sellers/${sellerId}`);
+    router.push(`/superadmin/sellers/${sellerId}`);
   };
 
   if (loading && sellers.length === 0) {

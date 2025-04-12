@@ -287,91 +287,91 @@ const sendWhatsAppOTP = async (phoneNumber, otpCode) => {
 export async function POST(request) {
   try {
     const requestData = await request.json();
+    const { phoneNumber: rawPhoneNumber } = requestData;
     
-    console.log('Send OTP request:', {
-      phoneNumber: requestData.phoneNumber ? 'provided' : 'missing'
+    console.log('Seller OTP Send request received:', {
+      phoneNumber: rawPhoneNumber ? 'provided' : 'missing'
     });
-    
-    // Forward request to seller service
-    const apiUrl = process.env.SELLER_SERVICE_URL || 'http://localhost:8000';
-    // Try the correct path for the seller service - seller-whatsapp-otp or auth/send-otp
-    const endpoint = '/api/seller-whatsapp-otp/send';
-    console.log(`Forwarding OTP send request to: ${apiUrl}${endpoint}`);
-    
-    const response = await fetch(`${apiUrl}${endpoint}`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(requestData),
-    });
-    
-    // If that fails with 404, try an alternative endpoint
-    if (response.status === 404) {
-      console.log('Endpoint not found, trying alternative path');
-      
-      // Try alternative endpoint path
-      const altEndpoint = '/api/auth/send-otp';
-      console.log(`Trying alternative path: ${apiUrl}${altEndpoint}`);
-      
-      const altResponse = await fetch(`${apiUrl}${altEndpoint}`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(requestData),
-      });
-      
-      console.log(`Alternative endpoint response: ${altResponse.status} ${altResponse.statusText}`);
-      
-      // If alternative also fails, fall back to local implementation
-      if (altResponse.status === 404) {
-        console.log('Both endpoints not found, falling back to local implementation');
-        
-        // Format the phone number (add +91 prefix if it's a 10-digit number)
-        const phoneNumber = formatPhoneNumber(requestData.phoneNumber);
-        
-        // Generate a 6-digit OTP
-        const otpCode = generateOTP();
-        console.log('Generated OTP:', otpCode, 'for phone:', phoneNumber);
-        
-        // Calculate expiration time (10 minutes from now)
-        const expiresAt = new Date(Date.now() + 10 * 60 * 1000);
-        
-        // Store OTP in database
-        try {
-          await storeOTP(phoneNumber, otpCode, expiresAt);
-        } catch (dbError) {
-          console.error('Failed to store OTP in database:', dbError);
-          return NextResponse.json({
-            success: false,
-            message: 'Database error. Please try again later.'
-          }, { status: 500 });
-        }
-        
-        // Check if this is an existing seller or new registration
-        const sellerCheck = await checkSellerExists(phoneNumber);
-        
-        // Send OTP via WhatsApp
-        const whatsappResult = await sendWhatsAppOTP(phoneNumber, otpCode);
-        
-        return NextResponse.json({
-          success: true,
-          message: "OTP sent successfully to your WhatsApp number",
-          expiresAt,
-          isExistingSeller: sellerCheck.exists,
-        });
-      }
-      
-      // Use the alternative endpoint response
-      return handleResponse(altResponse);
+
+    if (!rawPhoneNumber) {
+      return NextResponse.json({ 
+        success: false, 
+        message: 'Phone number is required.'
+      }, { status: 400 });
+    }
+
+    // --- Direct Implementation Logic --- 
+
+    // 1. Format the phone number
+    const phoneNumber = formatPhoneNumber(rawPhoneNumber);
+    console.log('Formatted seller phone number:', phoneNumber);
+
+    // 2. Validate phone number format
+    if (!phoneNumber || !phoneNumber.match(/^\+[1-9]\d{1,14}$/)) {
+      console.log('Invalid seller phone number format:', phoneNumber);
+      return NextResponse.json({ 
+        success: false,
+        message: 'Invalid phone number. Please provide a valid 10-digit phone number.'
+      }, { status: 400 });
     }
     
-    // Handle response from primary endpoint
-    return handleResponse(response);
+    // 3. Generate a 6-digit OTP
+    const otpCode = generateOTP();
+    console.log('Generated Seller OTP:', otpCode, 'for phone:', phoneNumber);
+    
+    // 4. Calculate expiration time (10 minutes from now)
+    const expiresAt = new Date(Date.now() + 10 * 60 * 1000);
+    
+    // 5. Store OTP in database (using the local Prisma client)
+    try {
+      await storeOTP(phoneNumber, otpCode, expiresAt);
+    } catch (dbError) {
+      console.error('Failed to store seller OTP in database:', dbError);
+      return NextResponse.json({
+        success: false,
+        message: 'Database error storing OTP. Please try again later.'
+      }, { status: 500 });
+    }
+    
+    // 6. Check if this is an existing seller or new registration
+    // (This check might be useful for the frontend later)
+    const sellerCheck = await checkSellerExists(phoneNumber);
+    console.log('Seller existence check result:', sellerCheck);
+    
+    // 7. Send OTP via WhatsApp (using the direct Gupshup call)
+    const whatsappResult = await sendWhatsAppOTP(phoneNumber, otpCode);
+    console.log('Seller WhatsApp send result:', whatsappResult);
+
+    // 8. Return success response to the frontend
+    // Even if WhatsApp sending fails (e.g., API key issue), 
+    // consider it a success from the perspective of OTP generation and storage.
+    // The whatsappResult can be inspected for more detailed status if needed.
+    if (whatsappResult.success) {
+         return NextResponse.json({
+           success: true,
+           message: "OTP sent successfully to your WhatsApp number",
+           expiresAt,
+           // Include seller existence info if needed by frontend
+           isExistingSeller: sellerCheck.exists, 
+           isSellerProfileComplete: sellerCheck.isComplete
+         });
+    } else {
+         // Handle case where Gupshup call failed explicitly
+         console.error("Failed to send WhatsApp message:", whatsappResult.error);
+         // Still return success for OTP generation, but maybe include a warning
+         return NextResponse.json({
+            success: true, // OTP was generated and stored
+            message: "OTP generated, but failed to send to WhatsApp.", 
+            expiresAt,
+            isExistingSeller: sellerCheck.exists,
+            isSellerProfileComplete: sellerCheck.isComplete,
+            sendError: whatsappResult.error // Optionally pass error detail
+         });
+    }
+    // --- End Direct Implementation Logic ---
     
   } catch (error) {
-    console.error('OTP send error:', error);
+    console.error('Seller OTP send error:', error);
     return NextResponse.json(
       { 
         success: false, 
@@ -380,53 +380,5 @@ export async function POST(request) {
       },
       { status: 500 }
     );
-  }
-}
-
-// Helper function to handle response
-async function handleResponse(response) {
-  console.log(`OTP send response status: ${response.status} ${response.statusText}`);
-  
-  if (!response.ok) {
-    let errorMessage = 'Failed to send OTP';
-    try {
-      const errorData = await response.json();
-      console.error('OTP send error data:', errorData);
-      errorMessage = errorData.message || errorMessage;
-    } catch (e) {
-      console.error('Failed to parse error response from OTP send');
-      try {
-        const errorText = await response.text();
-        console.error('Error response text:', errorText);
-      } catch (textError) {
-        // Ignore if we can't get text
-      }
-    }
-    
-    return NextResponse.json(
-      { 
-        success: false, 
-        message: errorMessage 
-      },
-      { status: response.status }
-    );
-  }
-  
-  try {
-    const data = await response.json();
-    console.log('OTP sent successfully:', data);
-    
-    return NextResponse.json({
-      success: true,
-      message: 'OTP sent successfully',
-      expiresAt: data.expiresAt,
-      isExistingSeller: data.isExistingSeller
-    });
-  } catch (e) {
-    console.error('Failed to parse success response:', e);
-    return NextResponse.json({
-      success: true,
-      message: 'OTP sent successfully but got invalid response format'
-    });
   }
 } 

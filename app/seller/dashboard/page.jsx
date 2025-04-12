@@ -195,27 +195,27 @@ function DashboardContent() {
     {
       title: "Products",
       href: "/seller/products",
-      icon: <FiPlusSquare className="w-6 h-6 text-white" />,
+      icon: <FiPlusSquare className="w-6 h-6 text-black" />,
     },
     {
       title: "Your Orders",
       href: "/seller/orders",
-      icon: <FiShoppingBag className="w-6 h-6 text-white" />,
+      icon: <FiShoppingBag className="w-6 h-6 text-black" />,
     },
     {
       title: "Earnings",
       href: "/seller/earnings",
-      icon: <FiDollarSign className="w-6 h-6 text-white" />,
+      icon: <FiDollarSign className="w-6 h-6 text-black" />,
     },
     {
       title: "Refunds",
       href: "/seller/refunds",
-      icon: <FiRefreshCw className="w-6 h-6 text-white" />,
+      icon: <FiRefreshCw className="w-6 h-6 text-black" />,
     },
     {
       title: "My Profile",
       href: "/seller/profile",
-      icon: <FiUser className="w-6 h-6 text-white" />,
+      icon: <FiUser className="w-6 h-6 text-black" />,
     },
   ];
 
@@ -262,15 +262,15 @@ function DashboardContent() {
                   Store Visibility:
                 </span>
                 <button
-                  disabled={isToggling}
+                  disabled={isToggling || !storeStatus}
                   onClick={handleVisibilityToggle}
-                  className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-primary ${
-                    isVisible ? 'bg-primary' : 'bg-gray-300'
+                  className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary disabled:opacity-50 disabled:cursor-not-allowed ${
+                    isVisible ? 'bg-green-500' : 'bg-black'
                   }`}
                 >
                   <span
-                    className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                      isVisible ? 'translate-x-6' : 'translate-x-1'
+                    className={`inline-block h-4 w-4 transform rounded-full transition-transform ${
+                      isVisible ? 'translate-x-6 bg-black' : 'translate-x-1 bg-white'
                     }`}
                   />
                 </button>
@@ -286,6 +286,11 @@ function DashboardContent() {
                   )}
                 </span>
               </div>
+              {!storeStatus && (
+                 <p className="text-xs text-red-600 text-right mt-1">
+                   Can only change when store is open
+                 </p>
+              )}
             </div>
           </div>
           

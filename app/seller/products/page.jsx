@@ -207,9 +207,9 @@ function ProductsListContent() {
           <div className="flex flex-col sm:flex-row gap-3">
             <Link
               href="/seller/products/add"
-              className="bg-secondary px-4 py-2 text-white rounded-md hover:bg-secondary-dark transition-colors flex items-center shadow-sm"
+              className="bg-secondary px-4 py-2 rounded-md hover:bg-secondary-dark transition-colors flex items-center shadow-sm"
             >
-              <FiPlus className="mr-2 text-white" />
+              <FiPlus className="mr-2 text-black" />
               Add New Product
             </Link>
           </div>
@@ -227,9 +227,9 @@ function ProductsListContent() {
             <div className="mt-6">
               <Link
                 href="/seller/products/add"
-                className="inline-flex items-center px-5 py-2.5 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-secondary hover:bg-secondary-dark transition-colors"
+                className="inline-flex items-center px-5 py-2.5 border border-transparent shadow-sm text-sm font-medium rounded-md bg-secondary hover:bg-secondary-dark transition-colors"
               >
-                <FiPlus className="mr-2" />
+                <FiPlus className="mr-2 text-black" />
                 Add Product
               </Link>
             </div>
@@ -277,16 +277,16 @@ function ProductsListContent() {
                           onClick={() =>
                             router.push(`/seller/products/edit/${product.id}`)
                           }
-                          className="px-2 py-1 text-xs bg-secondary text-white rounded hover:bg-secondary-dark transition-colors flex items-center"
+                          className="px-2 py-1 text-xs bg-secondary rounded hover:bg-secondary-dark transition-colors flex items-center"
                         >
-                          <FiEdit2 className="mr-1 w-3 h-3" />
+                          <FiEdit2 className="mr-1 w-3 h-3 text-black" />
                           Edit
                         </button>
                         <button
                           onClick={() => handleDelete(product.id)}
-                          className="px-2 py-1 text-xs bg-error text-white rounded hover:bg-error-dark transition-colors flex items-center"
+                          className="px-2 py-1 text-xs bg-error rounded hover:bg-error-dark transition-colors flex items-center"
                         >
-                          <FiTrash2 className="mr-1 w-3 h-3" />
+                          <FiTrash2 className="mr-1 w-3 h-3 text-black" />
                           Delete
                         </button>
                       </div>
@@ -511,14 +511,14 @@ function ProductsListContent() {
                               className="p-2 bg-secondary bg-opacity-10 text-secondary rounded-md hover:bg-opacity-20 transition-colors"
                               title="Edit Product"
                             >
-                              <FiEdit2 className="w-4 h-4 text-white" />
+                              <FiEdit2 className="w-4 h-4 text-black" />
                             </button>
                             <button
                               onClick={() => handleDelete(product.id)}
                               className="p-2 bg-error bg-opacity-10 text-error rounded-md hover:bg-opacity-20 transition-colors"
                               title="Delete Product"
                             >
-                              <FiTrash2 className="w-4 h-4 text-white" />
+                              <FiTrash2 className="w-4 h-4 text-black" />
                             </button>
                           </div>
                         </td>

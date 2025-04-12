@@ -203,8 +203,9 @@ export default function SellerSignin() {
             {!otpSent ? (
               <button
                 type="submit"
-                className="w-full text-pink-500 text-bold hover:text-white py-3 rounded-md hover:bg-secondary-dark transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                className="w-full py-3 text-lg font-bold text-white bg-black hover:bg-gray-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                 disabled={otpLoading || formData.phone.length !== 10}
+                onClick={handleSendOtp}
               >
                 {otpLoading ? "Sending OTP..." : "Send OTP to WhatsApp"}
               </button>
@@ -251,33 +252,23 @@ export default function SellerSignin() {
                   />
                 </div>
 
-                <button
-                  type="button"
-                  onClick={handleVerifyOtp}
-                  className="w-full text-pink-500 text-bold hover:text-white py-3 rounded-md hover:bg-secondary-dark transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                  disabled={otpLoading || otpCode.length !== 6}
-                >
-                  {otpLoading ? "Verifying..." : "Verify & Sign In"}
-                </button>
-
-                <div className="flex justify-between">
+                <div className="flex flex-col space-y-3">
+                  <button 
+                    type="button"
+                    onClick={handleVerifyOtp}
+                    className="w-full py-3 text-lg font-bold text-white bg-black hover:bg-gray-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                    disabled={otpLoading || otpCode.length !== 6}
+                  >
+                    {otpLoading ? "Verifying..." : "Verify OTP & Login"}
+                  </button>
+                  
                   <button
                     type="button"
                     onClick={handleResendOtp}
-                    className="text-secondary hover:underline"
-                    disabled={timeRemaining && timeRemaining !== "Expired"}
+                    className="text-secondary hover:underline disabled:opacity-50 disabled:cursor-not-allowed"
+                    disabled={otpLoading || (timeRemaining && timeRemaining !== "Expired")}
                   >
                     Resend OTP
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setOtpSent(false);
-                      setOtpCode("");
-                    }}
-                    className="text-gray-500 hover:underline"
-                  >
-                    Change Phone Number
                   </button>
                 </div>
               </div>

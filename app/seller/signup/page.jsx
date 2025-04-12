@@ -225,7 +225,7 @@ export default function SellerSignup() {
               <LoadingButton
                 type="submit"
                 variant="secondary"
-                className="w-full py-3 text-lg font-bold text-white bg-ui-button hover:bg-ui"
+                className="w-full py-3 text-lg font-bold text-white bg-black hover:bg-gray-800"
                 fullWidth
                 isLoading={otpLoading}
                 loadingText="Sending OTP..."
@@ -289,24 +289,23 @@ export default function SellerSignup() {
                 />
               </div>
 
-              <div className="flex items-center mb-4">
+              <div className="flex items-center">
                 <input
                   type="checkbox"
                   id="terms"
                   checked={termsAccepted}
-                  onChange={() => setTermsAccepted(!termsAccepted)}
-                  className="h-4 w-4 text-primary border-ui-border rounded focus:ring-primary"
+                  onChange={(e) => setTermsAccepted(e.target.checked)}
+                  className="h-4 w-4 text-primary focus:ring-primary border-gray-300 rounded"
                 />
-                <label htmlFor="terms" className="ml-2 text-sm text-text">
-                  I accept and agree to the{" "}
+                <label htmlFor="terms" className="ml-2 block text-sm text-text">
+                  I agree to the{" "}
                   <button
                     type="button"
                     onClick={() => setShowTermsModal(true)}
-                    className="text-blue-500 hover:underline"
+                    className="text-primary hover:underline font-medium"
                   >
-                    Terms of Use
+                    Terms and Conditions
                   </button>
-                  .
                 </label>
               </div>
 
@@ -314,13 +313,13 @@ export default function SellerSignup() {
                 <LoadingButton
                   type="submit"
                   variant="secondary"
-                  className="w-full py-3 text-lg font-bold text-white bg-ui-button hover:bg-ui"
+                  className="w-full py-3 text-lg font-bold text-white bg-black hover:bg-gray-800"
                   fullWidth
                   isLoading={otpLoading}
                   loadingText="Verifying..."
-                  disabled={otpCode.length !== 6 || !termsAccepted}
+                  disabled={!termsAccepted || otpCode.length !== 6}
                 >
-                  Verify & Create Account
+                  Verify OTP & Create Account
                 </LoadingButton>
                 
                 <button
