@@ -345,16 +345,6 @@ function CheckoutContent() {
                     </div>
                   )}
                   
-                  <div className="flex justify-between">
-                    <span className="text-gray-600">Delivery Fee</span>
-                    <span>₹{deliveryFee}</span>
-                  </div>
-                  
-                  <div className="flex justify-between">
-                    <span className="text-gray-600">Convenience Fee</span>
-                    <span>₹{convenienceFee}</span>
-                  </div>
-                  
                   <div className="border-t border-gray-200 pt-3 mt-2">
                     <div className="flex justify-between font-semibold">
                       <span>Total Amount</span>
