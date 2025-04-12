@@ -79,25 +79,30 @@ model OTP {
 }
 
 model Order {
-  id                String        @id
-  orderNumber       String        @unique
-  userId            String
-  totalAmount       Float
-  status            OrderStatus   @default(PENDING)
-  paymentStatus     PaymentStatus @default(PENDING)
-  paymentMethod     PaymentMethod @default(COD)
-  addressId         String?
-  discount          Float         @default(0)
-  shippingFee       Float         @default(0)
-  tax               Float         @default(0)
-  notes             String?
-  deliveryNotes     String?
-  estimatedDelivery DateTime?
-  trackingNumber    String?
-  deliveredAt       DateTime?
-  cancelledAt       DateTime?
-  createdAt         DateTime      @default(now())
-  updatedAt         DateTime
+  id                     String        @id
+  orderNumber            String        @unique
+  userId                 String
+  totalAmount            Float
+  status                 OrderStatus   @default(PENDING)
+  paymentStatus          PaymentStatus @default(PENDING)
+  paymentMethod          PaymentMethod @default(COD)
+  addressId              String?
+  discount               Float         @default(0)
+  shippingFee            Float         @default(0)
+  tax                    Float         @default(0)
+  notes                  String?
+  deliveryNotes          String?
+  estimatedDelivery      DateTime?
+  trackingNumber         String?
+  deliveredAt            DateTime?
+  cancelledAt            DateTime?
+  createdAt              DateTime      @default(now())
+  updatedAt              DateTime
+  sellerPhone            String?
+  adminNotified          Boolean?      @default(false)
+  sellerNotified         Boolean?      @default(false)
+  customerNotified       Boolean?      @default(false)
+  sellerResponseDeadline DateTime?     @db.Timestamptz(6)
 
   @@index([userId, status])
   @@index([status, paymentStatus])
@@ -155,7 +160,7 @@ model Product {
   sellerId       String
   variantGroupId String?
   isReturnable   Boolean          @default(true)
-  seller         Seller           @relation(fields: [sellerId], references: [id])
+  seller         Seller           @relation(fields: [sellerId], references: [id], onDelete: Cascade)
   colorInventory ColorInventory[]
 
   @@index([isActive, sellerId], map: "idx_product_active_seller")
@@ -190,8 +195,8 @@ model RefreshToken {
 
 /// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
 model Seller {
-  id              String    @id @default(cuid())
-  phone           String    @unique
+  id              String                    @id @default(cuid())
+  phone           String                    @unique
   password        String?
   shopName        String?
   ownerName       String?
@@ -201,16 +206,16 @@ model Seller {
   pincode         String?
   openTime        String?
   closeTime       String?
-  categories      String[]  @default([])
-  createdAt       DateTime  @default(now())
-  updatedAt       DateTime  @default(now()) @updatedAt
+  categories      String[]                  @default([])
+  createdAt       DateTime                  @default(now())
+  updatedAt       DateTime                  @default(now()) @updatedAt
   latitude        Float?
   longitude       Float?
-  isPhoneVerified Boolean   @default(false)
+  isPhoneVerified Boolean                   @default(false)
   gstNumber       String?
-  isVisible       Boolean   @default(true)
-  manuallyHidden  Boolean   @default(false)
-  location        Unsupported("geography(Point)")?
+  isVisible       Boolean                   @default(true)
+  manuallyHidden  Boolean                   @default(false)
+  location        Unsupported("geography")?
   products        Product[]
 
   @@index([manuallyHidden], map: "idx_seller_manually_hidden")
@@ -267,6 +272,27 @@ model WhatsAppOTP {
   isNewUser   Boolean? @default(false)
 
   @@index([phoneNumber, expiresAt])
+}
+
+model PushSubscription {
+  id        String   @id @default(dbgenerated("uuid_generate_v4()"))
+  endpoint  String   @unique
+  p256dh    String
+  auth      String
+  sellerId  String
+  createdAt DateTime @default(now())
+  updatedAt DateTime
+
+  @@index([sellerId])
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model spatial_ref_sys {
+  srid      Int     @id
+  auth_name String? @db.VarChar(256)
+  auth_srid Int?
+  srtext    String? @db.VarChar(2048)
+  proj4text String? @db.VarChar(2048)
 }
 
 enum OrderStatus {

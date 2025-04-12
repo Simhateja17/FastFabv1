@@ -3,7 +3,7 @@
 import { useState, useEffect, Suspense } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "react-hot-toast";
-import { FiBox, FiUsers, FiShoppingBag, FiDollarSign } from "react-icons/fi";
+import { FiBox, FiUsers, FiShoppingBag, FiDollarSign, FiCalendar } from "react-icons/fi";
 import getAdminApiClient from "@/app/utils/apiClient";
 
 // StatsCard component
@@ -60,49 +60,52 @@ function AdminDashboardContent() {
     activeProductsCount: 0,
     totalOrders: 0,
     totalRevenue: 0,
+    todayOrdersCount: 0,
+    usersCount: 0,
   });
   const [recentSellers, setRecentSellers] = useState([]);
   const [recentProducts, setRecentProducts] = useState([]);
+  const [recentOrders, setRecentOrders] = useState([]);
 
   const fetchDashboardData = async () => {
     try {
       const apiClient = getAdminApiClient();
       setLoading(true);
+      setError(null);
 
-      // Fetch sellers data (for count and recent sellers)
-      const sellersResponse = await apiClient.get("/api/admin/sellers");
-      let sellers = [];
-
-      if (Array.isArray(sellersResponse.data)) {
-        sellers = sellersResponse.data;
-        setRecentSellers(sellers.slice(0, 5)); // Take first 5 sellers
-        setStats((prevStats) => ({
-          ...prevStats,
-          sellersCount: sellers.length,
-        }));
+      // Use the dashboard-stats endpoint on the seller service with the correct prefix
+      const dashboardResponse = await apiClient.get("/api/admin/dashboard-stats");
+      
+      if (dashboardResponse.data) {
+        const { stats, recentSellers, recentProducts, recentOrders } = dashboardResponse.data;
+        
+        // Update stats
+        setStats({
+          sellersCount: stats.sellersCount || 0,
+          productsCount: stats.productsCount || 0,
+          activeProductsCount: stats.activeProductsCount || 0,
+          totalOrders: stats.totalOrders || 0,
+          totalRevenue: stats.totalRevenue || 0,
+          todayOrdersCount: stats.todayOrdersCount || 0,
+          usersCount: stats.usersCount || 0,
+        });
+        
+        // Update recent data
+        if (Array.isArray(recentSellers)) {
+          setRecentSellers(recentSellers);
+        }
+        
+        if (Array.isArray(recentProducts)) {
+          // Filter out any products that might have missing seller data
+          setRecentProducts(recentProducts.filter(product => product && product.seller));
+        }
+        
+        if (Array.isArray(recentOrders)) {
+          setRecentOrders(recentOrders);
+        }
       } else {
-        console.error("Invalid sellers response format:", sellersResponse.data);
-      }
-
-      // Fetch products data
-      const productsResponse = await apiClient.get("/api/admin/products");
-      let products = [];
-
-      if (Array.isArray(productsResponse.data)) {
-        products = productsResponse.data;
-        setRecentProducts(products.slice(0, 5)); // Take first 5 products
-
-        // Calculate statistics
-        setStats((prevStats) => ({
-          ...prevStats,
-          productsCount: products.length,
-          activeProductsCount: products.filter((p) => p.isActive).length,
-        }));
-      } else {
-        console.error(
-          "Invalid products response format:",
-          productsResponse.data
-        );
+        console.error("Invalid dashboard response format:", dashboardResponse.data);
+        setError("Invalid response format from API");
       }
     } catch (error) {
       console.error("Error fetching dashboard data:", error);
@@ -189,6 +192,33 @@ function AdminDashboardContent() {
           color="bg-yellow-500"
           link="/superadmin/orders"
         />
+        <StatsCard
+          title="Today's Orders"
+          value={stats.todayOrdersCount || 0}
+          icon={<FiShoppingBag className="w-6 h-6" />}
+          color="bg-indigo-500"
+          link="/superadmin/orders"
+        />
+        <StatsCard
+          title="Total Users"
+          value={stats.usersCount || 0}
+          icon={<FiUsers className="w-6 h-6" />}
+          color="bg-teal-500"
+          link="/superadmin/users"
+        />
+      </div>
+
+      {/* Revenue Card */}
+      <div className="bg-white rounded-lg shadow-sm p-6 mb-6">
+        <h2 className="text-lg font-semibold mb-4">Revenue Overview</h2>
+        <div className="flex items-center">
+          <div className="text-3xl font-bold text-green-600">
+            {formatCurrency(stats.totalRevenue || 0)}
+          </div>
+          <div className="ml-4 text-sm text-gray-500">
+            Total revenue from {stats.totalOrders || 0} orders
+          </div>
+        </div>
       </div>
 
       {/* Recent sellers */}
@@ -285,12 +315,12 @@ function AdminDashboardContent() {
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {recentProducts.map((product) => (
               <div
-                key={product.id}
+                key={product.id || 'unknown'}
                 className="border rounded-lg overflow-hidden shadow-sm"
               >
                 <div className="p-4">
                   <h3 className="text-sm font-medium text-gray-900 truncate">
-                    {product.name}
+                    {product.name || 'Unnamed Product'}
                   </h3>
                   <p className="text-xs text-gray-500 mt-1">
                     {product.category || "Uncategorized"}
@@ -312,6 +342,86 @@ function AdminDashboardContent() {
                 </div>
               </div>
             ))}
+          </div>
+        </div>
+      )}
+
+      {/* Recent orders section */}
+      {recentOrders && recentOrders.length > 0 && (
+        <div className="bg-white rounded-lg shadow-sm p-6 mt-6">
+          <div className="flex justify-between items-center mb-4">
+            <h2 className="text-lg font-semibold">Recent Orders</h2>
+            <button
+              onClick={() => router.push("/superadmin/orders")}
+              className="text-sm text-primary hover:underline"
+            >
+              View All
+            </button>
+          </div>
+
+          <div className="overflow-x-auto">
+            <table className="min-w-full divide-y divide-gray-200">
+              <thead className="bg-gray-50">
+                <tr>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Order #
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Customer
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Amount
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Date
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Status
+                  </th>
+                </tr>
+              </thead>
+              <tbody className="bg-white divide-y divide-gray-200">
+                {recentOrders.map((order) => (
+                  <tr 
+                    key={order.id} 
+                    className="hover:bg-gray-50 cursor-pointer"
+                    onClick={() => router.push(`/superadmin/orders/${order.id}`)}
+                  >
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <div className="text-sm font-medium text-gray-900">
+                        {order.orderNumber || order.id.substring(0, 8)}
+                      </div>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <div className="text-sm text-gray-900">
+                        {order.user?.name || "Guest User"}
+                      </div>
+                      <div className="text-xs text-gray-500">
+                        {order.user?.email}
+                      </div>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <div className="text-sm font-medium text-gray-900">
+                        {formatCurrency(order.totalAmount || 0)}
+                      </div>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <div className="text-sm text-gray-500">
+                        {new Date(order.createdAt).toLocaleDateString()}
+                      </div>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <span className={`px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full 
+                        ${order.status === 'DELIVERED' ? 'bg-green-100 text-green-800' : 
+                          order.status === 'CANCELLED' ? 'bg-red-100 text-red-800' : 
+                          'bg-yellow-100 text-yellow-800'}`}>
+                        {order.status || "PENDING"}
+                      </span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
         </div>
       )}
