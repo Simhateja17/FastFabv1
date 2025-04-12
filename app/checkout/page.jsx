@@ -10,7 +10,7 @@ import PageHero from "../components/PageHero";
 import Image from "next/image";
 import { PUBLIC_ENDPOINTS, USER_ENDPOINTS, API_URL } from "@/app/config";
 import LoadingSpinner from "@/app/components/LoadingSpinner";
-import { FiMapPin } from "react-icons/fi";
+import { FiMapPin, FiShield } from "react-icons/fi";
 import Script from 'next/script';
 
 function CheckoutContent() {
@@ -35,17 +35,17 @@ function CheckoutContent() {
       setLoading(true);
       setError(null);
       const productId = searchParams.get('productId');
-      const color = searchParams.get('color');
-      const size = searchParams.get('size');
       const quantityParam = searchParams.get('quantity');
+      const colorParam = searchParams.get('color');
+      const sizeParam = searchParams.get('size');
 
-      if (productId && color && size && quantityParam) {
+      if (productId && quantityParam) {
         setIsBuyNow(true);
         console.log("Checkout: Buy Now flow detected.");
         try {
           const quantity = parseInt(quantityParam, 10);
           if (isNaN(quantity) || quantity <= 0) {
-            throw new Error("Invalid quantity.");
+            throw new Error("Invalid quantity provided.");
           }
 
           const productRes = await fetch(PUBLIC_ENDPOINTS.PRODUCT_DETAIL(productId));
@@ -54,14 +54,31 @@ function CheckoutContent() {
           }
           const productData = await productRes.json();
           
+          const requiresVariations = productData.colorInventories && productData.colorInventories.length > 0;
+          let finalColor = null;
+          let finalSize = null;
+
+          if (requiresVariations) {
+            if (!colorParam || !sizeParam) {
+              console.error("Buy Now Error: Variations required but color/size missing in URL.", { productId, colorParam, sizeParam });
+              throw new Error("Product variation (color/size) missing. Please go back and select options on the product page.");
+            }
+            finalColor = colorParam;
+            finalSize = sizeParam;
+            console.log("Checkout: Variations required and validated:", { finalColor, finalSize });
+          } else {
+            console.log("Checkout: Variations not required for this product.");
+          }
+
           const buyNowItem = {
             id: productId,
             name: productData.name,
             price: productData.sellingPrice,
+            mrpPrice: productData.mrpPrice,
             image: productData.images?.[0] || '/placeholder.png',
             quantity: quantity,
-            size: size,
-            color: color,
+            size: finalSize,
+            color: finalColor,
           };
           setCheckoutItems([buyNowItem]);
           console.log("Checkout: Buy Now item prepared:", buyNowItem);
@@ -69,7 +86,7 @@ function CheckoutContent() {
         } catch (err) {
           console.error("Error processing Buy Now item:", err);
           toast.error(err.message || "Could not load product for checkout.");
-          setError("Failed to load item details.");
+          setError("Failed to load item details. " + err.message);
           setCheckoutItems([]);
         }
 
@@ -125,8 +142,25 @@ function CheckoutContent() {
     0
   );
   
-  const shipping = subtotal > 0 ? 99 : 0;
-  const total = subtotal + shipping;
+  const deliveryFee = 40;
+  const convenienceFee = 10;
+  const total = subtotal + deliveryFee + convenienceFee;
+  
+  // Calculate original MRP and discount
+  const calculateTotalMRP = () => {
+    return checkoutItems.reduce(
+      (total, item) => {
+        // If the item has an original MRP stored, use that
+        // Otherwise, use the current price as MRP
+        const itemMRP = item.mrpPrice || item.price || 0;
+        return total + itemMRP * (item.quantity || 0);
+      },
+      0
+    );
+  };
+  
+  const totalMRP = calculateTotalMRP();
+  const discountOnMRP = totalMRP > subtotal ? totalMRP - subtotal : 0;
   
   const handlePlaceOrder = async () => {
     if (checkoutItems.length === 0) {
@@ -242,7 +276,7 @@ function CheckoutContent() {
    }
   
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-gray-50 py-12">
       <Script
         src="https://sdk.cashfree.com/js/v3/cashfree.js"
         onLoad={() => {
@@ -254,61 +288,13 @@ function CheckoutContent() {
           toast.error('Failed to load payment system. Please refresh the page.');
         }}
       />
-      <PageHero title="Checkout" subtitle="Complete your purchase" />
-      
-      <div className="container mx-auto px-4 py-8">
-        <div className="flex flex-col lg:flex-row gap-8">
-          <div className="lg:w-2/3">
-            <div className="bg-white p-6 rounded-lg shadow-sm mb-6">
-              <div className="flex justify-between items-center mb-4">
-                  <h2 className="text-xl font-semibold">Delivery Location</h2>
-              </div>
+      <div className="container mx-auto px-4 py-6">
+        <div className="flex flex-col lg:flex-row gap-4">
+          <div className="lg:w-7/12 order-1 lg:order-1">
+            <div className="bg-white p-6 rounded-lg shadow-md sticky top-20">
+              <h2 className="text-xl font-semibold mb-4 text-gray-800">Order Summary</h2>
               
-              {userLocation?.label ? (
-                <div className="border rounded-lg p-4 bg-gray-50 border-gray-200">
-                  <div className="flex items-start">
-                    <FiMapPin className="mr-3 mt-1 h-5 w-5 text-primary flex-shrink-0" />
-                    <div>
-                      <p className="font-medium text-gray-800">Deliver to:</p>
-                      <p className="text-gray-700 text-lg font-semibold mt-1">{userLocation.label}</p>
-                    </div>
-                  </div>
-                </div>
-              ) : (
-                <div className="text-center py-6 border border-dashed border-red-300 rounded-md bg-red-50">
-                   <p className="text-red-700 mb-3 font-medium">Delivery location not set.</p>
-                    <p className="text-red-600 text-sm">Please select your location from the top navigation bar.</p>
-                </div>
-              )}
-            </div>
-            
-            <div className="bg-white p-6 rounded-lg shadow-sm">
-                <h2 className="text-xl font-semibold mb-4">Payment Method</h2>
-                <div className="space-y-3">
-                    <div 
-                        className={`border rounded-lg p-4 border-primary bg-primary-50 ring-1 ring-primary`}
-                    >
-                        <label className="flex items-center">
-                            <input 
-                                type="radio" 
-                                name="paymentMethod" 
-                                value="online"
-                                checked={paymentMethod === 'online'} 
-                                readOnly
-                                className="mr-3 h-4 w-4 text-primary focus:ring-primary border-gray-300"
-                            />
-                            Online Payment (Credit/Debit Card, UPI)
-                        </label>
-                    </div>
-                </div>
-            </div>
-          </div>
-          
-          <div className="lg:w-1/3">
-            <div className="bg-white p-6 rounded-lg shadow-sm sticky top-20">
-              <h2 className="text-xl font-semibold mb-4">Order Summary</h2>
-              
-              <div className="max-h-[300px] overflow-y-auto mb-4 divide-y divide-gray-200">
+              <div className="max-h-[300px] overflow-y-auto mb-4 divide-y divide-gray-200 pr-2">
                 {checkoutItems.map(item => (
                   <div key={`${item.id}-${item.size || 'nosize'}-${item.color || 'nocolor'}`} className="flex py-3 first:pt-0 last:pb-0">
                     <div className="w-16 h-16 flex-shrink-0 bg-gray-100 rounded overflow-hidden">
@@ -337,33 +323,55 @@ function CheckoutContent() {
                       </div>
                       <div className="flex justify-between items-center mt-1">
                         <p className="text-sm text-gray-600">Qty: {item.quantity}</p>
-                        <p className="text-sm font-semibold">₹{(item.price || 0) * (item.quantity || 0)}</p>
                       </div>
                     </div>
                   </div>
                 ))}
               </div>
               
-              <div className="space-y-2 py-3 border-b border-t border-gray-200">
-                <div className="flex justify-between">
-                  <span className="text-gray-600">Subtotal</span>
-                  <span>{new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR' }).format(subtotal)}</span>
+              <div className="border-t border-gray-200 pt-4">
+                <h3 className="text-base font-medium text-gray-800 mb-3">PRICE DETAILS ({checkoutItems.reduce((total, item) => total + item.quantity, 0)} {checkoutItems.reduce((total, item) => total + item.quantity, 0) > 1 ? 'Items' : 'Item'})</h3>
+                
+                <div className="space-y-3">
+                  <div className="flex justify-between">
+                    <span className="text-gray-600">Total MRP</span>
+                    <span>₹{totalMRP}</span>
+                  </div>
+                  
+                  {discountOnMRP > 0 && (
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">Discount on MRP</span>
+                      <span className="text-gray-900">-₹{discountOnMRP}</span>
+                    </div>
+                  )}
+                  
+                  <div className="flex justify-between">
+                    <span className="text-gray-600">Delivery Fee</span>
+                    <span>₹{deliveryFee}</span>
+                  </div>
+                  
+                  <div className="flex justify-between">
+                    <span className="text-gray-600">Convenience Fee</span>
+                    <span>₹{convenienceFee}</span>
+                  </div>
+                  
+                  <div className="border-t border-gray-200 pt-3 mt-2">
+                    <div className="flex justify-between font-semibold">
+                      <span>Total Amount</span>
+                      <span>₹{total}</span>
+                    </div>
+                  </div>
                 </div>
-                <div className="flex justify-between">
-                  <span className="text-gray-600">Shipping</span>
-                  <span>{shipping > 0 ? new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR' }).format(shipping) : 'Free'}</span>
-                </div>
-              </div>
-              
-              <div className="flex justify-between py-3 font-semibold">
-                <span>Total</span>
-                <span className="text-lg">{new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR' }).format(total)}</span>
               </div>
               
               <button
                 onClick={handlePlaceOrder}
                 disabled={!cashfreeInstance || isProcessingPayment || !userLocation?.label}
-                className={`w-full py-3 mt-4 rounded-md font-medium text-white transition-colors ${(!cashfreeInstance || isProcessingPayment || !userLocation?.label) ? 'bg-gray-400 cursor-not-allowed' : 'bg-primary hover:bg-primary-dark'}`}
+                className={`w-full py-4 mt-6 rounded-lg font-bold uppercase text-white text-lg tracking-wide transition-all duration-300 text-center flex items-center justify-center shadow-lg ${ 
+                  (!cashfreeInstance || isProcessingPayment || !userLocation?.label) 
+                  ? 'bg-gray-400 cursor-not-allowed opacity-70' 
+                  : 'bg-black hover:bg-gray-800 hover:shadow-xl hover:scale-[1.02] active:scale-[0.98]'
+                }`}
               >
                 {isProcessingPayment ? (
                     <span className="flex items-center justify-center">
@@ -371,11 +379,37 @@ function CheckoutContent() {
                         <span className="ml-2">Processing...</span>
                     </span>
                 ) : (
-                    `Pay ₹${total.toFixed(2)} Securely`
+                    <span>Click to Pay ₹{total}</span>
                 )}
               </button>
             </div>
           </div>
+
+          <div className="lg:w-5/12 order-2 lg:order-2">
+            <div className="bg-white p-6 rounded-lg shadow-md">
+              <div className="flex justify-between items-center mb-4">
+                  <h2 className="text-xl font-semibold text-gray-800">Delivery Location</h2>
+              </div>
+              
+              {userLocation?.label ? (
+                <div className="border rounded-lg p-4 bg-gray-50 border-gray-200">
+                  <div className="flex items-start">
+                    <FiMapPin className="mr-3 mt-1 h-5 w-5 text-primary flex-shrink-0" />
+                    <div>
+                      <p className="font-medium text-gray-800">Deliver to:</p>
+                      <p className="text-gray-700 text-lg font-semibold mt-1">{userLocation.label}</p>
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <div className="text-center py-6 border border-dashed border-red-300 rounded-md bg-red-50">
+                   <p className="text-red-700 mb-3 font-medium">Delivery location not set.</p>
+                    <p className="text-red-600 text-sm">Please select your location from the top navigation bar.</p>
+                </div>
+              )}
+            </div>
+          </div>
+          
         </div>
         
         <div id="payment-form" className="mt-4"></div>

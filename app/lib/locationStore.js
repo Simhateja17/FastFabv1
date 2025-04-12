@@ -17,16 +17,34 @@ export const useLocationStore = create(
       locationEnabled: false,
       
       // Set user location
-      setUserLocation: (location) => set({ 
-        userLocation: location,
-        locationEnabled: true
-      }),
+      setUserLocation: (location) => {
+        console.log('LocationStore: Setting user location', location);
+        
+        // Also set the flag when the location is set programmatically
+        if (typeof window !== 'undefined') {
+          localStorage.setItem("locationSet", "true");
+        }
+        
+        return set({ 
+          userLocation: location,
+          locationEnabled: true
+        });
+      },
       
       // Clear user location
-      clearUserLocation: () => set({ 
-        userLocation: null,
-        locationEnabled: false 
-      }),
+      clearUserLocation: () => {
+        console.log('LocationStore: Clearing user location');
+        
+        // Also clear the flag
+        if (typeof window !== 'undefined') {
+          localStorage.removeItem("locationSet");
+        }
+        
+        return set({ 
+          userLocation: null,
+          locationEnabled: false 
+        });
+      },
       
       // Toggle location enabled/disabled
       toggleLocationEnabled: () => set((state) => ({ 
@@ -36,7 +54,9 @@ export const useLocationStore = create(
       // Check if location is set
       isLocationSet: () => {
         const state = useLocationStore.getState();
-        return !!(state.userLocation?.latitude && state.userLocation?.longitude && state.locationEnabled);
+        const result = !!(state.userLocation?.latitude && state.userLocation?.longitude && state.locationEnabled);
+        console.log('LocationStore: Checking if location is set', result);
+        return result;
       },
     }),
     {
@@ -55,28 +75,40 @@ export const LocationStore = {
 // Initialize from existing localStorage data for backward compatibility
 if (typeof window !== 'undefined') {
   try {
+    // Check for both flags
+    const locationSet = localStorage.getItem("locationSet");
+    console.log('LocationStore init: locationSet flag =', locationSet);
+    
     // Immediate location check on import
     const existingLocation = localStorage.getItem("userLocation");
     if (existingLocation) {
-      const locationData = JSON.parse(existingLocation);
+      console.log('LocationStore init: Found existing location in localStorage');
       
-      if (locationData.latitude && locationData.longitude) {
-        // Only set if we have location data in localStorage and it's valid
-        const store = useLocationStore.getState();
+      try {
+        const locationData = JSON.parse(existingLocation);
         
-        // Force update if localStorage has valid location and:
-        // - store doesn't have valid location OR
-        // - localStorage has data with a newer timestamp
-        if (!store.isLocationSet() || 
-            (locationData.timestamp && (!store.userLocation || new Date(locationData.timestamp) > new Date(store.userLocation.timestamp)))) {
-          console.log("Setting location from localStorage:", locationData);
-          useLocationStore.getState().setUserLocation(locationData);
-        } else {
-          console.log("Store already has same or newer location data");
+        if (locationData.latitude && locationData.longitude) {
+          // Only set if we have location data in localStorage and it's valid
+          const store = useLocationStore.getState();
+          
+          // Force update if localStorage has valid location and:
+          // - store doesn't have valid location OR
+          // - localStorage has data with a newer timestamp
+          if (!store.isLocationSet() || 
+              (locationData.timestamp && (!store.userLocation || new Date(locationData.timestamp) > new Date(store.userLocation.timestamp)))) {
+            console.log("LocationStore init: Setting location from localStorage:", locationData);
+            useLocationStore.getState().setUserLocation(locationData);
+          } else {
+            console.log("LocationStore init: Store already has same or newer location data");
+          }
         }
+      } catch (parseError) {
+        console.error("LocationStore init: Error parsing location data:", parseError);
       }
+    } else {
+      console.log('LocationStore init: No existing location in localStorage');
     }
   } catch (error) {
-    console.error("Error migrating existing location data:", error);
+    console.error("LocationStore init: Error migrating existing location data:", error);
   }
 } 

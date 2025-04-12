@@ -361,8 +361,8 @@ export default function SignUp() {
               <button
                 type="submit"
                 disabled={loading}
-                className={`w-full flex justify-center py-3 px-4 border border-transparent rounded-md shadow-sm text-white bg-primary hover:bg-primary focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary ${
-                  loading ? "opacity-70 cursor-not-allowed" : ""
+                className={`w-full flex justify-center py-3 px-4 border border-transparent rounded-lg shadow-lg text-white text-base uppercase font-bold tracking-wide transition-all duration-300 ${
+                  loading ? 'bg-gray-400 cursor-not-allowed opacity-70' : 'bg-black hover:bg-gray-800 hover:shadow-xl active:scale-[0.98]'
                 }`}
               >
                 {loading ? (
@@ -456,8 +456,8 @@ export default function SignUp() {
               <button
                 type="submit"
                 disabled={otpLoading}
-                className={`w-full flex justify-center py-3 px-4 border border-transparent rounded-md shadow-sm text-white bg-primary hover:bg-primary-dark focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary ${
-                  otpLoading ? "opacity-70 cursor-not-allowed" : ""
+                className={`w-full flex justify-center py-3 px-4 border border-transparent rounded-lg shadow-lg text-white text-base uppercase font-bold tracking-wide transition-all duration-300 ${
+                  otpLoading ? 'bg-gray-400 cursor-not-allowed opacity-70' : 'bg-black hover:bg-gray-800 hover:shadow-xl active:scale-[0.98]'
                 }`}
               >
                 {otpLoading ? (
@@ -529,8 +529,8 @@ export default function SignUp() {
               <button
                 type="submit"
                 disabled={loading}
-                className={`w-full flex justify-center py-3 px-4 border border-transparent rounded-md shadow-sm text-white bg-primary hover:bg-primary-dark focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary ${
-                  loading ? "opacity-70 cursor-not-allowed" : ""
+                className={`w-full flex justify-center py-3 px-4 border border-transparent rounded-lg shadow-lg text-white text-base uppercase font-bold tracking-wide transition-all duration-300 ${
+                  loading ? 'bg-gray-400 cursor-not-allowed opacity-70' : 'bg-black hover:bg-gray-800 hover:shadow-xl active:scale-[0.98]'
                 }`}
               >
                 {loading ? (

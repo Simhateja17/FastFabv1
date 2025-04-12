@@ -100,6 +100,7 @@ export default function ProductCard({ product }) {
       id: productId,
       name: productName,
       price: productSellingPrice || productMrpPrice,
+      mrpPrice: productMrpPrice,
       image: finalImageUrl,
       quantity: 1,
       size: 'M'

@@ -14,10 +14,12 @@ import ProductGrid from "../components/ProductGrid";
 import FilterSidebar from "../components/FilterSidebar";
 import { FiSearch } from "react-icons/fi";
 import PageHero from "../components/PageHero";
+import { useLocationStore } from "@/app/lib/locationStore";
 
 function ProductsContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
+  const { userLocation } = useLocationStore();
   const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -75,33 +77,64 @@ function ProductsContent() {
   const currentSearchTerm = searchParams.get("search") || "";
   const searchParamsString = searchParams.toString();
   const filtersKey = JSON.stringify(filters);
-  const locationFilterKey = JSON.stringify(locationFilter);
 
-  // Initialize location filter from user's location store if available
+  // Sync local locationFilter state with store/URL state when they change
   useEffect(() => {
-    // Import can't be at the top level in a React component
-    import('@/app/lib/locationStore').then(({ useLocationStore }) => {
-      const userLocation = useLocationStore.getState().userLocation;
-      
-      // Only set location if we have one from the store AND it's not already set
-      if (userLocation?.latitude && userLocation?.longitude && !locationFilter.location) {
-        console.log("Setting initial location filter from user location:", userLocation);
-        setLocationFilter({
+    const urlLatitude = searchParams.get("latitude");
+    const urlLongitude = searchParams.get("longitude");
+
+    if (urlLatitude && urlLongitude) {
+      // If location is in URL, ensure local state reflects that
+      if (
+        locationFilter.location?.latitude !== parseFloat(urlLatitude) ||
+        locationFilter.location?.longitude !== parseFloat(urlLongitude)
+      ) {
+        console.log("Syncing local location filter from URL params");
+        setLocationFilter(prev => ({
+          ...prev,
           enabled: true,
           location: {
-            latitude: userLocation.latitude,
-            longitude: userLocation.longitude,
+            latitude: parseFloat(urlLatitude),
+            longitude: parseFloat(urlLongitude),
           },
-          radius: 3, // Default 3km radius
-        });
+          radius: parseInt(searchParams.get("radius") || "3", 10),
+        }));
       }
-    });
-  }, [locationFilter.location]);
+    } else if (userLocation?.latitude && userLocation?.longitude) {
+        // If location is in store (and not URL), ensure local state reflects that
+        if (
+          !locationFilter.location ||
+          locationFilter.location.latitude !== userLocation.latitude ||
+          locationFilter.location.longitude !== userLocation.longitude
+        ) {
+          console.log("Syncing local location filter from location store");
+          setLocationFilter(prev => ({
+            ...prev,
+            enabled: true, // Assume enabled if store has location
+            location: {
+              latitude: userLocation.latitude,
+              longitude: userLocation.longitude,
+            },
+            radius: prev.radius || 3, // Keep existing radius or default
+          }));
+        }
+    } else {
+        // If no location in URL or store, ensure local state is disabled
+        if (locationFilter.enabled || locationFilter.location) {
+            console.log("Disabling local location filter as no location is available");
+            setLocationFilter({
+                enabled: false,
+                location: null,
+                radius: 3,
+            });
+        }
+    }
+  }, [searchParams, userLocation, locationFilter.enabled, locationFilter.location]);
 
   // This useEffect triggers the fetch based on stable keys derived from state/props
   useEffect(() => {
     console.log(
-      `[Effect Trigger] Params: ${searchParamsString}, Filters: ${filtersKey}, Location: ${locationFilterKey}`
+      `[Effect Trigger] Params: ${searchParamsString}, Filters: ${filtersKey}, StoreLocation: ${userLocation?.latitude},${userLocation?.longitude}`
     );
 
     // Define and call the async fetch logic directly inside the effect
@@ -134,59 +167,32 @@ function ProductsContent() {
         if (filters.maxPrice !== null && filters.maxPrice !== undefined)
           queryParams.append("maxPrice", filters.maxPrice);
 
-        // First check if location is in URL params (direct search from navbar)
+        // Check for location: Prioritize store, then URL params
         const urlLatitude = searchParams.get("latitude");
         const urlLongitude = searchParams.get("longitude");
-        const urlRadius = searchParams.get("radius") || "3";
-        
+        const urlRadius = searchParams.get("radius") || "3"; // Default radius from URL
+
         let hasLocationData = false;
-        
-        // If location is in URL params, use it
-        if (urlLatitude && urlLongitude) {
+
+        // Use location from store if available
+        if (userLocation?.latitude && userLocation?.longitude) {
+          console.log(`Using location from store: lat=${userLocation.latitude}, lon=${userLocation.longitude}, radius=3km`);
+          queryParams.append("latitude", userLocation.latitude);
+          queryParams.append("longitude", userLocation.longitude);
+          queryParams.append("radius", "3"); // Use a default radius or maybe from local state?
+          hasLocationData = true;
+        }
+        // If not in store, check URL params (e.g., direct link with location)
+        else if (urlLatitude && urlLongitude) {
           console.log(`Using location from URL params: lat=${urlLatitude}, lon=${urlLongitude}, radius=${urlRadius}`);
           queryParams.append("latitude", urlLatitude);
           queryParams.append("longitude", urlLongitude);
           queryParams.append("radius", urlRadius);
           hasLocationData = true;
-        } 
-        // Otherwise use location from state if enabled
-        else if (
-          locationFilter.enabled &&
-          locationFilter.location?.latitude &&
-          locationFilter.location?.longitude
-        ) {
-          console.log(`Adding location filter from state: lat=${locationFilter.location.latitude}, lon=${locationFilter.location.longitude}, radius=${locationFilter.radius}km`);
-          queryParams.append("latitude", locationFilter.location.latitude);
-          queryParams.append("longitude", locationFilter.location.longitude);
-          queryParams.append("radius", locationFilter.radius);
-          hasLocationData = true;
         }
-        // If no location in state, try to get it from store
+        // No location available from store or URL
         else {
-          try {
-            const locationStore = require('@/app/lib/locationStore').useLocationStore.getState();
-            const userLocation = locationStore.userLocation;
-            
-            if (userLocation?.latitude && userLocation?.longitude) {
-              console.log(`Using location from store: lat=${userLocation.latitude}, lon=${userLocation.longitude}`);
-              queryParams.append("latitude", userLocation.latitude);
-              queryParams.append("longitude", userLocation.longitude);
-              queryParams.append("radius", "3"); // Default 3km radius
-              hasLocationData = true;
-              
-              // Update location filter state for UI consistency
-              setLocationFilter({
-                enabled: true,
-                location: {
-                  latitude: userLocation.latitude,
-                  longitude: userLocation.longitude,
-                },
-                radius: 3,
-              });
-            }
-          } catch (err) {
-            console.error('Error accessing location store:', err);
-          }
+          console.log("No location data available from store or URL params.");
         }
 
         // Always use search endpoint for consistency
@@ -295,22 +301,43 @@ function ProductsContent() {
   }, [
     searchParamsString,
     filtersKey,
-    locationFilterKey,
     currentSearchTerm,
+    userLocation?.latitude,
+    userLocation?.longitude,
     filters.category,
     filters.maxPrice,
     filters.minPrice,
-    locationFilter.enabled,
-    locationFilter.location?.latitude,
-    locationFilter.location?.longitude,
-    locationFilter.radius,
     searchParams
   ]);
 
-  // Handler for location filter changes - Memoize this handler
+  // Handler for location filter changes - User explicitly toggles/changes radius via UI
   const handleLocationFilterChange = useCallback((newLocationFilter) => {
+    // Update local state for UI feedback
     setLocationFilter(newLocationFilter);
-  }, []); // setLocationFilter is stable, so empty dependency array is fine
+
+    // Reflect change in URL if location is *disabled* manually
+    if (!newLocationFilter.enabled) {
+      const params = new URLSearchParams(searchParams.toString());
+      params.delete('latitude');
+      params.delete('longitude');
+      params.delete('radius');
+      // Reset page to 1 when filters change significantly
+      params.set('page', '1'); 
+      router.push(`${window.location.pathname}?${params.toString()}`);
+    } else if (newLocationFilter.location) {
+       // If enabled manually (likely radius change), update URL
+       const params = new URLSearchParams(searchParams.toString());
+       params.set('latitude', newLocationFilter.location.latitude.toString());
+       params.set('longitude', newLocationFilter.location.longitude.toString());
+       params.set('radius', newLocationFilter.radius.toString());
+       // Reset page to 1 when filters change significantly
+       params.set('page', '1'); 
+       router.push(`${window.location.pathname}?${params.toString()}`);
+    }
+    // Note: If location comes from store/URL, fetchData effect handles it.
+    // This handler is mainly for direct user interaction with the NearbyProductsFilter.
+
+  }, [searchParams, router]);
 
   if (loading) {
     return (

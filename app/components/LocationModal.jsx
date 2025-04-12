@@ -3,16 +3,14 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import { FiMapPin, FiX } from "react-icons/fi";
 import { useUserAuth } from "@/app/context/UserAuthContext";
-import { SafeLocationConsumer } from "./SafeLocationWrapper";
+// Remove SafeLocationConsumer import if it's not used elsewhere
+// import { SafeLocationConsumer } from "./SafeLocationWrapper"; 
 import { USER_ENDPOINTS } from "@/app/config";
 import { useLocationStore } from "@/app/lib/locationStore";
 
 // Main component doesn't need isOpen or setCurrentLocation anymore
 const LocationModal = ({ onClose }) => {
-  // The check "if (!isOpen) return null;" is removed.
   // The parent component (Navbar) already controls rendering.
-  
-  // Pass only onClose to the content component
   return <LocationModalContent onClose={onClose} />;
 };
 
@@ -20,37 +18,6 @@ const LocationModal = ({ onClose }) => {
 function LocationModalContent({ onClose }) {
   // Use location store instead of context
   const setUserLocation = useLocationStore(state => state.setUserLocation);
-  
-  // Safety check to ensure we update location state properly
-  const safeUpdateLocation = useCallback((locationData) => {
-    let success = false;
-    
-    // Try to use the store method
-    if (typeof setUserLocation === 'function') {
-      try {
-        success = setUserLocation(locationData);
-      } catch (err) {
-        console.error("Error calling setUserLocation:", err);
-      }
-    }
-    
-    // If store method failed, fall back to localStorage
-    if (!success) {
-      console.warn("Using localStorage fallback for location storage");
-      try {
-        localStorage.setItem("userLocation", JSON.stringify(locationData));
-        success = true;
-      } catch (err) {
-        console.error("Failed to store location in localStorage:", err);
-      }
-    }
-    
-    // For backward compatibility - always update these flags
-    localStorage.setItem("locationSet", "true");
-    localStorage.setItem("refreshMensProducts", "true");
-    
-    return success;
-  }, [setUserLocation]);
   
   // All hooks are called unconditionally in the same order every time
   const { user } = useUserAuth();
@@ -93,39 +60,6 @@ function LocationModalContent({ onClose }) {
       }
     } catch (error) {
       console.error('Error storing user location:', error);
-    }
-  };
-  
-  // Function to store complete user address
-  const storeUserAddress = async (userId, addressData) => {
-    try {
-      // Make API call to store address
-      console.log(`Storing address for user ${userId}:`, addressData);
-      
-      // Get authentication tokens from localStorage
-      const accessToken = localStorage.getItem('userAccessToken');
-      const refreshToken = localStorage.getItem('userRefreshToken');
-      
-      const response = await fetch(USER_ENDPOINTS.ADDRESS, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': accessToken ? `Bearer ${accessToken}` : '',
-          'X-User-Token': accessToken || '',
-          'X-Refresh-Token': refreshToken || '',
-        },
-        body: JSON.stringify(addressData),
-      });
-      
-      const data = await response.json();
-      
-      if (data.success) {
-        console.log('Address stored successfully:', data);
-      } else {
-        console.error('Failed to store address:', data.message);
-      }
-    } catch (error) {
-      console.error('Error storing user address:', error);
     }
   };
   
@@ -196,34 +130,18 @@ function LocationModalContent({ onClose }) {
         
         console.log("Setting new location:", newLocationData);
         
-        // Use our safer update method
-        const success = safeUpdateLocation(newLocationData);
-        
-        if (success) {
-          console.log("Successfully updated location");
-        } else {
-          console.error("Failed to update location via store, falling back");
-          // Direct update to localStorage as backup
-          localStorage.setItem("userLocation", JSON.stringify(newLocationData));
-          localStorage.setItem("locationLastUpdated", new Date().toISOString());
-        }
+        // Use setUserLocation directly
+        setUserLocation(newLocationData);
+        console.log("Successfully updated location via store");
 
         // Set a flag to indicate location has been set by the user
-        // This helps prevent the location modal from showing repeatedly
         localStorage.setItem("locationSet", "true");
-        localStorage.setItem("refreshMensProducts", "true");
         
         // Remove the justLoggedIn flag to prevent the modal from showing again on refresh
         localStorage.removeItem("justLoggedIn");
         
-        // Close the modal before reload to prevent flickering
+        // Close the modal 
         onClose();
-        
-        // Force refresh to ensure location is properly recognized by components
-        // Use a small delay to ensure storage operations complete
-        setTimeout(() => {
-          window.location.reload();
-        }, 100);
       });
     } catch (error) {
       console.error("Error initializing Google Places Autocomplete:", error);
@@ -236,7 +154,7 @@ function LocationModalContent({ onClose }) {
         autocompleteRef.current = null;
       }
     };
-  }, [mapsScriptLoaded, onClose, safeUpdateLocation]);
+  }, [mapsScriptLoaded, onClose, setUserLocation]);
 
   // Handle input changes without interfering with Google autocomplete
   const handleInputChange = (e) => {
@@ -255,8 +173,8 @@ function LocationModalContent({ onClose }) {
     
     if (navigator.geolocation) {
       navigator.geolocation.getCurrentPosition(
+        // Success callback
         (position) => {
-          // Success callback
           const latitude = position.coords.latitude;
           const longitude = position.coords.longitude;
           
@@ -267,6 +185,7 @@ function LocationModalContent({ onClose }) {
           const latlng = { lat: latitude, lng: longitude };
           
           geocoder.geocode({ location: latlng }, (results, status) => {
+            setLoading(false); // Set loading false here regardless of outcome
             if (status === "OK" && results[0]) {
               // Get the readable address
               const address = results[0].formatted_address;
@@ -274,35 +193,35 @@ function LocationModalContent({ onClose }) {
               
               console.log(`Current location: ${address}`);
               
-              // Update in location context
-              safeUpdateLocation({
+              // Update location store directly
+              const locationData = {
                 latitude,
                 longitude,
                 label: locationName,
                 source: "geolocation",
                 timestamp: new Date().toISOString()
-              });
-              
+              };
+              setUserLocation(locationData);
+              console.log("Successfully updated location via store (geolocation)");
+
+              // Set flag after successful location update
+              localStorage.setItem("locationSet", "true");
+
               // If user is logged in, store in the database
               if (user?.id) {
                 storeUserLocation(user.id, latitude, longitude);
               }
 
-              // Close modal and reload page
+              // Close modal 
               onClose();
-              setTimeout(() => {
-                window.location.reload();
-              }, 100);
-
             } else {
               console.error("Geocoder failed due to: " + status);
               alert("Failed to get your location address. Please try searching instead.");
             }
-            setLoading(false);
           });
         },
+        // Error callback
         (error) => {
-          // Error callback
           console.error("Geolocation error:", error);
           setLoading(false);
           
