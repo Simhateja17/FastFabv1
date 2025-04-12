@@ -142,9 +142,7 @@ function CheckoutContent() {
     0
   );
   
-  const deliveryFee = 40;
-  const convenienceFee = 10;
-  const total = subtotal + deliveryFee + convenienceFee;
+  const total = subtotal;
   
   // Calculate original MRP and discount
   const calculateTotalMRP = () => {
