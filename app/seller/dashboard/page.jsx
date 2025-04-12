@@ -14,6 +14,7 @@ import {
   FiEye,
   FiEyeOff,
 } from "react-icons/fi";
+import { usePushNotifications } from "@/app/hooks/usePushNotifications";
 
 // The actual dashboard content
 function DashboardContent() {
@@ -21,6 +22,12 @@ function DashboardContent() {
   const [isVisible, setIsVisible] = useState(true);
   const [isToggling, setIsToggling] = useState(false);
   
+  const { 
+    permissionStatus, 
+    subscribeUser, 
+    isSupported 
+  } = usePushNotifications();
+
   const fetchVisibilityStatus = useCallback(async () => {
     try {
       // First, check if seller exists before proceeding
@@ -73,6 +80,29 @@ function DashboardContent() {
       fetchVisibilityStatus();
     }
   }, [seller, fetchVisibilityStatus]);
+
+  useEffect(() => {
+    if (!isSupported) return;
+
+    const onboardingFlag = sessionStorage.getItem('onboardingComplete');
+    
+    if (onboardingFlag === 'true') {
+      console.log('Onboarding complete flag found.');
+      if (permissionStatus === 'default') {
+        console.log('Notification permission is default, attempting to subscribe...');
+        const timer = setTimeout(() => {
+            subscribeUser();
+        }, 1500);
+        
+        sessionStorage.removeItem('onboardingComplete');
+
+        return () => clearTimeout(timer);
+      } else {
+        console.log(`Notification permission is already ${permissionStatus}. Clearing flag.`);
+        sessionStorage.removeItem('onboardingComplete');
+      }
+    }
+  }, [permissionStatus, subscribeUser, isSupported]);
 
   const handleVisibilityToggle = async () => {
     try {
@@ -310,6 +340,10 @@ function DashboardContent() {
           </p>
         </div>
       )}
+
+      {!isSupported && 
+          <p className="text-center text-sm text-red-600 my-2">Real-time order notifications are not supported on this browser.</p>
+      }
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {dashboardItems.map((item) => (
