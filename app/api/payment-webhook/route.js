@@ -1,12 +1,25 @@
 import { NextResponse } from 'next/server';
 import { PrismaClient } from '@prisma/client';
-import { 
-  sendSellerOrderWithImage,
-  sendAdminOrderPendingSeller 
-} from '@/app/utils/notificationService';
+import webpush from 'web-push'; // Import web-push
+// Remove Gupshup notification imports as we replace them
+// import { 
+//   sendSellerOrderWithImage,
+//   sendAdminOrderPendingSeller 
+// } from '@/app/utils/notificationService';
 
 // Initialize Prisma client
 const prisma = new PrismaClient();
+
+// Configure web-push with VAPID keys (ensure these are in your .env)
+if (process.env.VAPID_PUBLIC_KEY && process.env.VAPID_PRIVATE_KEY && process.env.VAPID_SUBJECT) {
+  webpush.setVapidDetails(
+    process.env.VAPID_SUBJECT,
+    process.env.VAPID_PUBLIC_KEY,
+    process.env.VAPID_PRIVATE_KEY
+  );
+} else {
+  console.warn('VAPID keys not configured in .env file. Web push notifications will be disabled.');
+}
 
 // Constants
 const SELLER_RESPONSE_TIMEOUT = 3 * 60 * 1000; // 3 minutes in milliseconds
@@ -35,7 +48,7 @@ export async function POST(request) {
     
     // Get the raw request body for signature verification
     const payload = await request.text();
-    console.log('Webhook payload:', payload);
+    // console.log('Webhook payload:', payload); // Log only if debugging
     
     // Parse the payload to JSON
     let data;
@@ -70,8 +83,9 @@ export async function POST(request) {
     const { order_id, order_amount } = data.order;
     
     // Retrieve the order from database
+    // Use the order_id from Cashfree which likely corresponds to your orderNumber
     const order = await prisma.order.findUnique({
-      where: { orderNumber: order_id },
+      where: { orderNumber: order_id }, 
       include: {
         items: true,
         user: true,
@@ -80,10 +94,17 @@ export async function POST(request) {
     });
     
     if (!order) {
-      console.error(`Order ${order_id} not found in database`);
-      return NextResponse.json({ message: 'Order not found' }, { status: 404 });
+      console.error(`Order with orderNumber ${order_id} not found in database`);
+      // Respond 200 OK even if order not found locally to acknowledge webhook
+      return NextResponse.json({ message: 'Order not found locally, webhook acknowledged' }, { status: 200 });
     }
     
+    // Check if payment already processed to prevent duplicate notifications
+    if(order.paymentStatus === 'SUCCESSFUL') {
+        console.log(`Order ${order.id} already processed. Ignoring duplicate webhook.`);
+        return NextResponse.json({ message: 'Duplicate webhook ignored' }, { status: 200 });
+    }
+
     // Process the successful payment
     await processSuccessfulPayment(order, data);
     
@@ -95,7 +116,7 @@ export async function POST(request) {
 }
 
 /**
- * Process a successful payment by updating order status and sending notifications
+ * Process a successful payment: Update DB, send Web Push to Seller(s)
  * @param {Object} order - Order object from database
  * @param {Object} webhookData - Webhook data from Cashfree
  */
@@ -106,118 +127,95 @@ async function processSuccessfulPayment(order, webhookData) {
     // Calculate seller response deadline (3 minutes from now)
     const sellerResponseDeadline = new Date(Date.now() + SELLER_RESPONSE_TIMEOUT);
     
-    // Update order status
+    // Update order status in DB
     await prisma.order.update({
       where: { id: order.id },
       data: {
-        status: 'PENDING',
+        status: 'PENDING', // Set to PENDING seller action
         paymentStatus: 'SUCCESSFUL',
         sellerResponseDeadline
       }
     });
     
-    // Get seller details for each item in the order
-    const orderItems = order.items || [];
-    console.log(`Order has ${orderItems.length} items`);
-    
-    // Group items by seller
-    const itemsBySeller = {};
-    
-    for (const item of orderItems) {
-      const sellerId = item.sellerId;
-      
-      if (!sellerId) {
-        console.warn(`Item ${item.id} does not have a sellerId`);
-        continue;
-      }
-      
-      if (!itemsBySeller[sellerId]) {
-        itemsBySeller[sellerId] = [];
-      }
-      
-      itemsBySeller[sellerId].push(item);
-    }
-    
-    // Get seller details and send notifications
-    for (const [sellerId, items] of Object.entries(itemsBySeller)) {
-      try {
-        // Get seller details including phone number
-        const seller = await prisma.seller.findUnique({
-          where: { id: sellerId }
-        });
-        
-        if (!seller || !seller.phone) {
-          console.warn(`Seller ${sellerId} not found or has no phone number`);
-          continue;
+    // Get unique seller IDs from order items
+    const sellerIds = [...new Set(order.items.map(item => item.sellerId).filter(Boolean))];
+    console.log(`Found ${sellerIds.length} unique seller(s) for order ${order.id}`);
+
+    // Prepare notification payload (same for all sellers of this order)
+    const notificationPayload = JSON.stringify({
+        title: '📦 New Fast&Fab Order!',
+        body: `Order #${order.orderNumber} requires your attention.`,
+        icon: '/favicon.ico', // Optional: Path to an icon
+        data: {
+            orderId: order.id, // Send internal order ID
+            orderNumber: order.orderNumber,
+            url: `/seller/orders/${order.id}` // Link to open order page
+        },
+        // tag: `new-order-${order.id}` // Optional: tag to replace previous notifications for same order
+    });
+
+    // Send push notifications to each relevant seller
+    for (const sellerId of sellerIds) {
+        try {
+            // Get all active push subscriptions for this seller
+            const subscriptions = await prisma.pushSubscription.findMany({
+                where: { sellerId: sellerId }
+            });
+
+            if (!subscriptions || subscriptions.length === 0) {
+                console.log(`No active push subscriptions found for seller ${sellerId}.`);
+                continue; // Skip to next seller
+            }
+
+            console.log(`Found ${subscriptions.length} subscriptions for seller ${sellerId}. Sending notifications...`);
+
+            // Send notification to each subscription endpoint
+            const sendPromises = subscriptions.map(sub => {
+                const pushSubscription = {
+                    endpoint: sub.endpoint,
+                    keys: {
+                        p256dh: sub.p256dh,
+                        auth: sub.auth
+                    }
+                };
+                return webpush.sendNotification(pushSubscription, notificationPayload)
+                    .catch(error => {
+                        console.error(`Error sending push to ${sub.endpoint.substring(0, 30)}... for seller ${sellerId}:`, error.statusCode, error.body);
+                        // Handle specific errors, e.g., 410 Gone indicates subscription expired/invalid
+                        if (error.statusCode === 410 || error.statusCode === 404) {
+                            console.log(`Subscription ${sub.id} for seller ${sellerId} is invalid. Deleting.`);
+                            return prisma.pushSubscription.delete({ where: { id: sub.id } });
+                        }
+                    });
+            });
+
+            // Wait for all notifications for this seller to be sent (or fail)
+            await Promise.allSettled(sendPromises);
+            console.log(`Push notifications sent attempt finished for seller ${sellerId}.`);
+
+            // Update order flags (optional, if needed)
+            // await prisma.order.update({ where: { id: order.id }, data: { sellerNotified: true } });
+
+        } catch (error) {
+            console.error(`Error processing notifications for seller ${sellerId}:`, error);
+            // Continue to next seller even if one fails
         }
-        
-        // Format items for the notification
-        const formattedItems = items.map(item => 
-          `${item.quantity}x ${item.productName} (${item.size}${item.color ? `, ${item.color}` : ''})`
-        );
-        
-        // Send notification to seller
-        await sendSellerOrderWithImage(seller.phone, {
-          orderId: order.orderNumber,
-          items: formattedItems,
-          shippingAddress: formatAddress(order.shippingAddress)
-        });
-        
-        // Update order with seller phone for future reference
-        await prisma.order.update({
-          where: { id: order.id },
-          data: {
-            sellerPhone: seller.phone,
-            sellerNotified: true
-          }
-        });
-        
-        console.log(`Notification sent to seller ${sellerId} at ${seller.phone}`);
-      } catch (error) {
-        console.error(`Error sending notification to seller ${sellerId}:`, error);
-      }
     }
     
-    // Send notification to admin
-    const adminPhone = process.env.ADMIN_NOTIFICATION_PHONE;
-    
-    if (adminPhone) {
-      try {
-        await sendAdminOrderPendingSeller(adminPhone, {
-          orderId: order.orderNumber,
-          amount: order.totalAmount,
-          customerName: order.user?.name || 'Customer',
-          customerPhone: order.user?.phone || 'N/A',
-          shippingAddress: formatAddress(order.shippingAddress)
-        });
-        
-        // Update order to mark admin as notified
-        await prisma.order.update({
-          where: { id: order.id },
-          data: {
-            adminNotified: true
-          }
-        });
-        
-        console.log(`Notification sent to admin at ${adminPhone}`);
-      } catch (error) {
-        console.error('Error sending notification to admin:', error);
-      }
-    }
+    // NOTE: Admin notifications (e.g., via email or internal system) could be added here if needed.
+    // We removed the direct Gupshup admin notification.
+
   } catch (error) {
-    console.error('Error processing successful payment:', error);
-    throw error;
+    console.error(`Error in processSuccessfulPayment for order ${order?.id}:`, error);
+    // Consider adding more robust error handling/logging here
+    // Don't re-throw generally, allow webhook to return 200 OK if possible
   }
 }
 
-/**
- * Format an address object into a readable string
- */
+// Keep formatAddress function if needed elsewhere, otherwise can be removed
 function formatAddress(address) {
   if (!address) return 'No address provided';
-  
   const { name, line1, line2, city, state, pincode, country } = address;
-  
   return [
     name,
     line1,

@@ -7,6 +7,7 @@ import { useRouter } from "next/navigation";
 import { PRODUCT_ENDPOINTS, PUBLIC_ENDPOINTS } from "@/app/config";
 import LoadingSpinner from "@/app/components/LoadingSpinner";
 import { useUserAuth } from "@/app/context/UserAuthContext";
+import { useCartStore } from "@/app/lib/cartStore";
 import {
   FiChevronRight,
   FiShoppingBag,
@@ -318,8 +319,19 @@ export default function ProductDetails({ params }) {
       return;
     }
     
-    // Add to cart logic
-    // This would typically call a function from your cart store
+    // Add to cart using cart store
+    const { addItem } = useCartStore.getState();
+    addItem({
+      id: productId,
+      name: product.name,
+      price: product.sellingPrice,
+      mrpPrice: product.mrpPrice,
+      image: product.images?.[0] || '/placeholder.png',
+      quantity: 1,
+      size: selectedSize,
+      color: selectedColor
+    });
+    
     toast.success("Added to bag!");
   };
 

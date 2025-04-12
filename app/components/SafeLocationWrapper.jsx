@@ -1,22 +1,33 @@
 "use client";
 
-import { useLocation } from '@/app/context/LocationContext';
+import { useLocationStore } from '@/app/lib/locationStore';
 
 /**
  * A higher-order component that safely provides location functionality to components
  * that need to use the LocationContext.
  * 
  * This component:
- * 1. Ensures the component always has access to location context
+ * 1. Ensures the component always has access to location data
  * 2. Provides a consistent API regardless of context availability
- * 3. Eliminates "useLocation must be used within LocationProvider" errors
+ * 3. Uses the centralized location store instead of context
  */
 export default function SafeLocationWrapper({ children }) {
-  // Simply forward the location context to children
-  // Since we updated LocationContext to always provide default values,
-  // there's no need for try/catch or conditional hook calls
-  const locationContext = useLocation();
-  return children(locationContext);
+  // Use location store directly for better consistency
+  const userLocation = useLocationStore(state => state.userLocation);
+  const locationEnabled = useLocationStore(state => state.locationEnabled);
+  const setUserLocation = useLocationStore(state => state.setUserLocation);
+  
+  // Debug logs
+  if (userLocation) {
+    console.log('SafeLocationWrapper: Providing location data to child components', 
+      {lat: userLocation.latitude, lng: userLocation.longitude, enabled: locationEnabled});
+  }
+  
+  return children({
+    userLocation,
+    loading: false, // We no longer need loading with the store
+    updateUserLocation: setUserLocation
+  });
 }
 
 /**

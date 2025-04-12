@@ -84,11 +84,24 @@ function HomePageContent({ userLocation: contextLocation, loading: locationLoadi
 
   // Moved useEffect here (now after fetchProducts)
   useEffect(() => {
+    // Add checks for URL params for redirect handling
+    const paymentStatus = searchParams.get('payment_status');
+    const hasProcessedLocation = localStorage.getItem("locationProcessed");
+    
+    // Check if we just processed a browser location permission
+    if (userLocation && !hasProcessedLocation) {
+      console.log('HomePage: First time seeing userLocation after permission granted, fetching products:', userLocation);
+      localStorage.setItem("locationProcessed", "true");
+      fetchProducts(userLocation, searchTerm);
+      return;
+    }
+    
+    // Normal location updates
     if (userLocation && 
        (!lastUserLocation || 
         lastUserLocation.latitude !== userLocation.latitude || 
         lastUserLocation.longitude !== userLocation.longitude)) {
-      console.log('Updating lastUserLocation with:', userLocation);
+      console.log('HomePage: Updating lastUserLocation with:', userLocation);
       setLastUserLocation(userLocation);
       // Fetch products when location is first set or changes
       fetchProducts(userLocation, searchTerm);
@@ -98,7 +111,7 @@ function HomePageContent({ userLocation: contextLocation, loading: locationLoadi
       setLocationError(true);
       setProducts([]); // Clear products if location is lost
     }
-  }, [userLocation, locationLoading, searchTerm, lastUserLocation, fetchProducts]); // Added fetchProducts
+  }, [userLocation, locationLoading, searchTerm, lastUserLocation, fetchProducts, searchParams]); // Added searchParams
 
   const filteredProducts = useMemo(() => {
     if (!searchTerm) {
@@ -158,17 +171,17 @@ function HomePageContent({ userLocation: contextLocation, loading: locationLoadi
       <SellerBanner />
 
       {/* Main Category Buttons */}
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-24 mb-8">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-12 mb-6">
         <div className="flex justify-center gap-6">
           <Link
             href="/products/category/men"
-            className="inline-block bg-black text-white px-10 py-3 rounded-md hover:bg-gray-800 transition-colors text-lg font-medium"
+            className="inline-block bg-black text-white px-10 py-3 rounded-lg shadow-lg hover:bg-gray-800 text-lg font-bold uppercase tracking-wide transition-all duration-300 hover:shadow-xl active:scale-[0.98]"
           >
             Men
           </Link>
           <Link
             href="/products/category/women"
-            className="inline-block bg-black text-white px-10 py-3 rounded-md hover:bg-gray-800 transition-colors text-lg font-medium"
+            className="inline-block bg-black text-white px-10 py-3 rounded-lg shadow-lg hover:bg-gray-800 text-lg font-bold uppercase tracking-wide transition-all duration-300 hover:shadow-xl active:scale-[0.98]"
           >
             Women
           </Link>
@@ -176,7 +189,7 @@ function HomePageContent({ userLocation: contextLocation, loading: locationLoadi
       </div>
       
       {/* Products by Category */}
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 space-y-16">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 space-y-16">
         {/* Show location required message if location is not set */}
         {!isLocationSet && !loading && !locationLoading && <LocationRequiredMessage />}
         
@@ -204,7 +217,7 @@ function HomePageContent({ userLocation: contextLocation, loading: locationLoadi
               categories.map((category) => (
                 <section key={category} className="mb-16">
                   <div className="flex items-center justify-between mb-8 border-b border-gray-200 pb-2">
-                    <h2 className="text-xl md:text-2xl font-bold text-gray-900">
+                    <h2 className="text-xl md:text-2xl font-extrabold text-primary">
                       {category}
                     </h2>
                     <Link

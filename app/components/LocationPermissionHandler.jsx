@@ -50,10 +50,16 @@ export default function LocationPermissionHandler({ children }) {
           
           // Show modal to manually set location
           setShowModal(true);
+        },
+        // Options for getCurrentPosition
+        {
+          enableHighAccuracy: true,
+          timeout: 10000,
+          maximumAge: 0
         }
       );
     } else {
-      // Geolocation not supported by browser
+      // Geolocation not supported by browser - only in this branch
       setLocationStatus("unsupported");
       setShowModal(true);
     }
