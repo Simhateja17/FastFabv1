@@ -10,17 +10,6 @@ import webpush from 'web-push'; // Import web-push
 // Initialize Prisma client
 const prisma = new PrismaClient();
 
-// Configure web-push with VAPID keys (ensure these are in your .env)
-if (process.env.VAPID_PUBLIC_KEY && process.env.VAPID_PRIVATE_KEY && process.env.VAPID_SUBJECT) {
-  webpush.setVapidDetails(
-    process.env.VAPID_SUBJECT,
-    process.env.VAPID_PUBLIC_KEY,
-    process.env.VAPID_PRIVATE_KEY
-  );
-} else {
-  console.warn('VAPID keys not configured in .env file. Web push notifications will be disabled.');
-}
-
 // Constants
 const SELLER_RESPONSE_TIMEOUT = 3 * 60 * 1000; // 3 minutes in milliseconds
 
@@ -123,7 +112,21 @@ export async function POST(request) {
 async function processSuccessfulPayment(order, webhookData) {
   try {
     console.log(`Processing successful payment for order ${order.id}`);
-    
+
+    // Configure web-push with VAPID keys (ensure these are in your .env)
+    let vapidKeysConfigured = false;
+    if (process.env.VAPID_PUBLIC_KEY && process.env.VAPID_PRIVATE_KEY && process.env.VAPID_SUBJECT) {
+      webpush.setVapidDetails(
+        process.env.VAPID_SUBJECT,
+        process.env.VAPID_PUBLIC_KEY,
+        process.env.VAPID_PRIVATE_KEY
+      );
+      vapidKeysConfigured = true;
+      console.log('Web-push VAPID details configured for sending notifications.');
+    } else {
+      console.warn('VAPID keys not configured in environment variables. Cannot send web push notifications.');
+    }
+
     // Calculate seller response deadline (3 minutes from now)
     const sellerResponseDeadline = new Date(Date.now() + SELLER_RESPONSE_TIMEOUT);
     
@@ -156,6 +159,11 @@ async function processSuccessfulPayment(order, webhookData) {
 
     // Send push notifications to each relevant seller
     for (const sellerId of sellerIds) {
+        if (!vapidKeysConfigured) {
+            console.log(`Skipping push notifications for seller ${sellerId} because VAPID keys are not configured.`);
+            continue; // Skip to next seller if keys aren't set
+        }
+
         try {
             // Get all active push subscriptions for this seller
             const subscriptions = await prisma.pushSubscription.findMany({
