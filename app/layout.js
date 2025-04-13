@@ -46,6 +46,19 @@ export default function RootLayout({ children }) {
           async
           src={`https://maps.googleapis.com/maps/api/js?key=${process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY}&libraries=places`}
         ></script>
+        {/* Add VAPID public key as fallback mechanism */}
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `
+              try {
+                window.__NEXT_PUBLIC_VAPID_PUBLIC_KEY = "${process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY || ''}";
+                console.log("VAPID key set on window object:", !!window.__NEXT_PUBLIC_VAPID_PUBLIC_KEY);
+              } catch (e) {
+                console.error("Failed to set VAPID key on window:", e);
+              }
+            `
+          }}
+        />
       </head>
       <body className={inter.className}>
         <AuthContextProvider>
