@@ -1,14 +1,15 @@
 import { NextResponse } from 'next/server';
-import { PrismaClient } from '@prisma/client';
+import prisma from '@/app/api/lib/prisma'; // Use the API-specific shared prisma instance
 import { auth } from "@/app/lib/auth"; // Assuming auth middleware provides sellerId
-
-const prisma = new PrismaClient();
 
 /**
  * POST handler to save a new web push subscription for the authenticated seller.
  */
 export async function POST(request) {
   try {
+    // Add some logging to help troubleshoot
+    console.log('Using Authorization header for authentication');
+    
     // 1. Authenticate the seller
     const authResult = await auth(request);
     if (!authResult.success || !authResult.sellerId) {
@@ -42,6 +43,9 @@ export async function POST(request) {
     // 4. Extract necessary fields
     const { endpoint, keys } = subscription;
     const { p256dh, auth: authKey } = keys; // Rename auth to authKey to avoid conflict
+
+    // Add logging to verify prisma is available
+    console.log('Prisma client type:', typeof prisma, 'Is prisma defined:', !!prisma);
 
     // 5. Save to database using Prisma
     try {
@@ -91,9 +95,6 @@ export async function POST(request) {
       { success: false, error: "Internal server error." },
       { status: 500 }
     );
-  } finally {
-    // Disconnect Prisma client if necessary, depending on your setup
-    // await prisma.$disconnect(); // Often handled globally
   }
 }
 
