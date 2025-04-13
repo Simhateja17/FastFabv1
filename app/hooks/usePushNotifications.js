@@ -160,6 +160,8 @@ export function usePushNotifications() {
     // Subscribe
     try {
       const applicationServerKey = urlBase64ToUint8Array(VAPID_PUBLIC_KEY);
+      console.log('Using VAPID key length:', VAPID_PUBLIC_KEY.length);
+      
       const sub = await registration.pushManager.subscribe({
         userVisibleOnly: true,
         applicationServerKey
@@ -170,10 +172,23 @@ export function usePushNotifications() {
       // Send to backend using authFetch
       try {
         if (!authFetch) {
+            console.error('Authentication context not available');
             throw new Error('Authentication context not available. Cannot save subscription.');
         }
         
         console.log("Sending subscription to backend via authFetch...");
+        
+        // Verify we have valid auth
+        const checkResponse = await authFetch('/api/auth/profile', {
+          method: 'GET'
+        });
+        
+        if (!checkResponse.ok) {
+          console.error('Auth check failed before subscription:', checkResponse.status);
+          throw new Error('Authentication validation failed. Please refresh and try again.');
+        }
+        console.log('Auth validated successfully');
+        
         // Use authFetch which should automatically handle headers
         const response = await authFetch('/api/seller/subscriptions', {
           method: 'POST',
@@ -205,7 +220,13 @@ export function usePushNotifications() {
       } catch (serverError) {
         console.error('Failed to send/save subscription:', serverError);
         toast.error(`Subscription failed: ${serverError.message}`);
-        sub.unsubscribe().catch(e => console.error('Failed to cleanup local subscription', e));
+        // Try to clean up the local subscription since it couldn't be saved server-side
+        try {
+          await sub.unsubscribe();
+          console.log('Cleaned up local subscription after server error');
+        } catch (e) {
+          console.error('Failed to cleanup local subscription after server error', e);
+        }
         setIsSubscribed(false);
         setCurrentSubscription(null);
       }
