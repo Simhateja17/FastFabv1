@@ -12,6 +12,8 @@ export async function POST(request) {
     
     // 1. Authenticate the seller
     const authResult = await auth(request);
+    console.log('Auth result:', { success: authResult.success, sellerId: authResult.sellerId });
+    
     if (!authResult.success || !authResult.sellerId) {
       return NextResponse.json(
         { success: false, error: "Authentication required." },
@@ -24,7 +26,9 @@ export async function POST(request) {
     let subscription;
     try {
       subscription = await request.json();
+      console.log('Received subscription object:', JSON.stringify(subscription).substring(0, 100) + '...');
     } catch (e) {
+      console.error('Failed to parse JSON body:', e);
       return NextResponse.json(
         { success: false, error: "Invalid request body." },
         { status: 400 }
@@ -44,8 +48,29 @@ export async function POST(request) {
     const { endpoint, keys } = subscription;
     const { p256dh, auth: authKey } = keys; // Rename auth to authKey to avoid conflict
 
+    // Check if seller exists in database
+    try {
+      const sellerExists = await prisma.seller.findUnique({
+        where: { id: sellerId },
+        select: { id: true }
+      });
+      
+      if (!sellerExists) {
+        console.error(`Seller with ID ${sellerId} does not exist in database`);
+        return NextResponse.json(
+          { success: false, error: "Seller not found in database." },
+          { status: 400 }
+        );
+      }
+      
+      console.log(`Verified seller ${sellerId} exists in database`);
+    } catch (sellerCheckError) {
+      console.error('Error checking if seller exists:', sellerCheckError);
+    }
+
     // Add logging to verify prisma is available
     console.log('Prisma client type:', typeof prisma, 'Is prisma defined:', !!prisma);
+    console.log('Database URL defined:', !!process.env.DATABASE_URL);
 
     // 5. Save to database using Prisma
     try {
@@ -76,13 +101,26 @@ export async function POST(request) {
 
     } catch (dbError) {
       console.error("Database error saving subscription:", dbError);
-      // Log specific Prisma errors if needed (e.g., P2002 for unique constraint)
+      
+      // More detailed error handling for common Prisma errors
       if (dbError.code === 'P2003') { // Foreign key constraint failed (e.g., sellerId invalid)
-         return NextResponse.json(
+        return NextResponse.json(
           { success: false, error: "Invalid seller reference." },
           { status: 400 }
         );
+      } else if (dbError.code === 'P2002') { // Unique constraint failed
+        return NextResponse.json(
+          { success: false, error: "Subscription endpoint already exists." },
+          { status: 409 }
+        );
+      } else if (dbError.code === 'P1001') { // Database connection issues
+        return NextResponse.json(
+          { success: false, error: "Database connection error. Please try again later." },
+          { status: 503 }
+        );
       }
+      
+      // Generic error response
       return NextResponse.json(
         { success: false, error: "Could not save subscription to database." },
         { status: 500 }
