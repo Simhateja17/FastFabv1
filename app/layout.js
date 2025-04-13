@@ -52,7 +52,13 @@ export default function RootLayout({ children }) {
             __html: `
               try {
                 window.__NEXT_PUBLIC_VAPID_PUBLIC_KEY = "${process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY || ''}";
-                console.log("VAPID key set on window object:", !!window.__NEXT_PUBLIC_VAPID_PUBLIC_KEY);
+                console.log("VAPID key availability:", {
+                  keyExists: !!window.__NEXT_PUBLIC_VAPID_PUBLIC_KEY,
+                  keyLength: (window.__NEXT_PUBLIC_VAPID_PUBLIC_KEY || '').length
+                });
+                if (!window.__NEXT_PUBLIC_VAPID_PUBLIC_KEY) {
+                  console.warn("VAPID Public Key not available - check server environment variables and make sure NEXT_PUBLIC_VAPID_PUBLIC_KEY is set.");
+                }
               } catch (e) {
                 console.error("Failed to set VAPID key on window:", e);
               }

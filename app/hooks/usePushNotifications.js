@@ -4,12 +4,31 @@ import { useAuth } from '@/app/context/AuthContext'; // Import useAuth hook
 
 // VAPID public key from environment variables (must be prefixed with NEXT_PUBLIC_)
 // Add fallback mechanism: if env var isn't loaded, use a window variable that can be set in _document.js
-const VAPID_PUBLIC_KEY = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY || 
-  (typeof window !== 'undefined' && window.__NEXT_PUBLIC_VAPID_PUBLIC_KEY);
+const getVapidKey = () => {
+  // Try env variable first
+  if (process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY) {
+    console.log('Using VAPID key from environment variable');
+    return process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY;
+  }
+  
+  // Fall back to window object (set in layout.js)
+  if (typeof window !== 'undefined' && window.__NEXT_PUBLIC_VAPID_PUBLIC_KEY) {
+    console.log('Using VAPID key from window object');
+    return window.__NEXT_PUBLIC_VAPID_PUBLIC_KEY;
+  }
+  
+  // Hard-coded fallback as last resort - ONLY use in production emergencies!
+  // This should be replaced with proper env var configuration ASAP
+  console.error('VAPID Public Key missing from both env vars and window object');
+  return 'BIyWo8CpIQqzU_EZlkUv9A5LfxlaEYFPIKSJKhc6fN5Lfh3rwzwFsuslAnLrcxsZUjy9_y0911ApvKOVXC8H_JU';
+};
+
+const VAPID_PUBLIC_KEY = getVapidKey();
 
 // Log the key availability for debugging
 if (typeof window !== 'undefined') {
   console.log('VAPID Key Available:', !!VAPID_PUBLIC_KEY);
+  console.log('VAPID Key Length:', (VAPID_PUBLIC_KEY || '').length);
   if (!VAPID_PUBLIC_KEY) {
     console.error('VAPID Public Key is missing. Check env vars or window.__NEXT_PUBLIC_VAPID_PUBLIC_KEY');
   }
