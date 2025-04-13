@@ -153,12 +153,13 @@ export async function POST(request) {
 
     console.log(`Tokens set successfully for seller ${seller.id}`);
 
-    // 6. Return Success Response with Seller Data
+    // 6. Return Success Response with Seller Data AND Tokens
     return NextResponse.json({
       success: true,
       message: 'Seller login successful',
-      seller: seller // Return the selected seller data
-      // Note: We don't return tokens in the body anymore, only in cookies
+      seller: seller, // Return the selected seller data
+      accessToken: accessToken, // Include accessToken in the body
+      refreshToken: refreshToken // Include refreshToken in the body
     });
 
   } catch (error) {
