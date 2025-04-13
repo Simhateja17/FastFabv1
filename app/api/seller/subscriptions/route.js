@@ -1,8 +1,8 @@
 import { NextResponse } from 'next/server';
-import prisma from "@/lib/prisma"; // IMPORT shared prisma instance
+import { PrismaClient } from '@prisma/client';
 import { auth } from "@/app/lib/auth"; // Assuming auth middleware provides sellerId
 
-console.log(`[API /api/seller/subscriptions] Imported prisma type: ${typeof prisma}, Is prisma defined: ${!!prisma}`);
+const prisma = new PrismaClient();
 
 /**
  * POST handler to save a new web push subscription for the authenticated seller.
