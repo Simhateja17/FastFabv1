@@ -60,7 +60,7 @@ export async function POST(request) {
           p256dh: p256dh,
           auth: authKey,
           sellerId: sellerId,
-          // createdAt and updatedAt are handled by default/ @updatedAt
+          updatedAt: new Date(),
         },
       });
 

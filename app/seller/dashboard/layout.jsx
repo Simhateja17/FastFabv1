@@ -56,20 +56,17 @@ function NotificationControl() {
     );
   }
 
-  if (permissionStatus === 'granted') {
-    return (
-      <button 
-        onClick={subscribeUser}
-        disabled={isLoading}
-        className="flex items-center px-3 py-1 bg-primary text-white rounded-md text-xs hover:bg-primary-dark disabled:opacity-50"
-        title="Retry enabling notifications on this device"
-      >
-        <FiBell className="mr-1" /> Enable Notifications
-      </button>
-    );
-  }
-
-  return <p className="text-xs text-gray-500">Notifications not yet enabled.</p>;
+  // Default/Prompt state: Offer to enable notifications
+  return (
+    <button 
+      onClick={subscribeUser}
+      disabled={isLoading}
+      className="flex items-center px-3 py-1 bg-black text-white rounded-md text-xs hover:bg-gray-800 disabled:opacity-50"
+      title="Enable order notifications on this device"
+    >
+      <FiBell className="mr-1" /> Enable Notifications
+    </button>
+  );
 }
 
 export default function SellerDashboardLayout({ children }) {
