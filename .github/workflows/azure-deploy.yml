@@ -25,11 +25,18 @@ jobs:
         # Generate Prisma client in the correct location
         npx prisma generate
         
+    - name: Fix deploy script permissions
+      run: |
+        # Fix line endings and make script executable
+        sed -i 's/\r$//' deploy.sh
+        chmod +x deploy.sh
+        ls -la deploy.sh
+        
     - name: Build app
       run: npm run build
       
     - name: Deploy to Azure
-      uses: azure/webapps-deploy@v2
+      uses: azure/webapps-deploy@v3
       with:
         app-name: 'CoutureServicesPrivateLimited'
         publish-profile: ${{ secrets.AZURE_WEBAPP_PUBLISH_PROFILE }}
