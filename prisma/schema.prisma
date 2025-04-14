@@ -25,6 +25,7 @@ model Address {
   longitude Float?
   createdAt DateTime @default(now())
   updatedAt DateTime
+  orders    Order[]
 }
 
 model AdminRefreshToken {
@@ -80,53 +81,46 @@ model OTP {
 }
 
 model Order {
-  id                     String        @id
-  orderNumber            String        @unique
-  userId                 String
-  totalAmount            Float
-  status                 OrderStatus   @default(PENDING)
-  paymentStatus          PaymentStatus @default(PENDING)
-  paymentMethod          PaymentMethod @default(COD)
-  addressId              String?
-  discount               Float         @default(0)
-  shippingFee            Float         @default(0)
-  tax                    Float         @default(0)
-  notes                  String?
-  deliveryNotes          String?
-  estimatedDelivery      DateTime?
-  trackingNumber         String?
-  deliveredAt            DateTime?
-  cancelledAt            DateTime?
-  createdAt              DateTime      @default(now())
-  updatedAt              DateTime
-  sellerPhone            String?
-  adminNotified          Boolean?      @default(false)
-  sellerNotified         Boolean?      @default(false)
-  customerNotified       Boolean?      @default(false)
-  sellerResponseDeadline DateTime?     @db.Timestamptz(6)
+  id                  String              @id
+  userId              String
+  sellerId            String
+  orderStatus         OrderStatus         @default(PENDING)
+  paymentStatus       PaymentStatus       @default(PENDING)
+  paymentMethod       PaymentMethod?
+  paymentTransactions PaymentTransaction[]
+  paymentId           String?
+  amount              Float
+  address             Address             @relation(fields: [addressId], references: [id])
+  addressId           String
+  isSettled           Boolean             @default(false)
+  createdAt           DateTime            @default(now())
+  updatedAt           DateTime
+  items               OrderItem[]
+  seller              Seller              @relation(fields: [sellerId], references: [id], onDelete: Cascade)
+  user                User                @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  @@index([userId, status])
-  @@index([status, paymentStatus])
+  @@index([orderStatus, sellerId])
+  @@index([userId, sellerId])
   @@index([createdAt])
 }
 
 model OrderItem {
-  id          String   @id
-  orderId     String
-  productId   String
-  productName String
-  sellerId    String
-  quantity    Int
-  size        String
-  color       String?
-  price       Float
-  discount    Float    @default(0)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime
-
-  @@index([orderId])
-  @@index([productId])
-  @@index([sellerId])
+  id         String       @id
+  orderId    String
+  sellerId   String
+  quantity   Int
+  mrpPrice   Float
+  discount   Float        @default(0)
+  taxPercent Float        @default(0)
+  taxAmount  Float        @default(0)
+  total      Float
+  name       String
+  createdAt  DateTime     @default(now())
+  updatedAt  DateTime
+  productId  String
+  product    Product      @relation(fields: [productId], references: [id])
+  order      Order        @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  seller     Seller       @relation(fields: [sellerId], references: [id])
 }
 
 model PaymentTransaction {
@@ -143,6 +137,7 @@ model PaymentTransaction {
   paymentLinkExpiry DateTime?
   createdAt         DateTime      @default(now())
   updatedAt         DateTime
+  order             Order?        @relation(fields: [orderId], references: [id])
 }
 
 model Product {
@@ -163,6 +158,7 @@ model Product {
   isReturnable   Boolean          @default(true)
   seller         Seller           @relation(fields: [sellerId], references: [id], onDelete: Cascade)
   colorInventory ColorInventory[]
+  orderItems     OrderItem[]
 
   @@index([isActive, sellerId], map: "idx_product_active_seller")
   @@index([category, subcategory])
@@ -218,6 +214,8 @@ model Seller {
   manuallyHidden  Boolean                   @default(false)
   location        Unsupported("geography")?
   products        Product[]
+  orderItems      OrderItem[]
+  orders          Order[]
 
   @@index([manuallyHidden], map: "idx_seller_manually_hidden")
   @@index([isVisible], map: "idx_seller_visibility")
@@ -250,6 +248,7 @@ model User {
   lastLoginAt        DateTime?
   role               UserRole  @default(USER)
   tokenVersion       Int       @default(0)
+  orders             Order[]
 }
 
 model UserRefreshToken {

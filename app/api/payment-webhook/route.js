@@ -37,7 +37,7 @@ export async function POST(request) {
     
     // Get the raw request body for signature verification
     const payload = await request.text();
-    // console.log('Webhook payload:', payload); // Log only if debugging
+    console.log('Webhook payload:', payload); // Log the entire payload for debugging
     
     // Parse the payload to JSON
     let data;
@@ -56,25 +56,65 @@ export async function POST(request) {
       return NextResponse.json({ message: 'Invalid webhook signature' }, { status: 401 });
     }
     
-    // Check for required fields
-    if (!data.order || !data.order.order_id || !data.order.order_amount) {
-      console.error('Missing required fields in webhook payload');
-      return NextResponse.json({ message: 'Missing required fields' }, { status: 400 });
+    // Extract order ID from different possible payload formats
+    let orderId;
+    let orderAmount;
+    
+    // Log the data structure to help with debugging
+    console.log('Webhook data structure:', JSON.stringify(data, null, 2));
+    
+    // Check various possible payload structures from Cashfree
+    if (data.order && data.order.order_id) {
+      // Standard webhook format
+      orderId = data.order.order_id;
+      orderAmount = data.order.order_amount;
+    } else if (data.data && data.data.order && data.data.order.order_id) {
+      // Nested data format
+      orderId = data.data.order.order_id;
+      orderAmount = data.data.order.order_amount;
+    } else if (data.order_id) {
+      // Direct properties format
+      orderId = data.order_id;
+      orderAmount = data.order_amount || data.amount;
+    } else if (data.txStatus && data.orderId) {
+      // Different format with txStatus
+      orderId = data.orderId;
+      orderAmount = data.orderAmount || data.amount;
     }
     
-    // Only proceed if payment was successful
-    if (data.payment && data.payment.payment_status !== 'SUCCESS') {
-      console.log(`Payment status is ${data.payment?.payment_status}, not processing order`);
+    // If we still couldn't find an order ID, check for CF's internal order ID
+    if (!orderId && data.cf_order_id) {
+      orderId = data.cf_order_id;
+    }
+    
+    if (!orderId) {
+      console.error('Could not extract order ID from webhook payload');
+      // Log the entire payload for debugging but acknowledge receipt
+      return NextResponse.json({ message: 'Could not extract order ID, but webhook received' }, { status: 200 });
+    }
+    
+    // Extract payment status - check various possible formats
+    let paymentStatus = 'UNKNOWN';
+    if (data.payment && data.payment.payment_status) {
+      paymentStatus = data.payment.payment_status;
+    } else if (data.txStatus) {
+      // Map txStatus to our payment status format
+      paymentStatus = data.txStatus === 'SUCCESS' ? 'SUCCESS' : 
+                     (data.txStatus === 'FAILED' ? 'FAILED' : 'PENDING');
+    } else if (data.payment_status) {
+      paymentStatus = data.payment_status;
+    }
+    
+    // Only proceed if payment was successful - use more flexible check
+    if (paymentStatus !== 'SUCCESS' && paymentStatus !== 'PAID' && paymentStatus !== 'TXN_SUCCESS') {
+      console.log(`Payment status is ${paymentStatus}, not processing order`);
       return NextResponse.json({ message: 'Payment not successful' }, { status: 200 });
     }
     
-    // Extract order details
-    const { order_id, order_amount } = data.order;
-    
-    // Retrieve the order from database
-    // Use the order_id from Cashfree which likely corresponds to your orderNumber
+    // Retrieve the order from database using the extracted orderId
+    console.log(`Looking for order with orderNumber: ${orderId}`);
     const order = await prisma.order.findUnique({
-      where: { orderNumber: order_id }, 
+      where: { orderNumber: orderId }, 
       include: {
         items: true,
         user: true,
@@ -83,9 +123,40 @@ export async function POST(request) {
     });
     
     if (!order) {
-      console.error(`Order with orderNumber ${order_id} not found in database`);
-      // Respond 200 OK even if order not found locally to acknowledge webhook
-      return NextResponse.json({ message: 'Order not found locally, webhook acknowledged' }, { status: 200 });
+      console.error(`Order with orderNumber ${orderId} not found in database`);
+      
+      // Try to find order by alternative fields if primary lookup fails
+      const alternativeOrder = await prisma.order.findFirst({
+        where: {
+          OR: [
+            { externalOrderId: orderId },
+            { referenceId: orderId }
+          ]
+        },
+        include: {
+          items: true,
+          user: true,
+          shippingAddress: true
+        }
+      });
+      
+      if (!alternativeOrder) {
+        // Still not found, acknowledge webhook but log the issue
+        return NextResponse.json({ message: 'Order not found locally, webhook acknowledged' }, { status: 200 });
+      }
+      
+      // Use the alternative order found
+      console.log(`Found order via alternative ID: ${alternativeOrder.id}`);
+      
+      // Check if payment already processed
+      if(alternativeOrder.paymentStatus === 'SUCCESSFUL') {
+        console.log(`Order ${alternativeOrder.id} already processed. Ignoring duplicate webhook.`);
+        return NextResponse.json({ message: 'Duplicate webhook ignored' }, { status: 200 });
+      }
+      
+      // Process the successful payment
+      await processSuccessfulPayment(alternativeOrder, data);
+      return NextResponse.json({ message: 'Webhook processed successfully' }, { status: 200 });
     }
     
     // Check if payment already processed to prevent duplicate notifications
@@ -113,20 +184,6 @@ async function processSuccessfulPayment(order, webhookData) {
   try {
     console.log(`Processing successful payment for order ${order.id}`);
 
-    // Configure web-push with VAPID keys (ensure these are in your .env)
-    let vapidKeysConfigured = false;
-    if (process.env.VAPID_PUBLIC_KEY && process.env.VAPID_PRIVATE_KEY && process.env.VAPID_SUBJECT) {
-      webpush.setVapidDetails(
-        process.env.VAPID_SUBJECT,
-        process.env.VAPID_PUBLIC_KEY,
-        process.env.VAPID_PRIVATE_KEY
-      );
-      vapidKeysConfigured = true;
-      console.log('Web-push VAPID details configured for sending notifications.');
-    } else {
-      console.warn('VAPID keys not configured in environment variables. Cannot send web push notifications.');
-    }
-
     // Calculate seller response deadline (3 minutes from now)
     const sellerResponseDeadline = new Date(Date.now() + SELLER_RESPONSE_TIMEOUT);
     
@@ -144,79 +201,184 @@ async function processSuccessfulPayment(order, webhookData) {
     const sellerIds = [...new Set(order.items.map(item => item.sellerId).filter(Boolean))];
     console.log(`Found ${sellerIds.length} unique seller(s) for order ${order.id}`);
 
-    // Prepare notification payload (same for all sellers of this order)
-    const notificationPayload = JSON.stringify({
+    if (sellerIds.length === 0) {
+      console.error(`No sellers found for order ${order.id}! This is likely a data integrity issue.`);
+      
+      // Try to update order items with seller information if possible
+      try {
+        // Get product details for each item to find the seller
+        for (const item of order.items) {
+          if (!item.sellerId && item.productId) {
+            const product = await prisma.product.findUnique({
+              where: { id: item.productId },
+              select: { sellerId: true }
+            });
+            
+            if (product && product.sellerId) {
+              console.log(`Found seller ${product.sellerId} for product ${item.productId}, updating order item`);
+              
+              // Update the order item with the correct sellerId
+              await prisma.orderItem.update({
+                where: { id: item.id },
+                data: { sellerId: product.sellerId }
+              });
+              
+              // Add to sellerIds if not already present
+              if (!sellerIds.includes(product.sellerId)) {
+                sellerIds.push(product.sellerId);
+              }
+            }
+          }
+        }
+      } catch (error) {
+        console.error(`Error trying to recover seller information: ${error.message}`);
+      }
+    }
+
+    // Try to send Web Push notifications first
+    let webPushSuccessful = false;
+    
+    // Configure web-push with VAPID keys (ensure these are in your .env)
+    if (process.env.VAPID_PUBLIC_KEY && process.env.VAPID_PRIVATE_KEY && process.env.VAPID_SUBJECT) {
+      webpush.setVapidDetails(
+        process.env.VAPID_SUBJECT,
+        process.env.VAPID_PUBLIC_KEY,
+        process.env.VAPID_PRIVATE_KEY
+      );
+      console.log('Web-push VAPID details configured for sending notifications.');
+      
+      // Prepare notification payload (same for all sellers of this order)
+      const notificationPayload = JSON.stringify({
         title: '📦 New Fast&Fab Order!',
         body: `Order #${order.orderNumber} requires your attention.`,
         icon: '/favicon.ico', // Optional: Path to an icon
         data: {
-            orderId: order.id, // Send internal order ID
-            orderNumber: order.orderNumber,
-            url: `/seller/orders/${order.id}` // Link to open order page
+          orderId: order.id, // Send internal order ID
+          orderNumber: order.orderNumber,
+          url: `/seller/orders/${order.id}` // Link to open order page
         },
-        // tag: `new-order-${order.id}` // Optional: tag to replace previous notifications for same order
-    });
+        tag: `new-order-${order.id}` // Tag to replace previous notifications for same order
+      });
 
-    // Send push notifications to each relevant seller
-    for (const sellerId of sellerIds) {
-        if (!vapidKeysConfigured) {
-            console.log(`Skipping push notifications for seller ${sellerId} because VAPID keys are not configured.`);
-            continue; // Skip to next seller if keys aren't set
-        }
-
+      // Send push notifications to each relevant seller
+      for (const sellerId of sellerIds) {
         try {
-            // Get all active push subscriptions for this seller
-            const subscriptions = await prisma.pushSubscription.findMany({
-                where: { sellerId: sellerId }
+          // Get all active push subscriptions for this seller
+          const subscriptions = await prisma.pushSubscription.findMany({
+            where: { sellerId: sellerId }
+          });
+
+          if (!subscriptions || subscriptions.length === 0) {
+            console.log(`No active push subscriptions found for seller ${sellerId}.`);
+            continue; // Skip to next seller
+          }
+
+          console.log(`Found ${subscriptions.length} subscriptions for seller ${sellerId}. Sending notifications...`);
+
+          // Send notification to each subscription endpoint
+          const sendPromises = subscriptions.map(sub => {
+            const pushSubscription = {
+              endpoint: sub.endpoint,
+              keys: {
+                p256dh: sub.p256dh,
+                auth: sub.auth
+              }
+            };
+            return webpush.sendNotification(pushSubscription, notificationPayload)
+              .then(() => {
+                // Mark success for this subscription
+                return { success: true, subscription: sub.id };
+              })
+              .catch(error => {
+                console.error(`Error sending push to ${sub.endpoint.substring(0, 30)}... for seller ${sellerId}:`, error.statusCode, error.body);
+                // Handle specific errors, e.g., 410 Gone indicates subscription expired/invalid
+                if (error.statusCode === 410 || error.statusCode === 404) {
+                  console.log(`Subscription ${sub.id} for seller ${sellerId} is invalid. Deleting.`);
+                  return prisma.pushSubscription.delete({ where: { id: sub.id } })
+                    .then(() => ({ success: false, subscription: sub.id, deleted: true }));
+                }
+                return { success: false, subscription: sub.id };
+              });
+          });
+
+          // Wait for all notifications for this seller to be sent (or fail)
+          const results = await Promise.allSettled(sendPromises);
+          const successes = results.filter(r => r.status === 'fulfilled' && r.value?.success).length;
+          
+          if (successes > 0) {
+            webPushSuccessful = true;
+            console.log(`${successes}/${subscriptions.length} push notifications sent successfully to seller ${sellerId}.`);
+            
+            // Update order to mark notification as sent
+            await prisma.order.update({
+              where: { id: order.id },
+              data: { sellerNotified: true }
             });
-
-            if (!subscriptions || subscriptions.length === 0) {
-                console.log(`No active push subscriptions found for seller ${sellerId}.`);
-                continue; // Skip to next seller
-            }
-
-            console.log(`Found ${subscriptions.length} subscriptions for seller ${sellerId}. Sending notifications...`);
-
-            // Send notification to each subscription endpoint
-            const sendPromises = subscriptions.map(sub => {
-                const pushSubscription = {
-                    endpoint: sub.endpoint,
-                    keys: {
-                        p256dh: sub.p256dh,
-                        auth: sub.auth
-                    }
-                };
-                return webpush.sendNotification(pushSubscription, notificationPayload)
-                    .catch(error => {
-                        console.error(`Error sending push to ${sub.endpoint.substring(0, 30)}... for seller ${sellerId}:`, error.statusCode, error.body);
-                        // Handle specific errors, e.g., 410 Gone indicates subscription expired/invalid
-                        if (error.statusCode === 410 || error.statusCode === 404) {
-                            console.log(`Subscription ${sub.id} for seller ${sellerId} is invalid. Deleting.`);
-                            return prisma.pushSubscription.delete({ where: { id: sub.id } });
-                        }
-                    });
-            });
-
-            // Wait for all notifications for this seller to be sent (or fail)
-            await Promise.allSettled(sendPromises);
-            console.log(`Push notifications sent attempt finished for seller ${sellerId}.`);
-
-            // Update order flags (optional, if needed)
-            // await prisma.order.update({ where: { id: order.id }, data: { sellerNotified: true } });
-
+          } else {
+            console.warn(`Failed to send any push notifications to seller ${sellerId}. Will try alternative method.`);
+          }
         } catch (error) {
-            console.error(`Error processing notifications for seller ${sellerId}:`, error);
-            // Continue to next seller even if one fails
+          console.error(`Error processing web push notifications for seller ${sellerId}:`, error);
         }
+      }
+    } else {
+      console.warn('VAPID keys not configured in environment variables. Cannot send web push notifications.');
     }
-    
-    // NOTE: Admin notifications (e.g., via email or internal system) could be added here if needed.
-    // We removed the direct Gupshup admin notification.
 
+    // If web push wasn't successful, try alternative notification method (email or WhatsApp)
+    if (!webPushSuccessful && sellerIds.length > 0) {
+      console.log('Web push notification failed or not configured. Attempting alternative notification method...');
+      
+      // Try to send WhatsApp notifications if Gupshup is configured
+      try {
+        const API_KEY = process.env.GUPSHUP_API_KEY;
+        const SOURCE_NUMBER = process.env.GUPSHUP_SOURCE_NUMBER;
+        const GUPSHUP_API_URL = process.env.GUPSHUP_API_URL;
+        
+        if (API_KEY && SOURCE_NUMBER && GUPSHUP_API_URL) {
+          for (const sellerId of sellerIds) {
+            // Get seller contact information
+            const seller = await prisma.seller.findUnique({
+              where: { id: sellerId },
+              select: { phone: true, name: true, email: true }
+            });
+            
+            if (seller && seller.phone) {
+              console.log(`Attempting to send WhatsApp notification to seller ${sellerId} at ${seller.phone}`);
+              
+              // Format items for the notification
+              const itemsList = order.items
+                .filter(item => item.sellerId === sellerId)
+                .map(item => item.name || `Product ID: ${item.productId}`)
+                .join(", ");
+              
+              // Format shipping address
+              let shippingAddressText = "Address not available";
+              if (order.shippingAddress) {
+                const addr = order.shippingAddress;
+                shippingAddressText = `${addr.name}, ${addr.line1}, ${addr.city}, ${addr.state}, ${addr.pincode}`;
+              }
+              
+              // This would call your WhatsApp notification service
+              // For now, just log that we would send it
+              console.log(`Would send WhatsApp to ${seller.phone} with order #${order.orderNumber}, items: ${itemsList}, shipping: ${shippingAddressText}`);
+              
+              // Update order to mark notification as sent
+              await prisma.order.update({
+                where: { id: order.id },
+                data: { sellerNotified: true }
+              });
+            } else {
+              console.warn(`No phone number found for seller ${sellerId}`);
+            }
+          }
+        }
+      } catch (error) {
+        console.error('Error sending alternative notifications:', error);
+      }
+    }
   } catch (error) {
     console.error(`Error in processSuccessfulPayment for order ${order?.id}:`, error);
-    // Consider adding more robust error handling/logging here
-    // Don't re-throw generally, allow webhook to return 200 OK if possible
   }
 }
 

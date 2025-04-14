@@ -2,6 +2,13 @@ import { NextResponse } from 'next/server';
 import jwt from 'jsonwebtoken';
 import { cookies } from 'next/headers';
 
+// Connection parameters for better reliability
+const CONNECTION_CONFIG = {
+  initialTimeout: 10000,     // Initial timeout in ms (10 seconds)
+  maxRetries: 3,             // Maximum number of retry attempts
+  baseRetryDelay: 500,       // Base delay for exponential backoff in ms
+};
+
 export async function GET(request) {
   try {
     console.log('Profile request received');
@@ -38,43 +45,74 @@ export async function GET(request) {
     
     console.log(`Forwarding profile request to: ${endpoint}`);
     
+    // Initialize fetchParams with custom cache settings
+    const fetchParams = {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Cache-Control': 'no-cache',
+        'Pragma': 'no-cache',
+      },
+      // Don't use the browser's default cache
+      cache: 'no-store'
+    };
+    
     // Add retry mechanism for better reliability
     let response;
     let retryCount = 0;
-    const maxRetries = 2;
+    const maxRetries = CONNECTION_CONFIG.maxRetries;
+    let lastError = null;
     
     while (retryCount <= maxRetries) {
       try {
+        // Create a new abort controller for each attempt
+        const controller = new AbortController();
+        const timeoutDuration = CONNECTION_CONFIG.initialTimeout * (1 + retryCount * 0.5); // Increase timeout on each retry
+        
+        // Set timeout
+        const timeoutId = setTimeout(() => {
+          controller.abort();
+        }, timeoutDuration);
+        
+        console.log(`Profile fetch attempt ${retryCount + 1} with timeout ${timeoutDuration}ms`);
+        
+        // Make the request with current timeout and abort controller
         response = await fetch(endpoint, {
-          method: 'GET',
-          headers: {
-            'Authorization': `Bearer ${token}`
-          },
-          // Add a reasonable timeout
-          signal: AbortSignal.timeout(5000)
+          ...fetchParams,
+          signal: controller.signal
         });
+        
+        // Clear the timeout to avoid abort after successful response
+        clearTimeout(timeoutId);
         
         // If successful, break out of retry loop
         break;
       } catch (fetchError) {
+        lastError = fetchError;
         console.error(`Profile fetch attempt ${retryCount + 1} failed:`, fetchError.message);
         
         // If we've reached max retries, handle the error
         if (retryCount === maxRetries) {
           console.error('All profile fetch attempts failed');
           
-          // Instead of failing completely, return a non-fatal error
-          // This prevents unwanted logouts during temporary network issues
+          // Instead of failing completely, return a non-fatal error with retry information
           return NextResponse.json({
-            message: 'Profile fetch could not complete due to network issues',
+            message: 'Profile fetch could not complete after multiple attempts',
+            error: fetchError.message,
+            attemptsMade: retryCount + 1,
             maintainSession: true,
             networkError: true
           }, { status: 200 }); // Return 200 to prevent automatic logout
         }
         
-        // Wait before retrying (exponential backoff)
-        const delay = Math.pow(2, retryCount) * 500;
-        await new Promise(resolve => setTimeout(resolve, delay));
+        // Wait before retrying (exponential backoff with jitter)
+        const delay = Math.pow(2, retryCount) * CONNECTION_CONFIG.baseRetryDelay;
+        // Add jitter to prevent synchronized retries (±20% randomness)
+        const jitter = delay * 0.2 * (Math.random() - 0.5);
+        const finalDelay = Math.floor(delay + jitter);
+        
+        console.log(`Retrying in ${finalDelay}ms (retry ${retryCount + 1}/${maxRetries})`);
+        await new Promise(resolve => setTimeout(resolve, finalDelay));
         retryCount++;
       }
     }
@@ -94,6 +132,7 @@ export async function GET(request) {
       if (response.status >= 500) {
         return NextResponse.json({
           message: 'Server error during profile fetch',
+          status: response.status,
           maintainSession: true,
           serverError: true
         }, { status: 200 }); // Return 200 to prevent automatic logout
@@ -126,8 +165,20 @@ export async function GET(request) {
       );
     }
     
-    const data = await response.json();
-    console.log('Profile fetch successful');
+    // Add a timeout for the response parsing to prevent hanging
+    let data;
+    try {
+      const responseText = await response.text();
+      data = JSON.parse(responseText);
+      console.log('Profile fetch successful');
+    } catch (parseError) {
+      console.error('Error parsing profile response:', parseError);
+      return NextResponse.json({
+        message: 'Error parsing profile data',
+        error: parseError.message,
+        maintainSession: true
+      }, { status: 200 });
+    }
     
     return NextResponse.json(data);
     
@@ -139,7 +190,8 @@ export async function GET(request) {
       return NextResponse.json({
         message: 'Network issue during profile fetch',
         maintainSession: true,
-        networkError: true
+        networkError: true,
+        error: error.message
       }, { status: 200 }); // Return 200 to prevent automatic logout
     }
     
