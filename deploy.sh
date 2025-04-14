@@ -78,8 +78,8 @@ fi
 
 # Setup environment for startup
 echo "Setting up environment..."
-export PORT=${PORT:-8080}
+# export PORT=${PORT:-8080} # PORT is typically set by Azure automatically
 
-# Start the application
-echo "Starting application with next start command"
-npm run start 
+# Start the application - REMOVED, this should be handled by Azure's Startup Command
+echo "Deployment script finished. Azure will now start the application using the configured Startup Command."
+# npm run start 
