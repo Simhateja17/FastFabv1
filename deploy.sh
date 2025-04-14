@@ -1,6 +1,33 @@
 #!/bin/bash
 set -e
 
+# --- START: NVM Setup ---
+echo "Setting up NVM and Node 20..."
+# Set NVM directory explicitly
+export NVM_DIR="$HOME/.nvm"
+
+# Load NVM if it exists, otherwise install it
+if [ -s "$NVM_DIR/nvm.sh" ]; then
+  echo "NVM found, loading..."
+  \. "$NVM_DIR/nvm.sh"  # Note the space after the dot
+else
+  echo "NVM not found, installing..."
+  # Download and run the install script
+  curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.7/install.sh | bash
+  # Source NVM again immediately after installation
+  \. "$NVM_DIR/nvm.sh"
+fi
+
+# Install Node 20 if not already installed, and use it
+echo "Ensuring Node v20 is installed and used..."
+nvm install 20
+nvm use 20
+echo "Current Node version:"
+node -v  # Verify v20.x.x
+echo "Current NPM version:"
+npm -v
+# --- END: NVM Setup ---
+
 # Output useful info for debugging
 echo "Node version:"
 node --version
