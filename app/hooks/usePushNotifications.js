@@ -178,16 +178,8 @@ export function usePushNotifications() {
         
         console.log("Sending subscription to backend via authFetch...");
         
-        // Verify we have valid auth
-        const checkResponse = await authFetch('/api/auth/profile', {
-          method: 'GET'
-        });
-        
-        if (!checkResponse.ok) {
-          console.error('Auth check failed before subscription:', checkResponse.status);
-          throw new Error('Authentication validation failed. Please refresh and try again.');
-        }
-        console.log('Auth validated successfully');
+        // Don't do the extra auth check that's causing timeouts
+        // Just try to save the subscription directly
         
         // Use authFetch which should automatically handle headers
         const response = await authFetch('/api/seller/subscriptions', {
