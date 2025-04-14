@@ -32,6 +32,18 @@ jobs:
         chmod +x deploy.sh
         ls -la deploy.sh
         
+    - name: Create Azure App Settings
+      run: |
+        # Create .deployment file with Azure settings
+        echo "Creating Azure App Settings file"
+        cat > .azure-settings.json << EOF
+        {
+          "SCM_DO_BUILD_DURING_DEPLOYMENT": true,
+          "WEBSITE_NODE_DEFAULT_VERSION": "~20",
+          "ENABLE_ORYX_BUILD": "true"
+        }
+        EOF
+        
     - name: Build app
       run: npm run build
       
@@ -40,4 +52,5 @@ jobs:
       with:
         app-name: 'CoutureServicesPrivateLimited'
         publish-profile: ${{ secrets.AZURE_WEBAPP_PUBLISH_PROFILE }}
-        package: . 
+        package: .
+        app-settings-json: .azure-settings.json 
