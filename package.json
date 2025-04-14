@@ -10,6 +10,9 @@
     "update-schema": "node scripts/update_schema.js",
     "apply-migration": "powershell -ExecutionPolicy Bypass -File scripts/apply_migration_correct.ps1"
   },
+  "prisma": {
+    "binaryTargets": ["native", "debian-openssl-3.0.x"]
+  },
   "dependencies": {
     "@prisma/client": "^6.4.1",
     "@react-google-maps/api": "^2.20.6",
