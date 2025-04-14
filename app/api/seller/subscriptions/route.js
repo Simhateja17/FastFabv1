@@ -74,17 +74,22 @@ export async function POST(request) {
 
     // 5. Save to database using Prisma
     try {
-      // Use upsert to handle cases where the endpoint might already exist
-      // (e.g., user re-subscribes). It updates if exists, creates if not.
-      const savedSubscription = await prisma.pushSubscription.upsert({
-        where: { endpoint: endpoint }, // Unique constraint
-        update: {
-          p256dh: p256dh,
-          auth: authKey,
-          sellerId: sellerId, // Ensure it's linked to the current seller
-          updatedAt: new Date(), // Manually update timestamp
-        },
-        create: {
+      // First check if this exact subscription already exists
+      const existingSubscription = await prisma.pushSubscription.findUnique({
+        where: { endpoint: endpoint }
+      });
+      
+      if (existingSubscription) {
+        console.log(`Subscription with endpoint ${endpoint} already exists, returning success`);
+        return NextResponse.json(
+          { success: true, subscriptionId: existingSubscription.id, updated: false },
+          { status: 200 }
+        );
+      }
+      
+      // If not, create a new subscription
+      const savedSubscription = await prisma.pushSubscription.create({
+        data: {
           endpoint: endpoint,
           p256dh: p256dh,
           auth: authKey,
@@ -93,10 +98,10 @@ export async function POST(request) {
         },
       });
 
-      console.log(`Subscription saved/updated for seller ${sellerId}, endpoint: ${endpoint}`);
+      console.log(`New subscription created for seller ${sellerId}, endpoint: ${endpoint}`);
       return NextResponse.json(
-        { success: true, subscriptionId: savedSubscription.id },
-        { status: 201 } // 201 Created or 200 OK if updated
+        { success: true, subscriptionId: savedSubscription.id, created: true },
+        { status: 201 } // 201 Created
       );
 
     } catch (dbError) {
@@ -105,24 +110,24 @@ export async function POST(request) {
       // More detailed error handling for common Prisma errors
       if (dbError.code === 'P2003') { // Foreign key constraint failed (e.g., sellerId invalid)
         return NextResponse.json(
-          { success: false, error: "Invalid seller reference." },
+          { success: false, error: "Invalid seller reference.", details: dbError.message },
           { status: 400 }
         );
       } else if (dbError.code === 'P2002') { // Unique constraint failed
         return NextResponse.json(
-          { success: false, error: "Subscription endpoint already exists." },
+          { success: false, error: "Subscription endpoint already exists.", details: dbError.message },
           { status: 409 }
         );
       } else if (dbError.code === 'P1001') { // Database connection issues
         return NextResponse.json(
-          { success: false, error: "Database connection error. Please try again later." },
+          { success: false, error: "Database connection error. Please try again later.", details: dbError.message },
           { status: 503 }
         );
       }
       
-      // Generic error response
+      // Generic error response with details
       return NextResponse.json(
-        { success: false, error: "Could not save subscription to database." },
+        { success: false, error: "Could not save subscription to database.", code: dbError.code || 'unknown', details: dbError.message },
         { status: 500 }
       );
     }

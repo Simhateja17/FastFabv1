@@ -204,10 +204,16 @@ export function usePushNotifications() {
           throw new Error(result.error || 'Backend failed to save subscription.');
         }
 
-        console.log('Subscription saved on server.');
+        console.log('Subscription response:', result);
         setCurrentSubscription(sub);
         setIsSubscribed(true);
-        toast.success('Subscribed to notifications!');
+        
+        if (result.created) {
+          toast.success('Subscribed to notifications!');
+        } else {
+          // Subscription already existed
+          toast.success('Notification settings verified!');
+        }
 
       } catch (serverError) {
         console.error('Failed to send/save subscription:', serverError);
