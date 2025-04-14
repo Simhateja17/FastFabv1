@@ -65,7 +65,7 @@ export function AuthProvider({ children }) {
       console.log("Attempting to refresh token with:", refreshToken ? refreshToken.substring(0, 10) + "..." : "none");
 
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 15000); // 15 second timeout
+      const timeoutId = setTimeout(() => controller.abort(), 30000); // Increased from 15000 (15s) to 30000 (30s)
 
       try {
         // Add a timestamp to prevent caching issues
@@ -241,7 +241,7 @@ export function AuthProvider({ children }) {
 
     // Add timeout and retry logic
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 15000);
+    const timeoutId = setTimeout(() => controller.abort(), 30000); // Increased from 15000 (15s) to 30000 (30s)
     
     const makeRequest = async (token = accessToken, retryCount = 0) => {
       try {
