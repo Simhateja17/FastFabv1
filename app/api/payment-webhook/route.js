@@ -6,7 +6,7 @@ import webpush from 'web-push'; // Import web-push
 //   sendSellerOrderWithImage,
 //   sendAdminOrderPendingSeller 
 // } from '@/app/utils/notificationService';
-
+// Trigger redeploy - attempt 2
 // Initialize Prisma client
 const prisma = new PrismaClient();
 
