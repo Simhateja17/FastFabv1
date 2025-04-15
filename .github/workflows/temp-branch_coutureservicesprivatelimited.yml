@@ -17,6 +17,8 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+        with:
+          clean: true
 
       - name: Set up Node.js version
         uses: actions/setup-node@v3
@@ -25,20 +27,86 @@ jobs:
 
       - name: npm install and build
         run: |
-          npm install
+          npm ci
+          npx prisma generate
           npm run build --if-present
       
-      - name: Remove node_modules after build
-        run: rm -rf node_modules
-
-      - name: Zip artifact for deployment
-        run: zip release.zip . -r
+      - name: Create deployment package
+        run: |
+          # Create a clean deployment package
+          mkdir -p deploy
+          cp -r .next deploy/
+          cp -r public deploy/
+          cp -r node_modules/.prisma deploy/.prisma
+          cp package.json deploy/
+          cp next.config.mjs deploy/
+          cp -r prisma deploy/
+          cp -r node_modules deploy/
+          
+          # Create simplified server.js file
+          cat > deploy/server.js << EOF
+          const { createServer } = require('http');
+          const { parse } = require('url');
+          const next = require('next');
+          
+          const dev = false;
+          const hostname = '0.0.0.0';
+          const port = process.env.PORT || 3000;
+          
+          const app = next({ dev, hostname, port, dir: __dirname });
+          const handle = app.getRequestHandler();
+          
+          app.prepare().then(() => {
+            createServer((req, res) => {
+              const parsedUrl = parse(req.url, true);
+              handle(req, res, parsedUrl);
+            }).listen(port, (err) => {
+              if (err) throw err;
+              console.log(\`> Ready on http://\${hostname}:\${port}\`);
+            });
+          });
+          EOF
+          
+          # Create web.config for Azure
+          cat > deploy/web.config << EOF
+          <?xml version="1.0" encoding="utf-8"?>
+          <configuration>
+            <system.webServer>
+              <handlers>
+                <add name="iisnode" path="server.js" verb="*" modules="iisnode" />
+              </handlers>
+              <rewrite>
+                <rules>
+                  <rule name="StaticContent" stopProcessing="true">
+                    <match url=".*" />
+                    <conditions logicalGrouping="MatchAll">
+                      <add input="{REQUEST_FILENAME}" matchType="IsFile" />
+                    </conditions>
+                    <action type="None" />
+                  </rule>
+                  <rule name="DynamicContent">
+                    <match url="/*" />
+                    <action type="Rewrite" url="server.js" />
+                  </rule>
+                </rules>
+              </rewrite>
+              <iisnode node_env="production" watchedFiles="web.config;*.js;routes\*.js;helpers\*.js" nodeProcessCommandLine="node.exe" />
+            </system.webServer>
+          </configuration>
+          EOF
+          
+          # Create deployment info file for debugging
+          echo "Deployed from temp-branch at $(date)" > deploy/deployment-info.txt
+          
+          # Zip the deployment package
+          cd deploy
+          zip -r ../deployment.zip *
 
       - name: Upload artifact for deployment job
         uses: actions/upload-artifact@v4
         with:
           name: node-app
-          path: release.zip
+          path: deployment.zip
 
   deploy:
     runs-on: ubuntu-latest
@@ -56,9 +124,6 @@ jobs:
         with:
           name: node-app
 
-      - name: Unzip artifact for deployment
-        run: unzip release.zip
-      
       - name: Login to Azure
         uses: azure/login@v2
         with:
@@ -66,11 +131,24 @@ jobs:
           tenant-id: ${{ secrets.AZUREAPPSERVICE_TENANTID_52E9AA43FEBE4A3BAF5735F37932A3E2 }}
           subscription-id: ${{ secrets.AZUREAPPSERVICE_SUBSCRIPTIONID_110120AC1DD44CDCACCE2FBEDAA95412 }}
 
+      - name: Stop App Service before deployment
+        uses: azure/CLI@v1
+        with:
+          inlineScript: |
+            az webapp stop --name CoutureServicesPrivateLimited --resource-group site_resources
+
       - name: 'Deploy to Azure Web App'
         id: deploy-to-webapp
         uses: azure/webapps-deploy@v3
         with:
           app-name: 'CoutureServicesPrivateLimited'
           slot-name: 'Production'
-          package: .
+          package: deployment.zip
+          clean: true
+
+      - name: Start App Service after deployment
+        uses: azure/CLI@v1
+        with:
+          inlineScript: |
+            az webapp start --name CoutureServicesPrivateLimited --resource-group site_resources
           
