@@ -7,7 +7,8 @@ import axios from 'axios';
 const TEMPLATES = {
   CUSTOMER_ORDER_CANCELLED_REFUND: 'customer_order_cancelled_refund',
   ADMIN_ORDER_PENDING_SELLER: 'admin_order_pending_seller',
-  SELLER_ORDER_WITH_IMAGE: 'seller_order_with_image'
+  SELLER_ORDER_WITH_IMAGE: 'seller_order_with_image',
+  CUSTOMER_ORDER_CONFIRMED: 'customer_order_confirmed'
 };
 
 /**
@@ -124,6 +125,26 @@ export async function sendCustomerOrderCancelledRefund(customerPhone, orderData)
       orderId,      // {{2}}
       reason,       // {{3}}
       refundAmount  // {{4}}
+    }
+  );
+}
+
+/**
+ * Send customer order confirmation notification
+ * @param {string} customerPhone - Customer phone number
+ * @param {Object} orderData - Order data with customerName, orderId, estimatedDelivery
+ * @returns {Promise<Object>} Response from notification service
+ */
+export async function sendCustomerOrderConfirmed(customerPhone, orderData) {
+  const { customerName, orderId, estimatedDelivery } = orderData;
+  
+  return sendTemplateNotification(
+    TEMPLATES.CUSTOMER_ORDER_CONFIRMED,
+    customerPhone,
+    {
+      customerName,       // {{1}}
+      orderId,            // {{2}}
+      estimatedDelivery   // {{3}}
     }
   );
 }

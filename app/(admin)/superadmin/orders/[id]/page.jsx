@@ -5,6 +5,7 @@ import axios from "axios";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import Image from 'next/image';
+import { toast } from "react-hot-toast";
 
 // API endpoint
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000";
@@ -17,8 +18,8 @@ const ORDER_STATUSES = [
     color: "bg-yellow-100 text-yellow-800",
   },
   {
-    value: "PROCESSING",
-    label: "Processing",
+    value: "CONFIRMED",
+    label: "Confirmed",
     color: "bg-blue-100 text-blue-800",
   },
   {
@@ -45,6 +46,8 @@ export default function OrderDetailPage({ params }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [statusUpdateLoading, setStatusUpdateLoading] = useState(false);
+  const [adminNotes, setAdminNotes] = useState("");
+  const [sellerInfo, setSellerInfo] = useState(null);
   const router = useRouter();
 
   // Fetch order details
@@ -55,6 +58,19 @@ export default function OrderDetailPage({ params }) {
           `${API_BASE_URL}/admin/orders/${orderId}`
         );
         setOrder(response.data);
+        setAdminNotes(response.data.adminNotes || "");
+        
+        // Fetch seller info if primarySellerId is available
+        if (response.data.primarySellerId) {
+          try {
+            const sellerResponse = await axios.get(
+              `${API_BASE_URL}/admin/sellers/${response.data.primarySellerId}`
+            );
+            setSellerInfo(sellerResponse.data);
+          } catch (sellerError) {
+            console.error("Error fetching seller details:", sellerError);
+          }
+        }
       } catch (error) {
         console.error("Error fetching order details:", error);
         setError(
@@ -76,11 +92,76 @@ export default function OrderDetailPage({ params }) {
         status: newStatus,
       });
       setOrder({ ...order, status: newStatus });
+      toast.success(`Order status updated to ${newStatus}`);
     } catch (error) {
       console.error("Error updating order status:", error);
-      alert(error.response?.data?.message || "Failed to update order status");
+      toast.error(error.response?.data?.message || "Failed to update order status");
     } finally {
       setStatusUpdateLoading(false);
+    }
+  };
+
+  // Accept order after confirming with seller
+  const acceptOrder = async () => {
+    try {
+      setStatusUpdateLoading(true);
+      await axios.patch(`${API_BASE_URL}/admin/orders/${orderId}/accept`, {
+        adminNotes,
+      });
+      setOrder({
+        ...order,
+        status: "CONFIRMED",
+        adminProcessed: true,
+        sellerConfirmed: true,
+        adminNotes,
+      });
+      toast.success("Order accepted and marked for processing");
+    } catch (error) {
+      console.error("Error accepting order:", error);
+      toast.error(error.response?.data?.message || "Failed to accept order");
+    } finally {
+      setStatusUpdateLoading(false);
+    }
+  };
+
+  // Reject order (seller doesn't have stock)
+  const rejectOrder = async () => {
+    if (!adminNotes) {
+      toast.error("Please add a note explaining why the order is being rejected");
+      return;
+    }
+
+    try {
+      setStatusUpdateLoading(true);
+      await axios.patch(`${API_BASE_URL}/admin/orders/${orderId}/reject`, {
+        adminNotes,
+      });
+      setOrder({
+        ...order,
+        status: "CANCELLED",
+        adminProcessed: true,
+        sellerConfirmed: false,
+        adminNotes,
+      });
+      toast.success("Order rejected and customer will be notified");
+    } catch (error) {
+      console.error("Error rejecting order:", error);
+      toast.error(error.response?.data?.message || "Failed to reject order");
+    } finally {
+      setStatusUpdateLoading(false);
+    }
+  };
+
+  // Save admin notes
+  const saveAdminNotes = async () => {
+    try {
+      await axios.patch(`${API_BASE_URL}/admin/orders/${orderId}/notes`, {
+        adminNotes,
+      });
+      toast.success("Notes saved successfully");
+    } catch (error) {
+      console.error("Error saving notes:", error);
+      toast.error("Failed to save notes");
     }
   };
 
@@ -200,6 +281,77 @@ export default function OrderDetailPage({ params }) {
           </select>
         </div>
       </div>
+
+      {/* Admin Actions Panel - New Addition */}
+      {order.status === 'PENDING' && !order.adminProcessed && (
+        <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mb-6">
+          <h2 className="text-lg font-semibold text-yellow-800 mb-2">Admin Action Required</h2>
+          <p className="text-yellow-700 mb-4">
+            Please contact the seller to confirm if they have the item(s) in stock before processing this order.
+          </p>
+          
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+            <div>
+              <h3 className="font-medium text-gray-700 mb-1">Seller Information:</h3>
+              {sellerInfo ? (
+                <div className="p-3 bg-white rounded border border-gray-200">
+                  <p className="font-semibold">{sellerInfo.shopName || 'Unknown Shop'}</p>
+                  <p><span className="font-medium">Phone:</span> {sellerInfo.phone || 'N/A'}</p>
+                  <p><span className="font-medium">Address:</span> {[
+                    sellerInfo.address,
+                    sellerInfo.city,
+                    sellerInfo.state,
+                    sellerInfo.pincode
+                  ].filter(Boolean).join(', ') || 'N/A'}</p>
+                  
+                  <Link 
+                    href={`/admin/superadmin/sellers/${sellerInfo.id}`}
+                    className="text-primary hover:underline text-sm mt-2 inline-block"
+                  >
+                    View Seller Profile
+                  </Link>
+                </div>
+              ) : (
+                <p className="text-gray-500">Seller information not available</p>
+              )}
+            </div>
+            
+            <div>
+              <h3 className="font-medium text-gray-700 mb-1">Admin Notes:</h3>
+              <textarea
+                value={adminNotes}
+                onChange={(e) => setAdminNotes(e.target.value)}
+                className="w-full border border-gray-300 rounded p-2 h-24 text-sm"
+                placeholder="Add notes about this order (e.g., communication with seller)"
+              ></textarea>
+              <button
+                onClick={saveAdminNotes}
+                className="text-xs bg-gray-200 hover:bg-gray-300 px-2 py-1 rounded mt-1"
+              >
+                Save Notes
+              </button>
+            </div>
+          </div>
+          
+          <div className="flex flex-wrap gap-3 mt-4">
+            <button
+              onClick={acceptOrder}
+              disabled={statusUpdateLoading}
+              className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded font-medium disabled:opacity-50"
+            >
+              Accept Order (Items Available)
+            </button>
+            
+            <button
+              onClick={rejectOrder}
+              disabled={statusUpdateLoading}
+              className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded font-medium disabled:opacity-50"
+            >
+              Reject Order (Items Unavailable)
+            </button>
+          </div>
+        </div>
+      )}
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Order Summary */}
