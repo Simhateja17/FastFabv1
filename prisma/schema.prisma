@@ -81,27 +81,46 @@ model OTP {
 }
 
 model Order {
-  id                  String              @id
-  userId              String
-  sellerId            String
-  orderStatus         OrderStatus         @default(PENDING)
-  paymentStatus       PaymentStatus       @default(PENDING)
-  paymentMethod       PaymentMethod?
-  paymentTransactions PaymentTransaction[]
-  paymentId           String?
-  amount              Float
-  address             Address             @relation(fields: [addressId], references: [id])
-  addressId           String
-  isSettled           Boolean             @default(false)
-  createdAt           DateTime            @default(now())
-  updatedAt           DateTime
-  items               OrderItem[]
-  seller              Seller              @relation(fields: [sellerId], references: [id], onDelete: Cascade)
-  user                User                @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@index([orderStatus, sellerId])
-  @@index([userId, sellerId])
+  id                     String        @id @default(uuid())
+  orderNumber            String        @unique
+  userId                 String
+  totalAmount            Float
+  status                 OrderStatus   @default(PENDING)
+  paymentStatus          PaymentStatus @default(PENDING)
+  paymentMethod          PaymentMethod @default(COD)
+  addressId              String?
+  discount               Float         @default(0)
+  shippingFee            Float         @default(0)
+  tax                    Float         @default(0)
+  notes                  String?
+  deliveryNotes          String?
+  estimatedDelivery      DateTime?
+  trackingNumber         String?
+  deliveredAt            DateTime?
+  cancelledAt            DateTime?
+  createdAt              DateTime      @default(now())
+  updatedAt              DateTime      @updatedAt
+  sellerPhone            String?
+  adminNotified          Boolean       @default(false)
+  customerNotified       Boolean?      @default(false)
+  primarySellerId        String?
+  // Admin-focused fields
+  adminProcessed         Boolean       @default(false)
+  adminNotes             String?
+  sellerConfirmed        Boolean       @default(false)
+  
+  // Relationships
+  address                Address?      @relation(fields: [addressId], references: [id])
+  user                   User          @relation(fields: [userId], references: [id])
+  items                  OrderItem[]
+  transactions           PaymentTransaction[]
+  primarySeller          Seller?       @relation("SellerOrders", fields: [primarySellerId], references: [id])
+  
   @@index([createdAt])
+  @@index([primarySellerId])
+  @@index([status, paymentStatus])
+  @@index([userId, status])
+  @@index([adminProcessed]) // Index for finding unprocessed orders
 }
 
 model OrderItem {
@@ -215,7 +234,7 @@ model Seller {
   location        Unsupported("geography")?
   products        Product[]
   orderItems      OrderItem[]
-  orders          Order[]
+  orders          Order[] @relation("SellerOrders")
 
   @@index([manuallyHidden], map: "idx_seller_manually_hidden")
   @@index([isVisible], map: "idx_seller_visibility")

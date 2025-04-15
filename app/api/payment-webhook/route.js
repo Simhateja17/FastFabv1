@@ -1,17 +1,13 @@
 import { NextResponse } from 'next/server';
 import { PrismaClient } from '@prisma/client';
-import webpush from 'web-push'; // Import web-push
-// Remove Gupshup notification imports as we replace them
-// import { 
-//   sendSellerOrderWithImage,
-//   sendAdminOrderPendingSeller 
-// } from '@/app/utils/notificationService';
-// Trigger redeploy - attempt 2
+// Remove webpush import as we're not sending seller notifications anymore
+// import webpush from 'web-push';
+import { sendAdminOrderPendingSeller } from '@/app/utils/notificationService';
+
 // Initialize Prisma client
 const prisma = new PrismaClient();
 
-// Constants
-const SELLER_RESPONSE_TIMEOUT = 3 * 60 * 1000; // 3 minutes in milliseconds
+// Remove the SELLER_RESPONSE_TIMEOUT constant as we no longer need it
 
 /**
  * Validates Cashfree webhook signature (Placeholder - Implement properly for production)
@@ -228,7 +224,7 @@ export async function POST(request) {
 }
 
 /**
- * Process a successful payment: Update DB, calculate primary seller, send notifications.
+ * Process a successful payment: Update DB, calculate primary seller, notify admin.
  * @param {Object} order - Order object from database (with includes)
  * @param {Object} webhookData - Parsed webhook data from Cashfree
  * @param {string | null} transactionId - Extracted transaction ID
@@ -255,20 +251,17 @@ async function processSuccessfulPayment(order, webhookData, transactionId) {
       console.warn(`Could not determine primary seller for order ${order.id}.`);
   }
 
-  // Calculate seller response deadline
-  const sellerResponseDeadline = new Date(Date.now() + SELLER_RESPONSE_TIMEOUT);
-
   // --- Update Order in Database ---
-  console.log(`Updating order ${order.id} status to PENDING (Seller Action) and payment to SUCCESSFUL.`);
+  console.log(`Updating order ${order.id} status to PENDING and payment to SUCCESSFUL.`);
   await prisma.order.update({
       where: { id: order.id },
       data: {
-          status: 'PENDING', // Requires seller action
+          status: 'PENDING', // Order is pending admin review
           paymentStatus: 'SUCCESSFUL',
-          sellerResponseDeadline,
           primarySellerId: primarySellerId, // Set the calculated primary seller
-          // Optionally store raw webhook for audit? (Requires schema change)
-          // webhookPayload: JSON.stringify(webhookData)
+          adminNotified: false, // Initially not notified
+          adminProcessed: false, // Not processed by admin yet
+          // Removing sellerNotified and sellerResponseDeadline
       }
   });
 
@@ -279,14 +272,10 @@ async function processSuccessfulPayment(order, webhookData, transactionId) {
   await prisma.paymentTransaction.upsert({
       where: {
           // Attempt to find based on orderId and SUCCESSFUL status first
-          // This simple check might not be enough if multiple SUCCESS webhooks arrive
-          // A unique constraint on (orderId, transactionId, status) might be better
-          orderId_status: { // Use a hypothetical unique constraint name or adjust as needed
+          orderId_status: { 
             orderId: order.id,
-            status: 'SUCCESSFUL' // Check if a successful transaction already exists
+            status: 'SUCCESSFUL'
           }
-          // If using transactionId as part of uniqueness:
-          // transactionId: finalTransactionId
       },
       update: {
           // If found, maybe update timestamp or gateway response
@@ -305,18 +294,11 @@ async function processSuccessfulPayment(order, webhookData, transactionId) {
       }
   });
 
-  // --- Send Seller Notifications ---
-  if (sellerIds.length > 0) {
-      console.log(`Sending notifications to sellers: [${sellerIds.join(', ')}] for order ${order.id}`);
-      await sendSellerNotifications(order, sellerIds);
-  } else {
-      console.error(`CRITICAL: No sellers identified for order ${order.id} after recovery attempts. Cannot send notifications.`);
-      // Potentially send an alert to admin here
-  }
+  // --- Send Admin Notification ---
+  await sendAdminNotification(order, sellerIds);
 
-  console.log(`Successfully processed payment and initiated notifications for order ${order.id}.`);
+  console.log(`Successfully processed payment and notified admin for order ${order.id}.`);
 }
-
 
 /**
  * Tries to find seller IDs for order items where sellerId is missing.
@@ -410,113 +392,69 @@ function determinePrimarySellerId(orderItems, sellerIds) {
     return primarySellerId;
 }
 
-
 /**
- * Send notifications to sellers about new order using Web Push.
+ * Send notification to admin about new order.
  * @param {Object} order - The order object (with includes)
- * @param {Array<string>} sellerIds - Array of unique seller IDs to notify
+ * @param {Array<string>} sellerIds - Array of unique seller IDs for reference
  */
-async function sendSellerNotifications(order, sellerIds) {
-  console.log('Attempting to send Web Push notifications...');
-  // Set up web push VAPID keys
-  if (process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY && process.env.VAPID_PRIVATE_KEY && process.env.VAPID_SUBJECT) {
-    try {
-        webpush.setVapidDetails(
-            process.env.VAPID_SUBJECT,
-            process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY, // Use the public key meant for frontend
-            process.env.VAPID_PRIVATE_KEY
-        );
-        console.log('Web Push VAPID details configured.');
-    } catch(err) {
-        console.error("Error setting VAPID details:", err);
-        return; // Cannot proceed without VAPID setup
-    }
-  } else {
-      console.error('Missing VAPID keys in environment variables. Cannot send web push notifications.');
-      return; // Cannot proceed
+async function sendAdminNotification(order, sellerIds) {
+  console.log('Sending admin notification for new order...');
+  
+  // Check if we have an admin notification phone number
+  const adminPhone = process.env.ADMIN_NOTIFICATION_PHONE;
+  if (!adminPhone) {
+    console.error('Missing ADMIN_NOTIFICATION_PHONE in environment variables. Cannot send admin notification.');
+    return;
   }
 
-  // Prepare notification payload (common for all sellers for this order)
-  const notificationPayload = JSON.stringify({
-      title: `📦 New Order #${order.orderNumber}`,
-      body: `Order of ₹${order.totalAmount.toFixed(2)} received. Please confirm ASAP.`,
-      icon: '/logo_transparent.png', // Ensure this icon exists in your public folder
-      data: {
-          url: `/seller/orders/${order.id}` // Deep link to the order details page
-      },
-      tag: `order-${order.id}` // Allows replacing notifications for the same order
-  });
+  try {
+    // Prepare seller information if available
+    let primarySeller = null;
+    if (order.primarySellerId) {
+      primarySeller = await prisma.seller.findUnique({
+        where: { id: order.primarySellerId },
+        select: { 
+          id: true,
+          shopName: true, 
+          phone: true,
+          address: true,
+          city: true,
+          state: true,
+          pincode: true
+        }
+      });
+    }
 
-  let overallSuccess = false;
+    // Get formatted shipping address
+    const shippingAddress = order.shippingAddress ? formatAddress(order.shippingAddress) : 'Address not available';
+    
+    // Send notification to admin
+    await sendAdminOrderPendingSeller(adminPhone, {
+      orderId: order.orderNumber,
+      amount: order.totalAmount,
+      customerName: order.user?.name || 'Customer',
+      customerPhone: order.user?.phone || 'N/A',
+      shippingAddress: shippingAddress,
+      // Add seller information if available
+      sellerPhone: primarySeller?.phone || 'N/A',
+      sellerName: primarySeller?.shopName || 'N/A',
+      sellerAddress: primarySeller ? formatAddress({
+        line1: primarySeller.address,
+        city: primarySeller.city,
+        state: primarySeller.state,
+        pincode: primarySeller.pincode
+      }) : 'Address not available'
+    });
 
-  // Iterate through each seller ID
-  for (const sellerId of sellerIds) {
-      try {
-          const subscriptions = await prisma.pushSubscription.findMany({
-              where: { sellerId }
-          });
+    // Update the order to mark admin as notified
+    await prisma.order.update({
+      where: { id: order.id },
+      data: { adminNotified: true }
+    });
 
-          if (subscriptions.length === 0) {
-              console.log(`No active web push subscriptions found for seller ${sellerId}.`);
-              continue; // Skip to next seller
-          }
-
-          console.log(`Found ${subscriptions.length} subscriptions for seller ${sellerId}. Attempting to send...`);
-          let sellerNotified = false;
-
-          // Send to all subscriptions for this seller
-          const sendPromises = subscriptions.map(sub => {
-              return webpush.sendNotification({
-                  endpoint: sub.endpoint,
-                  keys: { p256dh: sub.p256dh, auth: sub.auth }
-              }, notificationPayload)
-              .then(() => {
-                  console.log(`Successfully sent web push to endpoint for seller ${sellerId}`);
-                  sellerNotified = true; // Mark success if at least one sends
-                  return { success: true, id: sub.id };
-              })
-              .catch(error => {
-                  console.error(`Failed to send web push notification to endpoint for seller ${sellerId}. Status: ${error.statusCode}. Body: ${error.body}`);
-                  // Handle expired/invalid subscriptions
-                  if (error.statusCode === 410 || error.statusCode === 404) {
-                      console.log(`Subscription ${sub.id} for seller ${sellerId} is invalid. Deleting.`);
-                      return prisma.pushSubscription.delete({ where: { id: sub.id } }).then(() => ({ deleted: true, id: sub.id }));
-                  }
-                  return { success: false, id: sub.id };
-              });
-          });
-
-          // Wait for all attempts for this seller
-          await Promise.allSettled(sendPromises);
-
-          if (sellerNotified) {
-              overallSuccess = true; // Mark overall success if any seller was notified
-              console.log(`Successfully notified seller ${sellerId} via Web Push.`);
-              // Update the order to indicate this seller was notified (optional, might need schema change)
-              // await prisma.order.update(...)
-          } else {
-               console.warn(`Failed to send any Web Push notifications to seller ${sellerId}.`);
-          }
-
-      } catch (error) {
-          console.error(`Error processing notifications for seller ${sellerId}: ${error.message}`);
-      }
-  } // End loop through sellerIds
-
-  // Update the main sellerNotified flag on the order if any seller was successfully notified
-  if (overallSuccess) {
-      try {
-          await prisma.order.update({
-              where: { id: order.id },
-              data: { sellerNotified: true } // Mark that at least one seller notification attempt was successful
-          });
-          console.log(`Marked order ${order.id} as sellerNotified=true.`);
-      } catch (updateError) {
-          console.error(`Failed to update sellerNotified flag for order ${order.id}: ${updateError.message}`);
-      }
-  } else {
-     console.error(`Failed to send Web Push notifications to any seller for order ${order.id}.`);
-     // Consider adding alternative notification methods (Email, SMS, WhatsApp) here as a fallback if needed.
+    console.log(`Successfully notified admin about order ${order.id}`);
+  } catch (error) {
+    console.error(`Error sending admin notification: ${error.message}`);
   }
 }
 
@@ -531,4 +469,7 @@ function formatAddress(address) {
     `${city}, ${state} ${pincode}`,
     country || 'India'
   ].filter(Boolean).join(', ');
-} 
+}
+
+// When loading this file, log that we're running the admin-focused version
+console.log('Running admin-focused order notification system (no seller notifications)'); 
