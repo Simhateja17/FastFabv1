@@ -80,6 +80,15 @@ fi
 echo "Setting up environment..."
 # export PORT=${PORT:-8080} # PORT is typically set by Azure automatically
 
+# Generate Prisma Client
+npx prisma generate
+
+# Build the application
+npm run build
+
+# Start the application
+npm start
+
 # Start the application - REMOVED, this should be handled by Azure's Startup Command
 echo "Deployment script finished. Azure will now start the application using the configured Startup Command."
 # npm run start 
