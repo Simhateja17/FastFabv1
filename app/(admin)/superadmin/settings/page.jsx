@@ -41,13 +41,13 @@ export default function SettingsPage() {
   // Load admin profile data
   useEffect(() => {
     if (adminUser) {
-      setProfileData({
-        ...profileData,
+      setProfileData(prevData => ({
+        ...prevData,
         name: adminUser.name || "",
         email: adminUser.email || "",
-      });
+      }));
     }
-  }, [adminUser, profileData]);
+  }, [adminUser]);
 
   // Load site settings
   useEffect(() => {
@@ -61,10 +61,10 @@ export default function SettingsPage() {
         const response = await apiClient.get(`/api/admin/settings`);
 
         if (response.data && response.data.settings) {
-          setSiteSettings({
-            ...siteSettings,
+          setSiteSettings(prevSettings => ({
+            ...prevSettings,
             ...response.data.settings,
-          });
+          }));
         }
       } catch (error) {
         console.error("Error fetching site settings:", error);
@@ -75,7 +75,7 @@ export default function SettingsPage() {
     };
 
     fetchSiteSettings();
-  }, [siteSettings]);
+  }, []);
 
   // Handle profile form changes
   const handleProfileChange = (e) => {
