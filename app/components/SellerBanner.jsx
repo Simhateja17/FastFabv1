@@ -93,8 +93,8 @@ const SellerBanner = () => {
               className="m-auto"
             />
           </div>
-          <h3 className="text-2xl font-bold mb-2">Fast&Fab</h3>
-          <p className="font-medium">Start selling today!</p>
+          <h3 className="text-2xl font-bold mb-2 text-black">Fast&Fab</h3>
+          <p className="font-medium text-black">Start selling today!</p>
         </div>
 
         {/* Right Column - Content */}
@@ -149,13 +149,13 @@ const SellerBanner = () => {
           <div className="flex gap-4 mt-6">
             <Link
               href="/seller/signup"
-              className="py-2 px-6 bg-secondary text-white rounded-md text-center font-medium hover:bg-secondary-dark transition-colors"
+              className="py-2 px-6 bg-secondary text-black rounded-md text-center font-medium hover:bg-secondary-dark transition-colors"
             >
               Register as Seller
             </Link>
             <button
               onClick={handleClose}
-              className="py-2 px-6 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-100 transition-colors"
+              className="py-2 px-6 border border-gray-300 rounded-md text-black hover:bg-gray-100 transition-colors"
             >
               Don&apos;t Show Again
             </button>

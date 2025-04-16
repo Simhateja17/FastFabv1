@@ -20,8 +20,8 @@ import {
 // The actual profile content
 function ProfileContent() {
   const router = useRouter();
-  const { seller, updateSellerDetails, logout } = useAuth();
-  const [loading, setLoading] = useState(false);
+  const { seller, updateSellerDetails, logout, fetchCurrentSellerProfile } = useAuth();
+  const [loadingProfile, setLoadingProfile] = useState(true);
   const [isEditing, setIsEditing] = useState(false);
   const [mapsLoaded, setMapsLoaded] = useState(false);
   const addressInputRef = useRef(null);
@@ -42,7 +42,19 @@ function ProfileContent() {
 
   // Extract the actual seller data from the nested structure
   const sellerData = seller?.seller || seller;
-  console.log(sellerData);
+
+  // Fetch profile data on component mount
+  useEffect(() => {
+    const loadProfile = async () => {
+      console.log("ProfileContent mounted, attempting to fetch profile data.");
+      setLoadingProfile(true);
+      await fetchCurrentSellerProfile();
+      setLoadingProfile(false);
+    };
+    loadProfile();
+    // Run only once on mount
+    // eslint-disable-next-line react-hooks/exhaustive-deps 
+  }, []); // Empty dependency array ensures it runs once on mount
 
   // Populate form with seller data
   useEffect(() => {
@@ -218,7 +230,7 @@ function ProfileContent() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    setLoading(true);
+    setLoadingProfile(true);
 
     try {
       if (!sellerData || !sellerData.id) {
@@ -237,7 +249,7 @@ function ProfileContent() {
       console.error("Error updating profile:", error);
       toast.error("Something went wrong. Please try again.");
     } finally {
-      setLoading(false);
+      setLoadingProfile(false);
     }
   };
 
@@ -246,6 +258,15 @@ function ProfileContent() {
     toast.success("Logged out successfully");
     router.push("/seller/signin");
   };
+
+  // Show loading indicator while fetching initial profile
+  if (loadingProfile) {
+    return (
+      <div className="flex justify-center items-center min-h-[300px]">
+        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary"></div>
+      </div>
+    );
+  }
 
   if (!seller) {
     return (
@@ -290,7 +311,7 @@ function ProfileContent() {
               ) : (
                 <button
                   onClick={() => setIsEditing(true)}
-                  className="px-4 py-2 bg-secondary text-white rounded-md hover:bg-secondary-dark transition-colors flex items-center justify-center w-full sm:w-auto"
+                  className="px-4 py-2 bg-secondary text-black rounded-md hover:bg-secondary-dark transition-colors flex items-center justify-center w-full sm:w-auto"
                 >
                   <FiEdit className="mr-2" />
                   Edit Profile
@@ -460,10 +481,10 @@ function ProfileContent() {
               <div className="flex justify-end">
                 <button
                   type="submit"
-                  disabled={loading}
-                  className="bg-secondary text-white px-6 py-3 rounded-md hover:bg-secondary-dark transition-colors disabled:opacity-50 disabled:cursor-not-allowed shadow-sm"
+                  disabled={loadingProfile}
+                  className="bg-secondary text-black px-6 py-3 rounded-md hover:bg-secondary-dark transition-colors disabled:opacity-50 disabled:cursor-not-allowed shadow-sm"
                 >
-                  {loading ? "Saving..." : "Save Changes"}
+                  {loadingProfile ? "Saving..." : "Save Changes"}
                 </button>
               </div>
             </form>

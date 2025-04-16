@@ -1001,16 +1001,26 @@ export default function EditProductClient({ productId }) {
                   key={color.name}
                   type="button"
                   onClick={() => handleColorSelect(color)}
-                  className={`flex flex-col items-center space-y-1 p-2 rounded-md ${
+                  className={`relative flex flex-col items-center space-y-1 p-2 rounded-md transition-all ${
                     selectedColor && selectedColor.name === color.name
-                      ? "ring-2 ring-secondary"
+                      ? "ring-2 ring-blue-500 ring-offset-2 ring-offset-yellow-500"
                       : "hover:bg-background"
                   }`}
                 >
                   <div
-                    className="w-8 h-8 rounded-full border border-ui-border shadow-sm"
+                    className="relative w-8 h-8 rounded-full border border-ui-border shadow-sm flex items-center justify-center"
                     style={{ backgroundColor: color.hex }}
-                  ></div>
+                  >
+                  {selectedColor && selectedColor.name === color.name && (
+                    <FiCheck
+                      className={`w-5 h-5 ${
+                        color.name === "White" || color.name === "Yellow" || color.name === "Lime" || color.name === "Silver" || color.name === "Beige" || color.name === "Cyan"
+                          ? "text-black"
+                          : "text-white"
+                      }`}
+                    />
+                  )}
+                  </div>
                   <span className="text-xs truncate max-w-[70px]">
                     {color.name}
                   </span>
@@ -1390,16 +1400,16 @@ export default function EditProductClient({ productId }) {
             <button
               type="submit"
               disabled={loading || uploading}
-              className="px-5 py-2.5 bg-secondary text-white rounded-md hover:bg-secondary-dark transition-colors disabled:opacity-70 shadow-sm flex items-center"
+              className="bg-secondary text-black px-6 py-3 rounded-md hover:bg-secondary-dark transition-colors disabled:opacity-50 disabled:cursor-not-allowed shadow-sm flex items-center justify-center"
             >
-              {loading || uploading ? (
-                <>
+              {loading ? (
+                <span className="flex items-center">
                   <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                     <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                     <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                   </svg>
                   {uploading ? "Uploading..." : "Updating..."}
-                </>
+                </span>
               ) : (
                 "Update Product"
               )}

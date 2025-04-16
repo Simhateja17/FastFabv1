@@ -1,14 +1,15 @@
 import { NextResponse } from 'next/server';
-import { PrismaClient } from '@prisma/client';
-import { auth } from '@/app/lib/auth'; // Corrected alias path
-import { z } from 'zod'; // Import zod for validation
+import { PrismaClient } from '@prisma/client'; // Correctly import PrismaClient
+import { auth } from '@/app/lib/auth';
+import { z } from 'zod';
+import { Prisma } from '@prisma/client'; // Import Prisma namespace for raw queries
 
-const prisma = new PrismaClient();
+const prisma = new PrismaClient(); // Instantiate Prisma Client
 
 // Define validation schema for seller details
 const sellerDetailsSchema = z.object({
-  shopName: z.string().trim().optional(),
-  ownerName: z.string().trim().optional(),
+  shopName: z.string().trim().min(1, { message: "Shop name cannot be empty" }).optional(),
+  ownerName: z.string().trim().min(1, { message: "Owner name cannot be empty" }).optional(),
   address: z.string().trim().optional(),
   city: z.string().trim().optional(),
   state: z.string().trim().optional(),
@@ -25,26 +26,45 @@ const sellerDetailsSchema = z.object({
   latitude: z.number()
     .refine(val => val >= -90 && val <= 90, { message: "Latitude must be between -90 and 90" })
     .optional()
-    .or(z.string().transform(val => {
+    .nullable() // Allow null explicitly
+    .or(z.string().transform((val, ctx) => {
+      if (val === null || val === undefined || val.trim() === '') return null; // Return null for empty/null string
       const num = parseFloat(val);
-      if (isNaN(num)) throw new Error("Latitude must be a valid number");
+      if (isNaN(num)) {
+         ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Latitude must be a valid number or empty" });
+         return z.NEVER;
+      }
+      if (num < -90 || num > 90) {
+          ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Latitude must be between -90 and 90" });
+          return z.NEVER;
+      }
       return num;
     })),
   longitude: z.number()
     .refine(val => val >= -180 && val <= 180, { message: "Longitude must be between -180 and 180" })
     .optional()
-    .or(z.string().transform(val => {
+    .nullable() // Allow null explicitly
+    .or(z.string().transform((val, ctx) => {
+       if (val === null || val === undefined || val.trim() === '') return null; // Return null for empty/null string
       const num = parseFloat(val);
-      if (isNaN(num)) throw new Error("Longitude must be a valid number");
+      if (isNaN(num)) {
+         ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Longitude must be a valid number or empty" });
+         return z.NEVER;
+      }
+      if (num < -180 || num > 180) {
+          ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Longitude must be between -180 and 180" });
+          return z.NEVER;
+      }
       return num;
     })),
   gstNumber: z.string()
     .min(15, { message: "GST Number must be exactly 15 characters" })
     .max(15, { message: "GST Number must be exactly 15 characters" })
     .regex(/^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}$/, { 
-      message: "Invalid GST Number format. It should follow the pattern: 27AAPFU0939F1ZV" 
+      message: "Invalid GST Number format." 
     })
-    .transform(val => val.toUpperCase().replace(/\s+/g, '')),
+    .transform(val => val.toUpperCase().replace(/\s+/g, ''))
+    // Removed .optional() - it's mandatory now based on user requirement
 });
 
 // Update the function signature to use async/await with params
@@ -111,33 +131,68 @@ export async function PATCH(request, context) {
     const detailsToUpdate = Object.keys(validatedData)
       .filter(key => allowedFields.includes(key) && validatedData[key] !== undefined)
       .reduce((obj, key) => {
-        obj[key] = validatedData[key];
+        // Explicitly handle null for lat/lon if needed, otherwise allow Prisma to handle it
+        obj[key] = validatedData[key]; 
         return obj;
       }, {});
     
-    console.log("Updating seller with data:", detailsToUpdate);
+    console.log("Attempting to update seller with data:", detailsToUpdate);
 
-    // Update Seller in Database
-    const updatedSeller = await prisma.seller.update({
-      where: { id: sellerId },
-      data: detailsToUpdate,
+    // Use a transaction to update seller details and location atomically
+    const updatedSellerResult = await prisma.$transaction(async (tx) => {
+      // 1. Update standard seller details
+      const sellerUpdate = await tx.seller.update({
+        where: { id: sellerId },
+        data: detailsToUpdate,
+      });
+
+      console.log("Standard details updated for seller:", sellerId);
+
+      // 2. Update PostGIS location field if lat/lon are valid numbers
+      const latitude = validatedData.latitude;
+      const longitude = validatedData.longitude;
+
+      if (typeof latitude === 'number' && !isNaN(latitude) && 
+          typeof longitude === 'number' && !isNaN(longitude)) {
+            
+        console.log(`Updating location for seller ${sellerId} with coords: ${longitude}, ${latitude}`);
+        
+        // Use Prisma's raw SQL execution for PostGIS update
+        // IMPORTANT: Use parameterized query ($executeRaw) to prevent SQL injection
+        await tx.$executeRaw`UPDATE "Seller" SET "location" = ST_SetSRID(ST_MakePoint(${longitude}, ${latitude}), 4326) WHERE "id" = ${sellerId}`;
+        
+        console.log(`Successfully updated location field for seller ${sellerId}`);
+      } else {
+        console.log(`Skipping location update for seller ${sellerId} due to invalid/missing coordinates.`);
+         // Optionally set location to NULL if lat/lon are invalid/cleared?
+         // await tx.$executeRaw`UPDATE "Seller" SET "location" = NULL WHERE "id" = ${sellerId}`;
+      }
+
+      return sellerUpdate; // Return the result of the main update
     });
 
-    // Return Success Response
-    return NextResponse.json({ success: true, seller: updatedSeller });
+    console.log("Seller update transaction completed successfully for ID:", sellerId);
+
+    // Return Success Response (using the result from the transaction)
+    return NextResponse.json({ success: true, seller: updatedSellerResult });
 
   } catch (error) {
     console.error("Failed to update seller details:", error);
 
-    if (error.code === 'P2025') { // Prisma error code for record not found
-      return NextResponse.json({ success: false, message: 'Seller not found' }, { status: 404 });
+    if (error instanceof Prisma.PrismaClientKnownRequestError) {
+       if (error.code === 'P2025') { // Prisma error code for record not found
+         return NextResponse.json({ success: false, message: 'Seller not found' }, { status: 404 });
+       }
+        // Handle other specific Prisma errors if necessary
+        console.error("Prisma Error Code:", error.code);
     }
 
+    // Generic error for other issues (validation, transaction failure, etc.)
     return NextResponse.json(
-      { success: false, message: 'Failed to update profile. Please try again.' },
+      { success: false, message: error.message || 'Failed to update profile. Please try again.' },
       { status: 500 }
     );
-  } finally {
-    await prisma.$disconnect();
   }
+  // Removed finally block with $disconnect() as Prisma recommends against it for serverless/long-running apps
+  // See: https://www.prisma.io/docs/guides/performance-and-optimization/connection-management#recommended-connection-management-strategy
 } 
