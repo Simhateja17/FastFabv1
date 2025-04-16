@@ -644,19 +644,60 @@ export function AuthProvider({ children }) {
     }
   };
 
+  // Fetch the current seller's profile details from the backend
+  const fetchCurrentSellerProfile = async () => {
+    console.log("Attempting to fetch current seller profile data...");
+    // Indicate loading state if desired (optional)
+    // setLoading(true); 
+    try {
+      // Use authFetch to make an authenticated request to the profile endpoint
+      // Ensure this endpoint exists in your Next.js API routes (e.g., app/api/auth/profile/route.js) 
+      // or that your backend service route is correctly proxied/called.
+      const response = await authFetch('/api/auth/profile'); // Assuming this endpoint fetches the logged-in seller's data
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ message: "Failed to parse error response" }));
+        console.error("Failed to fetch seller profile:", response.status, errorData.message);
+        // Don't clear seller state on fetch failure, just log the error
+        // Optionally: Show a toast message
+        // toast.error(`Failed to load profile: ${errorData.message}`);
+        return { success: false, error: errorData.message || "Failed to fetch profile" };
+      }
+
+      const data = await response.json();
+      
+      if (!data.seller) {
+          console.error("API response missing seller data");
+          return { success: false, error: "Invalid profile data received" };
+      }
+
+      console.log("Successfully fetched seller profile data, updating context.", data.seller);
+      setSeller(data.seller); // Update the context state with fresh data
+      return { success: true, seller: data.seller };
+    } catch (error) {
+      console.error("Error fetching seller profile:", error);
+      // Don't clear seller state on fetch failure
+      return { success: false, error: error.message || "An unexpected error occurred" };
+    } finally {
+      // Indicate loading finished if using loading state (optional)
+      // setLoading(false);
+    }
+  };
+
   return (
     <AuthContext.Provider
       value={{
         seller,
+        setSeller, // Keep setSeller if needed elsewhere, but prefer specific functions
         loading,
         login,
-        register,
         logout,
-        updateSellerDetails,
-        authFetch,
-        setSeller,
+        register,
         sendSellerOTP,
         verifySellerOTP,
+        updateSellerDetails,
+        fetchCurrentSellerProfile, // Expose the new function
+        authFetch, // Expose authFetch if needed by components
         getAccessToken
       }}
     >

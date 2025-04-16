@@ -243,18 +243,9 @@ export default function SellerOnboarding() {
 
       if (result.success) {
         toast.success("Profile updated successfully!");
-        // Update local seller state to remove needsOnboarding flag
-        const updatedSeller = {
-          ...seller,
-          ...result.seller,
-          needsOnboarding: false,
-        };
-
-        // Update the seller context
-        setSeller(updatedSeller);
-
-        // Store updated seller in localStorage as a backup
-        localStorage.setItem("sellerData", JSON.stringify(updatedSeller));
+        
+        // Set a flag to indicate onboarding is done (optional, for immediate UI updates if needed)
+        sessionStorage.setItem('onboardingComplete', 'true');
 
         // Redirect to dashboard
         router.push("/seller/dashboard");
@@ -397,7 +388,7 @@ export default function SellerOnboarding() {
 
             <div>
               <label className="block text-sm font-medium text-text mb-2">
-                GST Number (Must)
+                GST Number <span className="text-red-500">*</span>
               </label>
               <input
                 type="text"
@@ -405,7 +396,9 @@ export default function SellerOnboarding() {
                 value={formData.gstNumber}
                 onChange={handleInputChange}
                 className="w-full p-3 border border-ui-border rounded-md focus:outline-none focus:ring-2 focus:ring-primary bg-input"
+                placeholder="Enter your 15-digit GST Number"
                 maxLength={15}
+                required
               />
             </div>
 
@@ -443,13 +436,13 @@ export default function SellerOnboarding() {
               <button
                 type="submit"
                 disabled={loading}
-                className="bg-primary text-white px-6 py-3 rounded-md hover:bg-primary-dark focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 transition-all flex items-center"
+                className="w-full p-3 bg-secondary text-black rounded-md hover:bg-secondary-dark focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-secondary transition-colors disabled:opacity-70 disabled:cursor-not-allowed font-medium"
               >
                 {loading ? (
-                  <>
+                  <span className="flex items-center justify-center">
                     <LoadingSpinner size="small" color="white" />
                     <span className="ml-2">Saving...</span>
-                  </>
+                  </span>
                 ) : (
                   "Save & Continue"
                 )}

@@ -428,7 +428,7 @@ export default function AddVariant({ params }) {
                   type="button"
                   className={`relative w-10 h-10 rounded-full border-2 transition-all flex items-center justify-center ${
                     selectedColor?.name === color.name
-                      ? "border-primary shadow-md"
+                      ? "ring-2 ring-blue-500 ring-offset-2 ring-offset-yellow-500"
                       : "border-ui-border hover:border-ui-border-hover"
                   }`}
                   style={{ backgroundColor: color.hex }}
@@ -438,7 +438,7 @@ export default function AddVariant({ params }) {
                   {selectedColor?.name === color.name && (
                     <FiCheck
                       className={`w-6 h-6 ${
-                        color.name === "White" || color.name === "Yellow" || color.name === "Lime"
+                        color.name === "White" || color.name === "Yellow" || color.name === "Lime" || color.name === "Silver" || color.name === "Beige" || color.name === "Cyan"
                           ? "text-black"
                           : "text-white"
                       }`}

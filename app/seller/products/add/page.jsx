@@ -1079,15 +1079,25 @@ export default function AddProduct() {
                   <div key={color.name} className="flex flex-col items-center">
                     <button
                       type="button"
-                      className={`w-10 h-10 rounded-full border-2 transition-all ${
+                      className={`relative w-10 h-10 rounded-full border-2 transition-all flex items-center justify-center ${
                         selectedColor === color.name
-                          ? "border-primary shadow-md"
+                          ? "ring-2 ring-blue-500 ring-offset-2 ring-offset-yellow-500"
                           : "border-ui-border hover:border-ui-border-hover"
                       }`}
                       style={{ backgroundColor: color.hex }}
                       onClick={() => setSelectedColor(color.name)}
                       title={color.name}
-                    ></button>
+                    >
+                      {selectedColor === color.name && (
+                        <FiCheck
+                          className={`w-6 h-6 ${
+                            color.name === "White" || color.name === "Yellow" || color.name === "Lime" || color.name === "Silver" || color.name === "Beige" || color.name === "Cyan"
+                              ? "text-black"
+                              : "text-white"
+                          }`}
+                        />
+                      )}
+                    </button>
                     <span className="text-xs mt-1">{color.name}</span>
                   </div>
                 ))}
@@ -1243,7 +1253,7 @@ export default function AddProduct() {
             <button
               type="submit"
               disabled={loading || uploading}
-              className="w-full p-3 bg-primary hover:bg-primary-dark text-white rounded-md transition-colors flex items-center justify-center disabled:opacity-70 disabled:cursor-not-allowed"
+              className="w-full p-3 bg-primary hover:bg-primary-dark text-black font-bold rounded-md transition-colors flex items-center justify-center disabled:opacity-70 disabled:cursor-not-allowed"
             >
               {loading || uploading ? (
                 <>
