@@ -40,5 +40,5 @@ model ColorInventory {
 
   // Add these relation fields with map name to avoid conflicts
   product      Product         @relation(fields: [productId], references: [id], onDelete: Cascade, map: "ColorInventory_productId_product_fkey")
-  publicProduct PublicProducts? @relation(fields: [productId], references: [id], map: "ColorInventory_productId_publicProduct_fkey")
+  publicProduct PublicProducts? @relation(fields: image.png, references: [id], map: "ColorInventory_productId_publicProduct_fkey")
 } 

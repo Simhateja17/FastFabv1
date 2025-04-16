@@ -1,8 +1,8 @@
 import { cookies } from 'next/headers';
 import jwt from 'jsonwebtoken';
-import { PrismaClient } from '@prisma/client';
 
-const prisma = new PrismaClient();
+
+
 
 /**
  * Authenticates a request using JWT tokens from cookies or authorization header
