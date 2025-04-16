@@ -188,12 +188,6 @@ const SellerDropdown = ({
             >
               Seller Login
             </Link>
-            <Link
-              href="/admin-login"
-              className="block px-4 py-2 text-sm text-text hover:bg-background-alt"
-            >
-              Admin Login
-            </Link>
           </>
         )}
       </div>
@@ -326,12 +320,6 @@ const MobileMenu = ({ isOpen, seller, user, onUserLogout, onSellerLogout }) => {
               className="block pl-3 pr-4 py-2 text-base font-medium text-text-muted hover:text-text-dark hover:bg-background-alt"
             >
               Seller Login
-            </Link>
-            <Link
-              href="/admin-login"
-              className="block pl-3 pr-4 py-2 text-base font-medium text-text-muted hover:text-text-dark hover:bg-background-alt"
-            >
-              Admin Login
             </Link>
           </>
         )}
@@ -842,12 +830,6 @@ function NavbarContent() {
                   className="block pl-3 pr-4 py-2 text-base font-medium text-text-muted hover:text-text-dark hover:bg-background-alt"
                 >
                   Seller Login
-                </Link>
-                <Link
-                  href="/admin-login"
-                  className="block pl-3 pr-4 py-2 text-base font-medium text-text-muted hover:text-text-dark hover:bg-background-alt"
-                >
-                  Admin Login
                 </Link>
               </>
             )}
