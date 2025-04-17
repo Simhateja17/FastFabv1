@@ -24,7 +24,7 @@ const nextConfig = {
     return [
       {
         source: '/api/:path*',
-        destination: 'https://fastandfab.in/api/:path*',
+        destination: `${process.env.SELLER_SERVICE_URL || 'http://localhost:8000'}/api/:path*`,
       },
     ]
   },
