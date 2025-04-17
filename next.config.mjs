@@ -56,7 +56,7 @@ const nextConfig = {
     return [
       {
         source: '/api/:path*',
-        destination: `${process.env.SELLER_SERVICE_URL || 'https://api.fastandfab.in'}/api/:path*`,
+        destination: `${process.env.SELLER_SERVICE_URL || 'https://seller-api.fastandfab.in'}/api/:path*`,
       },
     ]
   },
