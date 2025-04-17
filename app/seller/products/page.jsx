@@ -29,11 +29,8 @@ function ProductsListContent() {
   const fetchProducts = useCallback(async () => {
     try {
       setLoading(true);
-      const backendApiUrl = process.env.NEXT_PUBLIC_SELLER_SERVICE_URL || 'http://localhost:8000/api';
-      
       const timestamp = Date.now();
-      
-      const fetchUrl = `${backendApiUrl}/products?_=${timestamp}`;
+      const fetchUrl = `/api/seller/products?_=${timestamp}`;
       
       console.log(`Fetching products from: ${fetchUrl}`);
       const response = await authFetch(fetchUrl);
@@ -53,39 +50,10 @@ function ProductsListContent() {
       const productsArray = data.products || [];
       console.log(`Received ${productsArray.length} products for seller ${seller ? seller.id : ' (ID not available yet)'}`);
 
-      // Fetch color inventories for each product
-      const productsWithColors = await Promise.all(
-        productsArray.map(async (product) => {
-          try {
-            // Use correct backend URL for fetching colors
-            console.log(`Fetching colors for product ${product.id} from: ${backendApiUrl}/products/${product.id}/colors`);
-            const colorResponse = await authFetch(
-              `${backendApiUrl}/products/${product.id}/colors`
-            );
-
-            if (colorResponse.ok) {
-              const colorData = await colorResponse.json();
-              return {
-                ...product,
-                colorInventories: colorData.colorInventories || [],
-              };
-            }
-            console.warn(`Failed to fetch colors for product ${product.id}: ${colorResponse.status}`);
-            return product;
-          } catch (error) {
-            console.error(
-              `Error fetching colors for product ${product.id}:`,
-              error
-            );
-            return product;
-          }
-        })
-      );
-
-      setProducts(productsWithColors);
+      setProducts(productsArray);
     } catch (error) {
       console.error("Product fetch error:", error);
-      toast.error(error.message || "Error fetching products");
+      toast.error(error.message || "Failed to load products");
     } finally {
       setLoading(false);
     }
