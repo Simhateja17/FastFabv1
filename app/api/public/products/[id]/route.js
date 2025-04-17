@@ -1,5 +1,4 @@
 import { NextResponse } from 'next/server';
-import prisma from '@/app/api/lib/prisma';
 
 /**
  * GET handler for public product details
@@ -7,10 +6,9 @@ import prisma from '@/app/api/lib/prisma';
  */
 export async function GET(request, { params }) {
   try {
-    // Await params before accessing properties
     const { id: productId } = params;
     
-    console.log(`Fetching product details for ID: ${productId}`);
+    console.log(`Fetching public product details for ID: ${productId}`);
     
     if (!productId) {
       return NextResponse.json(
@@ -19,78 +17,88 @@ export async function GET(request, { params }) {
       );
     }
 
-    // Try to fetch from PublicProducts view first (which filters active products from visible sellers)
+    // Forward request to seller service
+    const apiUrl = process.env.SELLER_SERVICE_URL || 'http://localhost:8000';
+    const targetEndpoint = `/api/public/products/${productId}`;
+
+    console.log(`Forwarding GET request to: ${apiUrl}${targetEndpoint}`);
+    
+    let response;
     try {
-      const product = await prisma.publicProducts.findUnique({
-        where: {
-          id: productId,
-        },
-        include: {
-          colorInventory: true,
-          seller: {
-            select: {
-              id: true,
-              shopName: true,
-              city: true,
-              state: true,
-            },
-          },
+      response = await fetch(`${apiUrl}${targetEndpoint}`, {
+        method: 'GET',
+        headers: {
+          'Accept': 'application/json',
         },
       });
 
-      if (product) {
-        console.log(`Product found in PublicProducts for ID: ${productId}`);
-        return NextResponse.json(product);
+      console.log(`Seller service response status: ${response.status}`);
+      
+      if (!response) {
+        throw new Error('No response received from seller service');
       }
-    } catch (viewError) {
-      console.warn(`Error accessing PublicProducts view: ${viewError.message}. Falling back to Product model.`);
-    }
 
-    // Fallback to Product model with visibility filters if PublicProducts view is not available
-    const product = await prisma.product.findUnique({
-      where: {
-        id: productId,
-        isActive: true,
-      },
-      include: {
-        colorInventory: true,
-        seller: {
-          select: {
-            id: true,
-            shopName: true,
-            city: true,
-            state: true,
-            isVisible: true,
-          },
-        },
-      },
-    });
-
-    if (!product) {
-      console.log(`Product not found for ID: ${productId}`);
+    } catch (error) {
+      console.error(`Error connecting to seller service at ${apiUrl}${targetEndpoint}:`, error);
       return NextResponse.json(
-        { error: 'Product not found or not available' },
-        { status: 404 }
+        { error: 'Service temporarily unavailable', details: error.message },
+        { status: 503 }
       );
     }
 
-    // Check if the seller is visible
-    if (!product.seller?.isVisible) {
-      console.log(`Product belongs to a seller with visibility turned off: ${productId}`);
-      return NextResponse.json(
-        { error: 'Product not available' },
-        { status: 404 }
-      );
+    // Handle non-200 responses
+    if (!response.ok) {
+      const contentType = response.headers.get('content-type') || '';
+      
+      // Try to get error details
+      let errorDetails = '';
+      try {
+        if (contentType.includes('application/json')) {
+          const errorData = await response.json();
+          errorDetails = errorData.message || errorData.error || '';
+        } else {
+          errorDetails = await response.text();
+        }
+      } catch (e) {
+        console.error('Failed to parse error response:', e);
+      }
+
+      // Map common error codes
+      switch (response.status) {
+        case 404:
+          return NextResponse.json(
+            { error: 'Product not found or not available' },
+            { status: 404 }
+          );
+        case 403:
+          return NextResponse.json(
+            { error: 'Product not available' },
+            { status: 404 } // Map 403 to 404 for public routes
+          );
+        default:
+          return NextResponse.json(
+            { error: 'Failed to fetch product', details: errorDetails },
+            { status: response.status }
+          );
+      }
     }
 
-    // Return the product details
-    return NextResponse.json(product);
+    // Parse and return the successful response
+    try {
+      const product = await response.json();
+      return NextResponse.json(product);
+    } catch (error) {
+      console.error('Failed to parse product data:', error);
+      return NextResponse.json(
+        { error: 'Invalid response format from service' },
+        { status: 502 }
+      );
+    }
     
   } catch (error) {
-    console.error(`Error fetching product details: ${error.message}`);
-    console.error(error.stack);
+    console.error(`Unhandled error in public product fetch:`, error);
     return NextResponse.json(
-      { error: 'Failed to fetch product details', details: error.message },
+      { error: 'Internal server error', details: error.message },
       { status: 500 }
     );
   }

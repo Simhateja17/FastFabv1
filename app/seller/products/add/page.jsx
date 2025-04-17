@@ -582,73 +582,64 @@ export default function AddProduct() {
   };
 
   const uploadVariantImages = async (variantFiles) => {
-    if (!variantFiles || variantFiles.length === 0) {
-      console.warn("No files provided for upload");
-      return [];
-    }
-
     setUploading(true);
     try {
-      const backendApiUrl = process.env.NEXT_PUBLIC_SELLER_SERVICE_URL || 'http://localhost:8000/api'; // Define backend URL
-      
-      // Create FormData
+      const backendApiUrl = process.env.NEXT_PUBLIC_SELLER_SERVICE_URL || 'http://localhost:8000/api';
+      console.log("Uploading images to:", backendApiUrl);
+
+      // Create FormData and append files
       const formData = new FormData();
-      
-      // Log the number of files being uploaded for debugging
-      console.log(`Uploading ${variantFiles.length} files for this variant to ${backendApiUrl}/products/upload-images`);
-      
-      // Append files with unique names to prevent overwrites
-      variantFiles.forEach((file, index) => {
-        // Add timestamp and index to make each file name unique
-        const fileName = `${Date.now()}_${index}_${file.name.replace(/\s+/g, '_')}`;
-        formData.append("images", new File([file], fileName, { type: file.type }));
-      });
+      for (let i = 0; i < variantFiles.length; i++) {
+        formData.append('images', variantFiles[i]);
+      }
 
-      // Upload images with retry logic
-      let response;
-      let retries = 0;
-      const maxRetries = 2;
-      
-      while (retries <= maxRetries) {
+      // Try different possible endpoints
+      const endpoints = [
+        '/products/upload-images',
+        '/seller/products/upload-images',
+        '/api/products/upload-images'
+      ];
+
+      let response = null;
+      let successfulEndpoint = null;
+
+      for (const endpoint of endpoints) {
         try {
-          // Use the correct backend URL for image uploads
-          response = await authFetch(
-            `${backendApiUrl}/products/upload-images`, // Use correct backend URL
-            {
-              method: "POST",
-              body: formData,
-              // Content-Type is set automatically for FormData by the browser/fetch
-            }
-          );
-          break; // If successful, break out of the retry loop
-        } catch (err) {
-          console.error(`Upload attempt ${retries + 1} failed:`, err);
-          if (retries === maxRetries) throw err; // Rethrow on final attempt
-          retries++;
-          // Wait before retrying (exponential backoff)
-          await new Promise(r => setTimeout(r, 1000 * retries));
+          console.log(`Attempting upload to: ${backendApiUrl}${endpoint}`);
+          response = await authFetch(`${backendApiUrl}${endpoint}`, {
+            method: 'POST',
+            body: formData,
+            // Don't set Content-Type header - browser will set it with boundary
+          });
+
+          if (response.ok) {
+            successfulEndpoint = endpoint;
+            break;
+          }
+        } catch (error) {
+          console.log(`Failed attempt to ${endpoint}:`, error.message);
+          continue;
         }
       }
 
-      if (!response || !response.ok) {
-        // Check if the response is JSON or HTML
-        const contentType = response?.headers?.get('content-type') || '';
-        if (contentType.includes('text/html')) {
-          console.error("Received HTML response instead of JSON. Server may be returning an error page.");
-          throw new Error("Server returned an HTML error page instead of JSON. Please try again.");
-        }
-        
-        const errorData = await response?.json?.() || { message: "Upload failed" };
-        throw new Error(errorData.message || "Failed to upload images");
+      if (!successfulEndpoint) {
+        throw new Error("Failed to upload images to any available endpoint");
       }
 
+      console.log(`Successfully uploaded to ${successfulEndpoint}`);
       const data = await response.json();
-      console.log("Upload successful, received URLs:", data.imageUrls?.length || 0);
-      return data.imageUrls || [];
+      
+      if (!data.imageUrls || data.imageUrls.length === 0) {
+        throw new Error("No image URLs returned from server");
+      }
+
+      console.log("Upload successful, received URLs:", data.imageUrls.length);
+      return data.imageUrls;
+
     } catch (error) {
-      console.error("Error uploading variant images:", error);
-      toast.error(`Failed to upload images: ${error.message || "Unknown error"}`);
-      return [];
+      console.error("Error uploading images:", error);
+      toast.error(`Failed to upload images: ${error.message}`);
+      throw error; // Re-throw to handle in the calling function
     } finally {
       setUploading(false);
     }

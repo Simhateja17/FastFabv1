@@ -54,6 +54,9 @@ export const PUBLIC_ENDPOINTS = {
   ACTIVE_PRODUCTS: `/api/public/products/active`,
   PRODUCT_DETAIL: (id) => `/api/public/products/${id}`,
   PRODUCT_COLORS: (id) => `/api/public/products/${id}/colors`,
+  CATEGORIES: `/api/public/categories`,
+  SEARCH: (query) => `/api/public/products/search?q=${encodeURIComponent(query)}`,
+  FILTER: `/api/public/products/filter`,
 };
 
 // Token constants

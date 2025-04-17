@@ -13,75 +13,59 @@ const APP_URL = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
 
 export async function POST(request) {
   try {
-    const { amount, currency = 'INR', customer_details } = await request.json();
-
-    if (!amount || !customer_details?.customer_id || !customer_details?.customer_phone) {
-      return NextResponse.json(
-        { error: 'Missing required fields: amount, customer_id, customer_phone' },
-        { status: 400 }
-      );
+    const { amount, currency, customer_details } = await request.json();
+    
+    const apiKey = process.env.CASHFREE_API_KEY;
+    const secretKey = process.env.CASHFREE_SECRET_KEY;
+    const apiEnv = process.env.CASHFREE_API_ENV || 'SANDBOX';
+    
+    if (!apiKey || !secretKey) {
+      throw new Error('Cashfree credentials not configured');
     }
 
-    const order_id = `order_${uuidv4()}`;
-
     const orderPayload = {
-      order_id,
       order_amount: amount,
       order_currency: currency,
       customer_details: {
         customer_id: customer_details.customer_id,
         customer_phone: customer_details.customer_phone,
-        customer_name: customer_details.customer_name || '',
+        customer_name: customer_details.customer_name
       },
       order_meta: {
-        return_url: `${APP_URL}/payment-status?order_id={order_id}`,
-        notify_url: `${APP_URL}/api/payment-webhook`,
-      },
-      order_tags: {
-        source: 'web'
+        return_url: `${process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000'}/payment-status?order_id={order_id}`,
+        notify_url: `${process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000'}/api/payment-webhook`
       }
     };
 
-    // Add email to the payload only if it exists
-    if (customer_details.customer_email) {
-      orderPayload.customer_details.customer_email = customer_details.customer_email;
-    }
-
-    console.log('Creating Cashfree order with payload:', JSON.stringify(orderPayload, null, 2));
-
-    const response = await fetch(`${CASHFREE_BASE_URL}/orders`, {
+    const response = await fetch(`${process.env.CASHFREE_API_URL}/orders`, {
       method: 'POST',
       headers: {
-        'Accept': 'application/json',
         'Content-Type': 'application/json',
-        'x-api-version': CASHFREE_API_VERSION,
-        'x-client-id': CASHFREE_API_KEY,
-        'x-client-secret': CASHFREE_SECRET_KEY,
+        'x-api-version': '2023-08-01',
+        'x-client-id': apiKey,
+        'x-client-secret': secretKey
       },
-      body: JSON.stringify(orderPayload),
+      body: JSON.stringify(orderPayload)
     });
 
-    const responseData = await response.json();
-    console.log('Cashfree API Response:', responseData);
+    const data = await response.json();
 
     if (!response.ok) {
-      console.error('Cashfree API Error:', responseData);
-      throw new Error(responseData.message || 'Failed to create Cashfree order');
+      console.error('Cashfree API error:', data);
+      throw new Error(data.message || 'Failed to create payment order');
     }
 
-    return NextResponse.json({ 
+    return NextResponse.json({
       success: true,
-      order_id: responseData.order_id,
-      payment_session_id: responseData.payment_session_id,
-      order_status: responseData.order_status,
-      cf_order_id: responseData.cf_order_id
+      payment_session_id: data.payment_session_id,
+      order_id: data.order_id
     });
 
   } catch (error) {
-    console.error('Error creating Cashfree payment order:', error);
-    return NextResponse.json(
-      { success: false, error: error.message || 'Internal server error' },
-      { status: 500 }
-    );
+    console.error('Payment order creation error:', error);
+    return NextResponse.json({
+      success: false,
+      error: error.message || 'Internal server error'
+    }, { status: 500 });
   }
 } 
