@@ -45,44 +45,83 @@ export default function ProductDetails({ params }) {
     async function fetchProduct() {
       try {
         setLoading(true);
+        setError(null);
         const timestamp = Date.now();
         
-        // Fetch product details
-        const productRes = await fetch(`${PUBLIC_ENDPOINTS.PRODUCT_DETAIL(productId)}?_=${timestamp}`, {
-          cache: 'no-store',
+        // Fetch product details with better error handling
+        const productRes = await fetch(`/api/public/products/${productId}?_=${timestamp}`, {
+          method: 'GET',
           headers: {
+            'Accept': 'application/json',
             'Cache-Control': 'no-cache, no-store, must-revalidate',
             'Pragma': 'no-cache',
             'Expires': '0'
           }
         });
-        if (!productRes.ok) throw new Error(`Failed to fetch product: ${productRes.status}`);
+
+        // Handle HTTP errors
+        if (!productRes.ok) {
+          const errorText = await productRes.text();
+          let errorMessage;
+          try {
+            const errorJson = JSON.parse(errorText);
+            errorMessage = errorJson.error || errorJson.message || `Failed to fetch product: ${productRes.status}`;
+          } catch {
+            errorMessage = `Failed to fetch product: ${productRes.status}`;
+          }
+          throw new Error(errorMessage);
+        }
+
         const productData = await productRes.json();
+        
+        if (!productData || !productData.id) {
+          throw new Error('Invalid product data received');
+        }
+
         setProduct(productData);
         console.log("Fetched product data:", productData);
 
-        // Fetch color inventories
-        const colorRes = await fetch(`${PUBLIC_ENDPOINTS.PRODUCT_COLORS(productId)}?_=${timestamp}`, {
-          cache: 'no-store',
-          headers: {
-            'Cache-Control': 'no-cache, no-store, must-revalidate',
-            'Pragma': 'no-cache',
-            'Expires': '0'
+        // If product has colorInventory data directly, use it
+        if (productData.colorInventory) {
+          setColorInventories(productData.colorInventory);
+          console.log("Using embedded color inventories:", productData.colorInventory);
+          return;
+        }
+
+        // Otherwise fetch color inventories separately
+        try {
+          const colorRes = await fetch(`/api/public/products/${productId}/colors?_=${timestamp}`, {
+            method: 'GET',
+            headers: {
+              'Accept': 'application/json',
+              'Cache-Control': 'no-cache, no-store, must-revalidate',
+              'Pragma': 'no-cache',
+              'Expires': '0'
+            }
+          });
+
+          if (!colorRes.ok) {
+            console.warn("Failed to fetch color inventories:", colorRes.status);
+            setColorInventories([]);
+            return;
           }
-        });
-        if (colorRes.ok) {
+
           const colorData = await colorRes.json();
-          setColorInventories(colorData.colorInventories || []);
-          console.log("Fetched color inventories:", colorData.colorInventories);
-        } else {
-           console.warn("Failed to fetch color inventories:", colorRes.status);
-           setColorInventories([]); // Ensure it's an empty array on failure
+          if (Array.isArray(colorData.colorInventories)) {
+            setColorInventories(colorData.colorInventories);
+            console.log("Fetched color inventories:", colorData.colorInventories);
+          } else {
+            console.warn("Invalid color inventory data:", colorData);
+            setColorInventories([]);
+          }
+        } catch (colorError) {
+          console.error("Error fetching color inventories:", colorError);
+          setColorInventories([]);
         }
 
       } catch (error) {
         console.error("Error fetching product data:", error);
-        setError(error.message);
-        // Reset states on error
+        setError(error.message || "Failed to load product");
         setProduct(null);
         setColorInventories([]);
       } finally {
@@ -94,13 +133,13 @@ export default function ProductDetails({ params }) {
       fetchProduct();
     }
     
-    // Set up polling (optional, keep if needed)
+    // Set up polling with a longer interval (2 minutes)
     const refreshInterval = setInterval(() => {
-      console.log("Polling: Refreshing product data...");
-      if (productId) {
+      if (productId && !loading) {
+        console.log("Polling: Refreshing product data...");
         fetchProduct();
       }
-    }, 60000);
+    }, 120000); // 2 minutes
     
     return () => clearInterval(refreshInterval);
   }, [productId]);

@@ -65,6 +65,7 @@ model ColorInventory {
   colorCode   String   @default("")
   stockNumber String?
   product     Product  @relation(fields: [productId], references: [id], map: "ColorInventory_productId_product_fkey")
+  publicProduct PublicProducts? @relation(fields: [productId], references: [id], map: "ColorInventory_productId_publicProduct_fkey")
 
   @@unique([productId, color])
 }
@@ -235,6 +236,7 @@ model Seller {
   products        Product[]
   orderItems      OrderItem[]
   orders          Order[] @relation("SellerOrders")
+  publicProducts  PublicProducts[]
 
   @@index([manuallyHidden], map: "idx_seller_manually_hidden")
   @@index([isVisible], map: "idx_seller_visibility")
@@ -349,4 +351,26 @@ enum UserRole {
   USER
   ADMIN
   MODERATOR
+}
+
+model PublicProducts {
+  id             String   @id @default(uuid())
+  name           String
+  description    String?
+  mrpPrice       Float
+  sellingPrice   Float
+  images         String[]
+  category       String?
+  subcategory    String?
+  sizeQuantities Json
+  isActive       Boolean  @default(true)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  sellerId       String
+  variantGroupId String?
+  isReturnable   Boolean  @default(true)
+  seller         Seller   @relation(fields: [sellerId], references: [id])
+  colorInventory ColorInventory[]
+
+  @@map("PublicProducts")
 }

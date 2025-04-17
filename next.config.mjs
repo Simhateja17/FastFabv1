@@ -34,7 +34,7 @@ const nextConfig = {
           },
           {
             key: 'Content-Security-Policy',
-            value: "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://maps.googleapis.com https://*.cloudflareinsights.com https://*.vercel.app https://*.vercel.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; img-src 'self' data: https: blob:; font-src 'self' data: https://fonts.gstatic.com; connect-src 'self' https: wss:; frame-src 'self' https:; media-src 'self' https:; worker-src 'self' blob:;"
+            value: "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://sdk.cashfree.com https://maps.googleapis.com; connect-src 'self' https://*.cashfree.com https://*.googleapis.com; frame-src 'self' https://*.cashfree.com https://maps.googleapis.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; img-src 'self' data: https: blob:; font-src 'self' data: https://fonts.gstatic.com; default-src 'self'"
           },
           {
             key: 'Access-Control-Allow-Origin',
