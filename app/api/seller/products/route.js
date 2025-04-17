@@ -39,52 +39,43 @@ function withErrorHandler(handler) {
   };
 }
 
-export const GET = withErrorHandler(async (request) => {
-  const authResult = await auth(request);
-  
-  if (!authResult.success) {
-    return createErrorResponse(authResult.message, 401);
-  }
-  
-  const sellerId = authResult.sellerId;
-  
+export async function GET(request) {
   try {
-    const apiUrl = `${process.env.NEXT_PUBLIC_API_URL}/seller/products`;
+    // Get the seller service URL from environment variables
+    const sellerServiceUrl = process.env.SELLER_SERVICE_URL || 'https://seller-api.fastandfab.in';
     
-    const response = await fetch(apiUrl, {
-      headers: {
-        'Authorization': `Bearer ${authResult.token}`,
-        'Content-Type': 'application/json'
-      }
-    });
+    // Get authorization header from the request
+    const authHeader = request.headers.get('authorization');
     
-    if (!response.ok) {
-      const contentType = response.headers.get('content-type') || '';
-      
-      // For HTML responses (error pages), return a clean error
-      if (contentType.includes('text/html')) {
-        throw new Error('Server error occurred while fetching products');
-      }
-      
-      // Try to get detailed error message from the response
-      try {
-        const errorData = await response.json();
-        return createErrorResponse(
-          errorData.message || `Error fetching products: ${response.status}`,
-          response.status
-        );
-      } catch (e) {
-        return createErrorResponse(`Error fetching products: ${response.status}`, response.status);
-      }
+    if (!authHeader) {
+      return NextResponse.json(
+        { error: 'Authorization required' },
+        { status: 401 }
+      );
     }
-    
+
+    // Forward the request to the seller service
+    const response = await fetch(`${sellerServiceUrl}/api/products`, {
+      headers: {
+        'Authorization': authHeader,
+        'Content-Type': 'application/json',
+      },
+    });
+
+    // Get the response data
     const data = await response.json();
-    return createSuccessResponse(data);
+
+    // Forward the response status
+    return NextResponse.json(data, { status: response.status });
+    
   } catch (error) {
-    console.error('Error in seller products API:', error);
-    return createErrorResponse(error.message || 'Failed to fetch products');
+    console.error('Error fetching products:', error);
+    return NextResponse.json(
+      { error: 'Failed to fetch products' },
+      { status: 500 }
+    );
   }
-});
+}
 
 // Also handle POST, PUT, DELETE for products
 export async function POST(request) {
