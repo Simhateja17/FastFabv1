@@ -22,12 +22,16 @@ jobs:
       
     - name: Generate Prisma Client
       run: |
-        # Generate Prisma client in the correct location
         npx prisma generate
+        # Ensure the Prisma engine is copied
+        mkdir -p node_modules/.prisma/client
+        cp -r node_modules/@prisma/client/libquery_engine* node_modules/.prisma/client/
         
     - name: Build app
       run: npm run build
-      
+      env:
+        NODE_ENV: production
+        
     - name: Prepare package
       run: |
         # Include only production files
@@ -35,8 +39,10 @@ jobs:
         cp -r .next deploy/
         cp -r public deploy/
         cp -r node_modules/.prisma deploy/.prisma
+        cp -r prisma deploy/prisma
         cp package.json deploy/
         cp next.config.mjs deploy/
+        cp -r node_modules/@prisma deploy/node_modules/@prisma
         
         # Create simplified server.js file
         cat > deploy/server.js << EOF
@@ -72,46 +78,22 @@ jobs:
             </handlers>
             <rewrite>
               <rules>
-                <rule name="StaticContent">
-                  <action type="Rewrite" url="public{REQUEST_URI}" />
-                </rule>
                 <rule name="DynamicContent">
-                  <conditions>
-                    <add input="{REQUEST_FILENAME}" matchType="IsFile" negate="True" />
-                  </conditions>
+                  <match url="/*" />
                   <action type="Rewrite" url="server.js" />
                 </rule>
               </rules>
             </rewrite>
-            <iisnode node_env="production" nodeProcessCommandLine="node" />
+            <security>
+              <requestFiltering removeServerHeader="true" />
+            </security>
           </system.webServer>
         </configuration>
         EOF
-        
-        # Create package.json for Azure
-        cat > deploy/package.json << EOF
-        {
-          "name": "fastfab",
-          "version": "0.1.0",
-          "private": true,
-          "scripts": {
-            "start": "node server.js"
-          },
-          "engines": {
-            "node": ">=20.0.0"
-          },
-          "dependencies": {
-            "next": "$(node -p "require('./package.json').dependencies.next")",
-            "react": "$(node -p "require('./package.json').dependencies.react")",
-            "react-dom": "$(node -p "require('./package.json').dependencies.react-dom")"
-          }
-        }
-        EOF
     
-    - name: Deploy to Azure
-      uses: azure/webapps-deploy@v3
+    - name: Deploy to Azure Web App
+      uses: azure/webapps-deploy@v2
       with:
-        app-name: 'CoutureServicesPrivateLimited'
+        app-name: ${{ secrets.AZURE_WEBAPP_NAME }}
         publish-profile: ${{ secrets.AZURE_WEBAPP_PUBLISH_PROFILE }}
-        package: deploy
-        startup-command: "npm start" 
+        package: deploy 
