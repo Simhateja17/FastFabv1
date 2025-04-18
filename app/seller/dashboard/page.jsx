@@ -40,8 +40,8 @@ function DashboardContent() {
       // Debug log
       console.log('Fetching visibility status from API');
       
-      const backendApiUrl = process.env.NEXT_PUBLIC_SELLER_SERVICE_URL || 'http://localhost:8000/api';
-      const response = await authFetch(`${backendApiUrl}/seller/visibility`);
+      const backendApiUrl = process.env.NEXT_PUBLIC_SELLER_SERVICE_URL || 'http://localhost:8000';
+      const response = await authFetch(`${backendApiUrl}/api/seller/visibility`);
       
       if (response.ok) {
         const data = await response.json();
@@ -124,8 +124,14 @@ function DashboardContent() {
       console.log(`Toggling visibility from ${isVisible} to ${!isVisible}`);
       
       // Call the backend service API directly
-      const backendApiUrl = process.env.NEXT_PUBLIC_SELLER_SERVICE_URL || 'http://localhost:8000/api'; // Define backend URL
-      const apiUrl = `${backendApiUrl}/seller/visibility`; // Correct backend endpoint
+      const backendApiUrl = process.env.NEXT_PUBLIC_SELLER_SERVICE_URL || 'http://localhost:8000';
+      
+      // Ensure the backend URL starts with http:// or https://
+      const fullBackendUrl = backendApiUrl.startsWith('http') 
+        ? backendApiUrl 
+        : `https://${backendApiUrl}`;
+      
+      const apiUrl = `${fullBackendUrl}/api/seller/visibility`;
       console.log(`Using API URL: ${apiUrl}`);
       
       // Add retry mechanism
