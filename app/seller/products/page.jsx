@@ -41,14 +41,18 @@ function ProductsListContent() {
         `${backendApiUrl}/products?_=${timestamp}` // Add timestamp parameter to prevent caching
       );
 
-      // Check if response is not OK
-      if (!response.ok) {
-        // Check for HTML responses
-        const contentType = response.headers.get('content-type') || '';
-        if (contentType.includes('text/html')) {
-          throw new Error("Server error occurred. Please try again later.");
+      // Check if response is not OK OR if response is undefined/null
+      if (!response || !response.ok) {
+        // Check for HTML responses only if response and headers exist
+        if (response && response.headers) {
+          const contentType = response.headers.get('content-type') || '';
+          if (contentType.includes('text/html')) {
+            throw new Error("Server error occurred. Please try again later.");
+          }
         }
-        throw new Error(`Failed to fetch products: ${response.status} ${response.statusText}`);
+        // Provide a more generic error if response is falsy or status details are unavailable
+        const statusText = response ? ` ${response.status} ${response.statusText}` : '';
+        throw new Error(`Failed to fetch products:${statusText}`);
       }
 
       const data = await response.json();
@@ -116,9 +120,8 @@ function ProductsListContent() {
         // Refresh the products
         setRefreshTimestamp(Date.now());
       } else {
-        console.log("Window focused, triggering potential refresh.");
+        console.log("Window focused, but no update flag found. Skipping refresh.");
         // Maybe add a time check here too if still too frequent?
-        setRefreshTimestamp(Date.now());
       }
     };
     
@@ -128,7 +131,7 @@ function ProductsListContent() {
     return () => {
       window.removeEventListener('focus', handleFocus);
     };
-  }, [fetchProducts, loading]);
+  }, [fetchProducts]);
   
   // Add another useEffect to refetch when timestamp changes
   useEffect(() => {
