@@ -1,10 +1,6 @@
 #!/bin/bash
 set -e
 
-# Add delay to avoid SCM container restart conflicts
-echo "Waiting for 30 seconds to avoid SCM container restart conflicts..."
-sleep 30
-
 # --- START: NVM Setup ---
 echo "Setting up NVM and Node 20..."
 # Set NVM directory explicitly
@@ -22,8 +18,8 @@ else
   \. "$NVM_DIR/nvm.sh"
 fi
 
-# Install Node 20 and use it
-echo "Installing and using Node 20..."
+# Install Node 20 if not already installed, and use it
+echo "Ensuring Node v20 is installed and used..."
 nvm install 20
 nvm use 20
 echo "Current Node version:"
@@ -60,15 +56,17 @@ else
   echo "Node.js version is compatible with requirements"
 fi
 
-# Install dependencies
+# Install dependencies with --force flag
 echo "Installing dependencies..."
-if ! npm ci; then
-  echo "npm ci failed, trying npm install..."
-  if ! npm install; then
-    echo "npm install failed, trying with legacy peer deps..."
-    npm install --legacy-peer-deps
-  fi
-fi
+npm install --production --no-audit --force || { 
+  echo "Dependency installation with --force flag failed"
+  echo "Trying with legacy peer deps..."
+  npm install --production --no-audit --legacy-peer-deps || {
+    echo "All installation attempts failed"
+    # Continue anyway to use pre-built assets
+    echo "Continuing with deployment using pre-built assets"
+  }
+}
 
 # Explicitly log Prisma client status
 echo "Checking for pre-generated Prisma client..."
@@ -82,13 +80,6 @@ fi
 echo "Setting up environment..."
 # export PORT=${PORT:-8080} # PORT is typically set by Azure automatically
 
-# Generate Prisma Client
-echo "Generating Prisma client..."
-npx prisma generate
-
-# Build the application
-npm run build
-
-# Start the application using the startup command configured in Azure
-echo "Deployment script finished. Azure will start the application using the configured Startup Command."
+# Start the application - REMOVED, this should be handled by Azure's Startup Command
+echo "Deployment script finished. Azure will now start the application using the configured Startup Command."
 # npm run start 

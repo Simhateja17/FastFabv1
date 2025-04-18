@@ -8,14 +8,10 @@
     "start": "next start -p ${PORT:-3000}",
     "lint": "next lint",
     "update-schema": "node scripts/update_schema.js",
-    "apply-migration": "powershell -ExecutionPolicy Bypass -File scripts/apply_migration_correct.ps1",
-    "postinstall": "prisma generate"
+    "apply-migration": "powershell -ExecutionPolicy Bypass -File scripts/apply_migration_correct.ps1"
   },
   "prisma": {
-    "binaryTargets": [
-      "native",
-      "debian-openssl-3.0.x"
-    ]
+    "binaryTargets": ["native", "debian-openssl-3.0.x"]
   },
   "dependencies": {
     "@prisma/client": "^6.4.1",
@@ -26,7 +22,6 @@
     "axios": "^1.8.4",
     "bcryptjs": "^3.0.2",
     "cashfree-pg": "^5.0.3",
-    "critters": "^0.0.23",
     "dotenv": "^16.4.7",
     "firebase": "^11.4.0",
     "jsonwebtoken": "^9.0.2",
