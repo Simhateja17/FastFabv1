@@ -7,6 +7,7 @@ import Link from "next/link";
 import { toast } from "react-hot-toast";
 import { useAuth } from "@/app/context/AuthContext";
 import ProtectedRoute from "@/app/components/ProtectedRoute";
+import NetworkErrorAlert from "@/app/components/NetworkErrorAlert";
 import {
   FiPackage,
   FiPlus,
@@ -23,106 +24,123 @@ function ProductsListContent() {
   const router = useRouter();
   const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
   const { authFetch } = useAuth();
   // Add timestamp state to force refetch on navigation
   const [refreshTimestamp, setRefreshTimestamp] = useState(Date.now());
 
   const fetchProducts = useCallback(async () => {
-    try {
-      setLoading(true);
-      const backendApiUrl = process.env.NEXT_PUBLIC_SELLER_SERVICE_URL || 'http://localhost:8000/api'; // Define backend URL
-      
-      // Add cache-busting timestamp to prevent stale data
-      const timestamp = Date.now();
-      
-      // Call the correct backend endpoint directly
-      console.log(`Fetching products from: ${backendApiUrl}/products?_=${timestamp}`); // Add log
-      const response = await authFetch(
-        `${backendApiUrl}/products?_=${timestamp}` // Add timestamp parameter to prevent caching
-      );
+    const MAX_RETRIES = 3;
+    let retryCount = 0;
+    
+    setError(null); // Clear any existing errors when starting a fetch
+    
+    const attemptFetch = async () => {
+      try {
+        setLoading(true);
+        
+        // Add cache-busting timestamp to prevent stale data
+        const timestamp = Date.now();
+        
+        // Use the centralized endpoint configuration
+        const productsUrl = `${PRODUCT_ENDPOINTS.LIST}?_=${timestamp}`;
+        
+        // Call the correct backend endpoint directly
+        console.log(`Fetching products from: ${productsUrl}`);
+        const response = await authFetch(
+          productsUrl,
+          {
+            // Add a longer timeout for the request
+            timeout: 30000 // 30 seconds
+          }
+        );
 
-      // Check if response is not OK OR if response is undefined/null
-      if (!response || !response.ok) {
-        // Check for HTML responses only if response and headers exist
-        if (response && response.headers) {
-          const contentType = response.headers.get('content-type') || '';
-          if (contentType.includes('text/html')) {
-            throw new Error("Server error occurred. Please try again later.");
+        // Check if response is not OK OR if response is undefined/null
+        if (!response || !response.ok) {
+          // Check for HTML responses only if response and headers exist
+          if (response && response.headers) {
+            const contentType = response.headers.get('content-type') || '';
+            if (contentType.includes('text/html')) {
+              throw new Error("Server error occurred. Please try again later.");
+            }
+          }
+          // Provide a more generic error if response is falsy or status details are unavailable
+          const statusText = response ? ` ${response.status} ${response.statusText}` : '';
+          throw new Error(`Failed to fetch products:${statusText}`);
+        }
+
+        const data = await response.json();
+        
+        // Check if the response contains the products array
+        const productsArray = data.products || [];
+        console.log(`Received ${productsArray.length} products`); // Add log
+
+        // Fetch color inventories for each product with retry logic
+        const productsWithColors = await Promise.all(
+          productsArray.map(async (product) => {
+            try {
+              // Use centralized endpoint configuration
+              const colorUrl = PRODUCT_ENDPOINTS.COLORS(product.id);
+              
+              // Use correct backend URL for fetching colors
+              console.log(`Fetching colors for product ${product.id} from: ${colorUrl}`);
+              const colorResponse = await authFetch(colorUrl);
+
+              if (colorResponse.ok) {
+                const colorData = await colorResponse.json();
+                return {
+                  ...product,
+                  colorInventories: colorData.colorInventories || [],
+                };
+              }
+              console.warn(`Failed to fetch colors for product ${product.id}: ${colorResponse.status}`); // Add log
+              return product; // Return product even if colors fail
+            } catch (error) {
+              console.error(
+                `Error fetching colors for product ${product.id}:`,
+                error
+              );
+              return product; // Return product even if colors fail
+            }
+          })
+        );
+
+        setProducts(productsWithColors);
+        setError(null); // Clear any errors on success
+        return true; // Successfully fetched
+      } catch (error) {
+        // Check if it's a network error
+        if (error.message.includes('Network Error') || 
+            error.message.includes('Failed to fetch') || 
+            error instanceof TypeError) {
+          retryCount++;
+          if (retryCount <= MAX_RETRIES) {
+            console.log(`Network error, retrying (${retryCount}/${MAX_RETRIES})...`);
+            // Exponential backoff: wait longer between each retry
+            const delay = 1000 * Math.pow(2, retryCount - 1); // 1s, 2s, 4s
+            await new Promise(resolve => setTimeout(resolve, delay));
+            return false; // Retry needed
           }
         }
-        // Provide a more generic error if response is falsy or status details are unavailable
-        const statusText = response ? ` ${response.status} ${response.statusText}` : '';
-        throw new Error(`Failed to fetch products:${statusText}`);
+        
+        console.error("Product fetch error:", error);
+        setError(error.message || "Error fetching products");
+        toast.error(error.message || "Error fetching products");
+        return true; // Don't retry for non-network errors
+      } finally {
+        if (retryCount >= MAX_RETRIES) {
+          setLoading(false);
+        }
       }
-
-      const data = await response.json();
-      
-      // Check if the response contains the products array
-      const productsArray = data.products || [];
-      console.log(`Received ${productsArray.length} products`); // Add log
-
-      // Fetch color inventories for each product
-      const productsWithColors = await Promise.all(
-        productsArray.map(async (product) => {
-          try {
-            // Use correct backend URL for fetching colors
-            console.log(`Fetching colors for product ${product.id} from: ${backendApiUrl}/products/${product.id}/colors`); // Add log
-            const colorResponse = await authFetch(
-              `${backendApiUrl}/products/${product.id}/colors` // Corrected endpoint
-            );
-
-            if (colorResponse.ok) {
-              const colorData = await colorResponse.json();
-              return {
-                ...product,
-                colorInventories: colorData.colorInventories || [],
-              };
-            }
-            console.warn(`Failed to fetch colors for product ${product.id}: ${colorResponse.status}`); // Add log
-            return product; // Return product even if colors fail
-          } catch (error) {
-            console.error(
-              `Error fetching colors for product ${product.id}:`,
-              error
-            );
-            return product; // Return product even if colors fail
-          }
-        })
-      );
-
-      setProducts(productsWithColors);
-    } catch (error) {
-      // Log the full error for debugging
-      console.error("Product fetch error:", error);
-
-      let displayMessage = "An unexpected error occurred while fetching products.";
-
-      // Handle specific error types for better user feedback/logging
-      if (error.message?.startsWith('Failed to fetch products:')) { // Matches error thrown in try block for bad responses
-         displayMessage = error.message; // Use the more specific message from the try block
-         console.error('Product fetch error: Server responded with an error:', error.message);
-      } else if (error.message?.startsWith('Server error occurred')) { // Matches error thrown for HTML response
-         displayMessage = error.message;
-         console.error('Product fetch error: Received unexpected HTML response from server.');
-      } else if (error instanceof TypeError && error.message?.includes('fetch')) {
-         // TypeError related to fetch often indicates network or CORS issues
-         // This is where the "0 Network Error" likely falls.
-         displayMessage = "Network error: Could not reach the server to fetch products. Please check your connection or try again later.";
-         console.error('Product fetch error: Network or CORS error:', error.message);
-      } else {
-         // Generic fallback
-         console.error('Product fetch error: An unexpected error occurred:', error.message);
-         // Potentially use error.message if it's informative, otherwise keep the generic one
-         if (error.message) {
-            // Avoid showing overly technical messages to the user directly
-            displayMessage = `An unexpected error occurred. Please try again.`;
-         }
-      }
-
-      toast.error(displayMessage);
-    } finally {
-      setLoading(false);
+    };
+    
+    // Continue retrying until success or max retries reached
+    let success = false;
+    while (!success && retryCount <= MAX_RETRIES) {
+      success = await attemptFetch();
     }
+    
+    setLoading(false);
   }, [authFetch]);
 
   useEffect(() => {
@@ -172,12 +190,13 @@ function ProductsListContent() {
     }
 
     try {
-      const backendApiUrl = process.env.NEXT_PUBLIC_SELLER_SERVICE_URL || 'http://localhost:8000/api'; // Define backend URL
+      // Use the centralized endpoint configuration
+      const deleteUrl = PRODUCT_ENDPOINTS.DELETE(productId);
       
       // Use correct backend URL for deleting product
-      console.log(`Deleting product ${productId} at: ${backendApiUrl}/products/${productId}`); // Add log
+      console.log(`Deleting product ${productId} at: ${deleteUrl}`);
       const response = await authFetch(
-        `${backendApiUrl}/products/${productId}`, // Corrected endpoint
+        deleteUrl,
         {
           method: "DELETE",
         }
@@ -231,6 +250,17 @@ function ProductsListContent() {
           </div>
         </div>
       </div>
+
+      {/* Network Error Alert */}
+      {error && (
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-4">
+          <NetworkErrorAlert 
+            message={error}
+            onRetry={fetchProducts}
+            className="mb-4"
+          />
+        </div>
+      )}
 
       <div className="max-w-7xl mx-auto p-4 sm:p-6">
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">

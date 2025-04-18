@@ -241,7 +241,11 @@ export function AuthProvider({ children }) {
 
     // Add timeout and retry logic
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 30000); // Increased from 15000 (15s) to 30000 (30s)
+    const timeoutDuration = options.timeout || 30000; // Use provided timeout or default to 30s
+    const timeoutId = setTimeout(() => {
+      console.warn(`Request to ${url} timed out after ${timeoutDuration}ms`);
+      controller.abort('timeout');
+    }, timeoutDuration);
     
     const makeRequest = async (token = accessToken, retryCount = 0) => {
       try {
@@ -250,85 +254,136 @@ export function AuthProvider({ children }) {
           requestHeaders.Authorization = `Bearer ${token}`;
         }
         
+        // Merge the signal from controller with any existing signal
+        const signal = controller.signal;
+        
         console.log(`Making request to ${url} (retry: ${retryCount})`);
-        const response = await fetch(url, {
+        
+        // Set up a timeout and retry params
+        const fetchOptions = {
           ...options,
           headers: requestHeaders,
-          signal: controller.signal,
-          credentials: 'include' // Always include cookies
-        });
-
-        // Log response status and content type for debugging
-        console.log(`Response: ${response.status} ${response.statusText}`);
-        const contentType = response.headers.get('content-type') || '';
+          signal,
+        };
         
-        // Check for auth errors that need handling
-        if (response.status === 401) {
-          console.log("Received 401 Unauthorized, trying to refresh token");
+        // Attempt the fetch with network error handling
+        try {
+          const response = await fetch(url, fetchOptions);
+          return { response, hasNetworkError: false };
+        } catch (networkError) {
+          // Handle network errors separately
+          console.error(`Network error on ${url}:`, networkError.message);
           
-          if (retryCount === 0 && refreshToken) {
-            // Try to refresh the token and retry the request once
-            try {
-              const newToken = await refreshAccessToken();
-              if (newToken) {
-                console.log("Successfully refreshed token, retrying request");
-                clearTimeout(timeoutId);
-                // Retry the request with the new token
-                return makeRequest(newToken, retryCount + 1);
-              }
-            } catch (refreshError) {
-              console.error("Failed to refresh token:", refreshError);
-              // Only clear tokens for specific auth errors
-              if (refreshError.message === "Invalid refresh token" || 
-                  refreshError.message === "No refresh token available") {
-                clearTokens();
-                setSeller(null);
-              }
-            }
+          // Check if this was due to a timeout
+          if (networkError.name === 'AbortError') {
+            return { 
+              hasNetworkError: true, 
+              response: new Response(JSON.stringify({ 
+                success: false, 
+                message: 'Request timed out' 
+              }), { 
+                status: 408, 
+                statusText: 'Request Timeout',
+                headers: { 'Content-Type': 'application/json' },
+                ok: false
+              })
+            };
           }
-        } else if (response.status === 404) {
-          // Don't treat 404 as a fatal error that logs users out
-          console.warn(`Endpoint not found: ${url} - This might be a routing issue`);
-        } else if (response.status >= 500) {
-          // Don't log users out on server errors
-          console.warn(`Server error: ${response.status} when accessing ${url}`);
+          
+          // For other network errors
+          return { 
+            hasNetworkError: true, 
+            response: new Response(JSON.stringify({ 
+              success: false, 
+              message: 'Network Error' 
+            }), { 
+              status: 0, 
+              statusText: 'Network Error',
+              headers: { 'Content-Type': 'application/json' },
+              ok: false
+            })
+          };
         }
-        
-        return response;
       } catch (error) {
-        // For network errors, retry once and don't log out
-        if ((error.name === 'AbortError' || error instanceof TypeError) && retryCount === 0) {
-          console.warn(`Network error: ${error.message}, retrying...`);
-          await new Promise(resolve => setTimeout(resolve, 1000));
-          return makeRequest(token, retryCount + 1);
-        }
-        // For network errors, don't clear tokens or log users out
-        if (error.name === 'AbortError' || error instanceof TypeError) {
-          console.warn(`Network error: ${error.message}, but maintaining session`);
-        }
-        throw error;
+        console.error("Error in makeRequest:", error);
+        
+        // Return a standardized error response
+        return {
+          hasNetworkError: true,
+          response: new Response(JSON.stringify({
+            success: false,
+            message: error.message || 'Unknown error'
+          }), {
+            status: 500,
+            statusText: 'Internal Client Error',
+            headers: { 'Content-Type': 'application/json' },
+            ok: false
+          })
+        };
       }
     };
 
     try {
-      const response = await makeRequest();
+      const { response, hasNetworkError } = await makeRequest();
       clearTimeout(timeoutId);
+      
+      if (hasNetworkError) {
+        console.warn(`Returning error response for ${url} due to network error`);
+        return response;
+      }
+      
+      // Log response status and content type for debugging
+      console.log(`Response: ${response.status} ${response.statusText}`);
+      const contentType = response.headers.get('content-type') || '';
+      
+      // Check for auth errors that need handling
+      if (response.status === 401) {
+        console.log("Received 401 Unauthorized, trying to refresh token");
+        
+        if (refreshToken) {
+          // Try to refresh the token and retry the request once
+          try {
+            const newToken = await refreshAccessToken();
+            if (newToken) {
+              console.log("Successfully refreshed token, retrying request");
+              // Retry the request with the new token
+              const { response: newResponse } = await makeRequest(newToken, 1);
+              return newResponse;
+            }
+          } catch (refreshError) {
+            console.error("Failed to refresh token:", refreshError);
+            // Only clear tokens for specific auth errors
+            if (refreshError.message === "Invalid refresh token" || 
+                refreshError.message === "No refresh token available") {
+              clearTokens();
+              setSeller(null);
+            }
+          }
+        }
+      } else if (response.status === 404) {
+        // Don't treat 404 as a fatal error that logs users out
+        console.warn(`Endpoint not found: ${url} - This might be a routing issue`);
+      } else if (response.status >= 500) {
+        // Don't log users out on server errors
+        console.warn(`Server error: ${response.status} when accessing ${url}`);
+      }
+      
       return response;
     } catch (error) {
       clearTimeout(timeoutId);
-      console.error("Auth fetch error:", error);
-      // Don't throw errors for network issues
-      if (error.name === 'AbortError' || error instanceof TypeError) {
-        // Return a response-like object that won't trigger token clearing
-        return {
-          ok: false,
-          status: 0,
-          statusText: "Network Error",
-          json: async () => ({ message: "Network error", networkError: true }),
-          text: async () => "Network error",
-        };
-      }
-      throw error;
+      
+      console.error(`Unhandled error in authFetch for ${url}:`, error);
+      
+      // Create a network error response
+      return new Response(JSON.stringify({
+        success: false,
+        message: error.message || 'Unhandled error in request'
+      }), {
+        status: 0,
+        statusText: 'Error',
+        headers: { 'Content-Type': 'application/json' },
+        ok: false
+      });
     }
   };
 
