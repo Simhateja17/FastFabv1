@@ -101,6 +101,12 @@ function ProductsListContent() {
     // Set up an event listener for when focus returns to the window
     // This will refresh the data when a user comes back from editing a product
     const handleFocus = () => {
+      // Check if a fetch is already loading before triggering another
+      if (loading) {
+          console.log("Window focused, but fetch already in progress. Skipping refresh.");
+          return;
+      }
+      
       // Check if there's a flag indicating the product list was updated
       const productListUpdated = localStorage.getItem('product_list_updated');
       if (productListUpdated) {
@@ -110,7 +116,8 @@ function ProductsListContent() {
         // Refresh the products
         setRefreshTimestamp(Date.now());
       } else {
-        console.log("Window focused, checking if refresh needed");
+        console.log("Window focused, triggering potential refresh.");
+        // Maybe add a time check here too if still too frequent?
         setRefreshTimestamp(Date.now());
       }
     };
@@ -121,7 +128,7 @@ function ProductsListContent() {
     return () => {
       window.removeEventListener('focus', handleFocus);
     };
-  }, [fetchProducts]);
+  }, [fetchProducts, loading]);
   
   // Add another useEffect to refetch when timestamp changes
   useEffect(() => {
