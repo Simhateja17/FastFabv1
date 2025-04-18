@@ -34,7 +34,7 @@ export async function POST(request) {
         customer_name: customer_details.customer_name || '',
       },
       order_meta: {
-        return_url: `${APP_URL}/payment-status?order_id={order_id}`,
+        return_url: `https://${APP_URL.replace(/^https?:\/\//, '')}/payment-status?order_id={order_id}`,
         notify_url: `${APP_URL}/api/payment-webhook`,
       },
       order_tags: {
