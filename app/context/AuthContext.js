@@ -78,7 +78,8 @@ export function AuthProvider({ children }) {
           },
           body: JSON.stringify({ refreshToken }),
           signal: controller.signal,
-          credentials: 'include' // Include cookies in the request
+          credentials: 'include', // Include cookies in the request
+          mode: 'cors' // Explicitly set CORS mode
         });
 
         clearTimeout(timeoutId);
@@ -94,7 +95,8 @@ export function AuthProvider({ children }) {
               "Content-Type": "application/json",
             },
             body: JSON.stringify({ refreshToken }),
-            credentials: 'include'
+            credentials: 'include',
+            mode: 'cors'
           });
           
           console.log("Alternative refresh endpoint response:", altResponse.status);
@@ -271,7 +273,8 @@ export function AuthProvider({ children }) {
         const response = await fetch(url, {
           ...requestOptions,
           headers: requestHeaders,
-          credentials: 'include' // Always include cookies
+          credentials: 'include', // Always include cookies
+          mode: 'cors' // Explicitly set CORS mode
         });
 
         // Log response status and content type for debugging
@@ -332,6 +335,27 @@ export function AuthProvider({ children }) {
           console.warn(`Network error: ${error.message}, retrying...`);
           await new Promise(resolve => setTimeout(resolve, 1000));
           return makeRequest(token, retryCount + 1);
+        }
+        
+        // For network errors that might be CORS-related, try one more time with no-cors mode
+        if (error instanceof TypeError && error.message.includes('Failed to fetch') && retryCount === 1) {
+          console.warn(`Possible CORS issue: ${error.message}, trying with no-cors mode...`);
+          
+          // For no-cors mode, we can't access the response content, but can test connectivity
+          try {
+            console.log(`Attempting no-cors mode for ${url}`);
+            const noCorsResponse = await fetch(url, {
+              method: 'GET', // Only GET is allowed with no-cors
+              mode: 'no-cors',
+              credentials: 'include'
+            });
+            
+            console.log(`no-cors response type: ${noCorsResponse.type}`);
+            // We can't actually use this response with no-cors, but if it doesn't throw,
+            // we know we can reach the server. We'll still throw the original error below.
+          } catch (noCorsError) {
+            console.error(`no-cors request also failed: ${noCorsError.message}`);
+          }
         }
         
         // For network errors, don't clear tokens or log users out
