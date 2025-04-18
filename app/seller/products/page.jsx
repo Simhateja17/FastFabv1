@@ -92,8 +92,34 @@ function ProductsListContent() {
 
       setProducts(productsWithColors);
     } catch (error) {
+      // Log the full error for debugging
       console.error("Product fetch error:", error);
-      toast.error(error.message || "Error fetching products");
+
+      let displayMessage = "An unexpected error occurred while fetching products.";
+
+      // Handle specific error types for better user feedback/logging
+      if (error.message?.startsWith('Failed to fetch products:')) { // Matches error thrown in try block for bad responses
+         displayMessage = error.message; // Use the more specific message from the try block
+         console.error('Product fetch error: Server responded with an error:', error.message);
+      } else if (error.message?.startsWith('Server error occurred')) { // Matches error thrown for HTML response
+         displayMessage = error.message;
+         console.error('Product fetch error: Received unexpected HTML response from server.');
+      } else if (error instanceof TypeError && error.message?.includes('fetch')) {
+         // TypeError related to fetch often indicates network or CORS issues
+         // This is where the "0 Network Error" likely falls.
+         displayMessage = "Network error: Could not reach the server to fetch products. Please check your connection or try again later.";
+         console.error('Product fetch error: Network or CORS error:', error.message);
+      } else {
+         // Generic fallback
+         console.error('Product fetch error: An unexpected error occurred:', error.message);
+         // Potentially use error.message if it's informative, otherwise keep the generic one
+         if (error.message) {
+            // Avoid showing overly technical messages to the user directly
+            displayMessage = `An unexpected error occurred. Please try again.`;
+         }
+      }
+
+      toast.error(displayMessage);
     } finally {
       setLoading(false);
     }
