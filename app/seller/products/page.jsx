@@ -23,17 +23,23 @@ function ProductsListContent() {
   const router = useRouter();
   const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(true);
-  const { authFetch, seller } = useAuth();
+  const { authFetch } = useAuth();
+  // Add timestamp state to force refetch on navigation
   const [refreshTimestamp, setRefreshTimestamp] = useState(Date.now());
 
   const fetchProducts = useCallback(async () => {
     try {
       setLoading(true);
-      const timestamp = Date.now();
-      const fetchUrl = `/api/seller/products?_=${timestamp}`;
+      const backendApiUrl = process.env.NEXT_PUBLIC_SELLER_SERVICE_URL || 'http://localhost:8000/api'; // Define backend URL
       
-      console.log(`Fetching products from: ${fetchUrl}`);
-      const response = await authFetch(fetchUrl);
+      // Add cache-busting timestamp to prevent stale data
+      const timestamp = Date.now();
+      
+      // Call the correct backend endpoint directly
+      console.log(`Fetching products from: ${backendApiUrl}/products?_=${timestamp}`); // Add log
+      const response = await authFetch(
+        `${backendApiUrl}/products?_=${timestamp}` // Add timestamp parameter to prevent caching
+      );
 
       // Check if response is not OK
       if (!response.ok) {
@@ -47,17 +53,47 @@ function ProductsListContent() {
 
       const data = await response.json();
       
+      // Check if the response contains the products array
       const productsArray = data.products || [];
-      console.log(`Received ${productsArray.length} products for seller ${seller ? seller.id : ' (ID not available yet)'}`);
+      console.log(`Received ${productsArray.length} products`); // Add log
 
-      setProducts(productsArray);
+      // Fetch color inventories for each product
+      const productsWithColors = await Promise.all(
+        productsArray.map(async (product) => {
+          try {
+            // Use correct backend URL for fetching colors
+            console.log(`Fetching colors for product ${product.id} from: ${backendApiUrl}/products/${product.id}/colors`); // Add log
+            const colorResponse = await authFetch(
+              `${backendApiUrl}/products/${product.id}/colors` // Corrected endpoint
+            );
+
+            if (colorResponse.ok) {
+              const colorData = await colorResponse.json();
+              return {
+                ...product,
+                colorInventories: colorData.colorInventories || [],
+              };
+            }
+            console.warn(`Failed to fetch colors for product ${product.id}: ${colorResponse.status}`); // Add log
+            return product; // Return product even if colors fail
+          } catch (error) {
+            console.error(
+              `Error fetching colors for product ${product.id}:`,
+              error
+            );
+            return product; // Return product even if colors fail
+          }
+        })
+      );
+
+      setProducts(productsWithColors);
     } catch (error) {
       console.error("Product fetch error:", error);
-      toast.error(error.message || "Failed to load products");
+      toast.error(error.message || "Error fetching products");
     } finally {
       setLoading(false);
     }
-  }, [authFetch, seller]);
+  }, [authFetch]);
 
   useEffect(() => {
     fetchProducts();
@@ -103,9 +139,9 @@ function ProductsListContent() {
       const backendApiUrl = process.env.NEXT_PUBLIC_SELLER_SERVICE_URL || 'http://localhost:8000/api'; // Define backend URL
       
       // Use correct backend URL for deleting product
-      console.log(`Deleting product ${productId} at: ${backendApiUrl}/products/${productId}`);
+      console.log(`Deleting product ${productId} at: ${backendApiUrl}/products/${productId}`); // Add log
       const response = await authFetch(
-        `${backendApiUrl}/products/${productId}`,
+        `${backendApiUrl}/products/${productId}`, // Corrected endpoint
         {
           method: "DELETE",
         }
@@ -130,9 +166,9 @@ function ProductsListContent() {
         toast.success("Product deleted successfully");
       }
       
-      fetchProducts();
+      fetchProducts(); // Refresh the list
     } catch (error) {
-      console.error("Error deleting product:", error);
+      console.error("Error deleting product:", error); // Add log
       toast.error(`Error deleting product: ${error.message}`);
     }
   };

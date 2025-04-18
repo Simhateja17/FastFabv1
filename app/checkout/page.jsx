@@ -123,26 +123,16 @@ function CheckoutContent() {
     if (cashfreeLoaded) {
       try {
         console.log('Attempting to initialize Cashfree...');
-        const mode = process.env.NEXT_PUBLIC_CASHFREE_MODE || 'sandbox';
-        console.log('Cashfree mode:', mode);
-        
-        // Ensure window.Cashfree is available
-        if (typeof window === 'undefined' || !window.Cashfree) {
-          console.error('Cashfree SDK not available in window object');
-          return;
-        }
-
-        // Initialize Cashfree
-        const cashfree = new window.Cashfree({
-          mode: mode // sandbox or production
+        const mode = process.env.NODE_ENV === 'production' ? 'production' : 'sandbox';
+        const cashfree = window.Cashfree({
+          mode: mode
         });
-        
         console.log('Cashfree initialization successful');
         setCashfreeInstance(cashfree);
       } catch (err) {
         console.error("SDK initialization error:", err);
         toast.error("Payment gateway failed to load. Please refresh.");
-        setError("Payment system error: " + err.message);
+        setError("Payment system error.");
       }
     }
   }, [cashfreeLoaded]);
@@ -287,13 +277,9 @@ function CheckoutContent() {
     <div className="min-h-screen bg-gray-50 py-12">
       <Script
         src="https://sdk.cashfree.com/js/v3/cashfree.js"
-        strategy="lazyOnload"
-        onReady={() => {
-          console.log('Cashfree SDK ready to use');
-          setCashfreeLoaded(true);
-        }}
         onLoad={() => {
           console.log('Cashfree SDK loaded');
+          setCashfreeLoaded(true);
         }}
         onError={(e) => {
           console.error('Error loading Cashfree SDK:', e);
@@ -376,19 +362,12 @@ function CheckoutContent() {
                 }`}
               >
                 {isProcessingPayment ? (
-                  <span className="flex items-center justify-center">
-                    <LoadingSpinner size="small" color="white"/>
-                    <span className="ml-2">Processing...</span>
-                  </span>
-                ) : !cashfreeInstance ? (
-                  <span className="flex items-center justify-center">
-                    <LoadingSpinner size="small" color="white"/>
-                    <span className="ml-2">Loading Payment...</span>
-                  </span>
-                ) : !userLocation?.label ? (
-                  <span>Set Delivery Location</span>
+                    <span className="flex items-center justify-center">
+                        <LoadingSpinner size="small" color="white"/>
+                        <span className="ml-2">Processing...</span>
+                    </span>
                 ) : (
-                  <span>Click to Pay ₹{total}</span>
+                    <span>Click to Pay ₹{total}</span>
                 )}
               </button>
             </div>
