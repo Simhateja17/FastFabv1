@@ -30,13 +30,14 @@ function ProductsListContent() {
   const fetchProducts = useCallback(async () => {
     try {
       setLoading(true);
-      const backendApiUrl = process.env.NEXT_PUBLIC_SELLER_SERVICE_URL || 'http://localhost:8000/api'; // Define backend URL
+      const backendApiUrl = process.env.NEXT_PUBLIC_SELLER_SERVICE_URL || 'http://localhost:8000'; // Corrected fallback - '/api' added below
       
       // Add cache-busting timestamp to prevent stale data
       const timestamp = Date.now();
       
-      // Call the correct backend endpoint directly
-      console.log(`Fetching products from: ${backendApiUrl}/products?_=${timestamp}`); // Add log
+      // Construct the correct API endpoint URL including /api
+      const productsApiEndpoint = `${backendApiUrl}/api/products?_=${timestamp}`;
+      console.log(`Fetching products from: ${productsApiEndpoint}`); // Update log
       
       // Add timeout handling for fetch
       const controller = new AbortController();
@@ -44,7 +45,7 @@ function ProductsListContent() {
       
       try {
         const response = await authFetch(
-          `${backendApiUrl}/products?_=${timestamp}`, // Add timestamp parameter to prevent caching
+          productsApiEndpoint, // Use the correctly constructed endpoint
           { signal: controller.signal }
         );
 
@@ -74,10 +75,11 @@ function ProductsListContent() {
         const productsWithColors = await Promise.all(
           productsArray.map(async (product) => {
             try {
-              // Use correct backend URL for fetching colors
-              console.log(`Fetching colors for product ${product.id} from: ${backendApiUrl}/products/${product.id}/colors`); // Add log
+              // Use correct backend URL for fetching colors (also needs /api)
+              const colorsApiEndpoint = `${backendApiUrl}/api/products/${product.id}/colors`;
+              console.log(`Fetching colors for product ${product.id} from: ${colorsApiEndpoint}`); // Update log
               const colorResponse = await authFetch(
-                `${backendApiUrl}/products/${product.id}/colors` // Corrected endpoint
+                colorsApiEndpoint // Use the correctly constructed endpoint
               );
 
               if (colorResponse.ok) {
@@ -173,12 +175,13 @@ function ProductsListContent() {
     }
 
     try {
-      const backendApiUrl = process.env.NEXT_PUBLIC_SELLER_SERVICE_URL || 'http://localhost:8000/api'; // Define backend URL
+      const backendApiUrl = process.env.NEXT_PUBLIC_SELLER_SERVICE_URL || 'http://localhost:8000'; // Define backend URL
       
-      // Use correct backend URL for deleting product
-      console.log(`Deleting product ${productId} at: ${backendApiUrl}/products/${productId}`); // Add log
+      // Use correct backend URL for deleting product (add /api)
+      const deleteApiEndpoint = `${backendApiUrl}/api/products/${productId}`;
+      console.log(`Deleting product ${productId} at: ${deleteApiEndpoint}`); // Update log
       const response = await authFetch(
-        `${backendApiUrl}/products/${productId}`, // Corrected endpoint
+        deleteApiEndpoint, // Corrected endpoint
         {
           method: "DELETE",
         }
