@@ -239,9 +239,20 @@ export function AuthProvider({ children }) {
       headers.Authorization = `Bearer ${accessToken}`;
     }
 
-    // Add timeout and retry logic
+    // Add timeout and retry logic with increased timeout for production
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 30000);
+    // Use a longer timeout for production environments
+    const timeoutMs = url.includes('localhost') ? 15000 : 30000;
+    const timeoutId = setTimeout(() => {
+      console.warn(`Request to ${url} timed out after ${timeoutMs}ms`);
+      controller.abort();
+    }, timeoutMs);
+    
+    // Add signal to options if not already provided
+    const requestOptions = {
+      ...options,
+      signal: options.signal || controller.signal
+    };
     
     const makeRequest = async (token = accessToken, retryCount = 0) => {
       try {
@@ -252,21 +263,14 @@ export function AuthProvider({ children }) {
         
         console.log(`Making request to ${url} (retry: ${retryCount})`);
         
-        // For requests to localhost in production, adjust the URL
-        let requestUrl = url;
-        if (typeof window !== 'undefined' && window.location.hostname !== 'localhost') {
-          // If trying to access localhost in production, switch to relative API path
-          if (requestUrl.includes('localhost')) {
-            const path = new URL(requestUrl).pathname;
-            requestUrl = path.startsWith('/api') ? path : `/api${path}`;
-            console.log(`Adjusted localhost URL to: ${requestUrl}`);
-          }
+        // Add connection debugging for production environments
+        if (!url.includes('localhost')) {
+          console.log(`Connection test before fetch: ${new Date().toISOString()}`);
         }
         
-        const response = await fetch(requestUrl, {
-          ...options,
+        const response = await fetch(url, {
+          ...requestOptions,
           headers: requestHeaders,
-          signal: controller.signal,
           credentials: 'include' // Always include cookies
         });
 
@@ -298,45 +302,41 @@ export function AuthProvider({ children }) {
               }
             }
           }
+        } else if (response.status === 404) {
+          // Don't treat 404 as a fatal error that logs users out
+          console.warn(`Endpoint not found: ${url} - This might be a routing issue`);
+        } else if (response.status >= 500) {
+          // Don't log users out on server errors
+          console.warn(`Server error: ${response.status} when accessing ${url}`);
         }
         
         return response;
       } catch (error) {
-        // Handle network errors more gracefully
+        // Add more detailed logging for network errors
         if (error.name === 'AbortError') {
-          console.warn(`Request timeout for ${url}`);
-          return new Response(JSON.stringify({
-            error: true, 
-            message: "Request timed out. Please check your connection and try again."
-          }), {
-            status: 0,
-            headers: { 'Content-Type': 'application/json' },
-            ok: false,
-            statusText: "Timeout Error"
-          });
-        } else if (error.name === 'TypeError' && error.message.includes('Failed to fetch')) {
-          console.warn(`Network error for ${url}: ${error.message}`);
+          console.warn(`Request aborted/timed out: ${url}`);
+        } else if (error instanceof TypeError && error.message.includes('Failed to fetch')) {
+          console.warn(`Network error when fetching from ${url}: ${error.message}`);
           
-          // If we're making a localhost request in production, adjust path and retry
-          if (url.includes('localhost') && typeof window !== 'undefined' && window.location.hostname !== 'localhost') {
-            if (retryCount === 0) {
-              const path = new URL(url).pathname;
-              const apiPath = path.startsWith('/api') ? path : `/api${path}`;
-              console.log(`Retrying with adjusted path: ${apiPath}`);
-              // Retry with adjusted path
-              return makeRequest(token, retryCount + 1);
-            }
+          // Log additional information for CORS or connection issues
+          console.error(`Detailed error: ${error.stack || 'No stack trace'}`);
+          
+          // For "0 Network Error" cases which are commonly CORS issues
+          if (error.message.includes('0') || error.message.toLowerCase().includes('network error')) {
+            console.error("Possible CORS issue or server unreachable");
           }
-          
-          return new Response(JSON.stringify({
-            error: true, 
-            message: "Network error. Please check your connection and try again."
-          }), {
-            status: 0,
-            headers: { 'Content-Type': 'application/json' },
-            ok: false,
-            statusText: "Network Error"
-          });
+        }
+        
+        // For network errors, retry once and don't log out
+        if ((error.name === 'AbortError' || error instanceof TypeError) && retryCount === 0) {
+          console.warn(`Network error: ${error.message}, retrying...`);
+          await new Promise(resolve => setTimeout(resolve, 1000));
+          return makeRequest(token, retryCount + 1);
+        }
+        
+        // For network errors, don't clear tokens or log users out
+        if (error.name === 'AbortError' || error instanceof TypeError) {
+          console.warn(`Network error: ${error.message}, but maintaining session`);
         }
         throw error;
       }
@@ -349,16 +349,18 @@ export function AuthProvider({ children }) {
     } catch (error) {
       clearTimeout(timeoutId);
       console.error("Auth fetch error:", error);
-      // Create a response-like object for network errors
-      return new Response(JSON.stringify({
-        error: true,
-        message: error.message || "An unexpected error occurred"
-      }), {
-        status: 0,
-        headers: { 'Content-Type': 'application/json' },
-        ok: false,
-        statusText: error.name || "Error"
-      });
+      // Don't throw errors for network issues
+      if (error.name === 'AbortError' || error instanceof TypeError) {
+        // Return a response-like object that won't trigger token clearing
+        return {
+          ok: false,
+          status: 0,
+          statusText: "Network Error",
+          json: async () => ({ message: "Network error", networkError: true }),
+          text: async () => "Network error",
+        };
+      }
+      throw error;
     }
   };
 

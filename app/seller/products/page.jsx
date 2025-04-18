@@ -26,99 +26,101 @@ function ProductsListContent() {
   const { authFetch } = useAuth();
   // Add timestamp state to force refetch on navigation
   const [refreshTimestamp, setRefreshTimestamp] = useState(Date.now());
-  // Show error state with retry button if products failed to load
-  const [error, setError] = useState(null);
 
   const fetchProducts = useCallback(async () => {
     try {
       setLoading(true);
-      setError(null);
-      
-      // Use environment variable with fallback to relative API path for production
-      // This ensures we don't try to use localhost in production
-      const backendApiUrl = typeof window !== 'undefined' && window.location.hostname === 'localhost' 
-        ? (process.env.NEXT_PUBLIC_SELLER_SERVICE_URL || 'http://localhost:8000/api')
-        : '/api/seller/products';
+      const backendApiUrl = process.env.NEXT_PUBLIC_SELLER_SERVICE_URL || 'http://localhost:8000/api'; // Define backend URL
       
       // Add cache-busting timestamp to prevent stale data
       const timestamp = Date.now();
       
       // Call the correct backend endpoint directly
-      console.log(`Fetching products from: ${backendApiUrl}?_=${timestamp}`);
-      const response = await authFetch(
-        `${backendApiUrl}?_=${timestamp}` // Add timestamp parameter to prevent caching
-      );
-
-      // Check if response is not OK OR if response is undefined/null
-      if (!response || !response.ok) {
-        // Check for HTML responses only if response and headers exist
-        if (response && response.headers) {
-          const contentType = response.headers.get('content-type') || '';
-          if (contentType.includes('text/html')) {
-            throw new Error("Server error occurred. Please try again later.");
-          }
-        }
-        
-        // Network error (status 0)
-        if (response && response.status === 0) {
-          throw new Error("Network error. Please check your connection and try again.");
-        }
-        
-        // Provide a more generic error if response is falsy or status details are unavailable
-        const statusText = response ? ` ${response.status} ${response.statusText}` : '';
-        throw new Error(`Failed to fetch products:${statusText}`);
-      }
-
-      // Try-catch for parsing JSON
-      let data;
-      try {
-        data = await response.json();
-      } catch (jsonError) {
-        console.error("Error parsing JSON response:", jsonError);
-        throw new Error("Invalid response format from server");
-      }
+      console.log(`Fetching products from: ${backendApiUrl}/products?_=${timestamp}`); // Add log
       
-      // Check if the response contains the products array
-      const productsArray = data.products || [];
-      console.log(`Received ${productsArray.length} products`);
+      // Add timeout handling for fetch
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 15000); // 15 second timeout
+      
+      try {
+        const response = await authFetch(
+          `${backendApiUrl}/products?_=${timestamp}`, // Add timestamp parameter to prevent caching
+          { signal: controller.signal }
+        );
 
-      // Fetch color inventories for each product
-      const productsWithColors = await Promise.all(
-        productsArray.map(async (product) => {
-          try {
-            // Use correct backend URL for fetching colors - adjust for production
-            const colorApiUrl = typeof window !== 'undefined' && window.location.hostname === 'localhost'
-              ? `${backendApiUrl}/products/${product.id}/colors`
-              : `/api/seller/products/${product.id}/colors`;
-              
-            console.log(`Fetching colors for product ${product.id} from: ${colorApiUrl}`);
-            const colorResponse = await authFetch(colorApiUrl);
+        clearTimeout(timeoutId);
 
-            if (colorResponse.ok) {
-              const colorData = await colorResponse.json();
-              return {
-                ...product,
-                colorInventories: colorData.colorInventories || [],
-              };
+        // Check if response is not OK OR if response is undefined/null
+        if (!response || !response.ok) {
+          // Check for HTML responses only if response and headers exist
+          if (response && response.headers) {
+            const contentType = response.headers.get('content-type') || '';
+            if (contentType.includes('text/html')) {
+              throw new Error("Server error occurred. Please try again later.");
             }
-            console.warn(`Failed to fetch colors for product ${product.id}: ${colorResponse.status}`);
-            return product; // Return product even if colors fail
-          } catch (error) {
-            console.error(
-              `Error fetching colors for product ${product.id}:`,
-              error
-            );
-            return product; // Return product even if colors fail
           }
-        })
-      );
+          // Provide a more generic error if response is falsy or status details are unavailable
+          const statusText = response ? ` ${response.status} ${response.statusText}` : '';
+          throw new Error(`Failed to fetch products:${statusText}`);
+        }
 
-      setProducts(productsWithColors);
+        const data = await response.json();
+        
+        // Check if the response contains the products array
+        const productsArray = data.products || [];
+        console.log(`Received ${productsArray.length} products`); // Add log
+
+        // Fetch color inventories for each product
+        const productsWithColors = await Promise.all(
+          productsArray.map(async (product) => {
+            try {
+              // Use correct backend URL for fetching colors
+              console.log(`Fetching colors for product ${product.id} from: ${backendApiUrl}/products/${product.id}/colors`); // Add log
+              const colorResponse = await authFetch(
+                `${backendApiUrl}/products/${product.id}/colors` // Corrected endpoint
+              );
+
+              if (colorResponse.ok) {
+                const colorData = await colorResponse.json();
+                return {
+                  ...product,
+                  colorInventories: colorData.colorInventories || [],
+                };
+              }
+              console.warn(`Failed to fetch colors for product ${product.id}: ${colorResponse.status}`); // Add log
+              return product; // Return product even if colors fail
+            } catch (error) {
+              console.error(
+                `Error fetching colors for product ${product.id}:`,
+                error
+              );
+              return product; // Return product even if colors fail
+            }
+          })
+        );
+
+        setProducts(productsWithColors);
+      } catch (fetchError) {
+        clearTimeout(timeoutId);
+        if (fetchError.name === 'AbortError') {
+          console.error('Request timed out');
+          throw new Error('Request timed out. Please check your network connection and try again.');
+        }
+        throw fetchError;
+      }
+
     } catch (error) {
       console.error("Product fetch error:", error);
-      // Set error state instead of just showing toast
-      setError(error.message || "Error fetching products");
-      toast.error(error.message || "Error fetching products");
+      // Add more detailed error reporting
+      let errorMessage = 'Error fetching products';
+      
+      if (error.message && error.message.includes('Network Error')) {
+        errorMessage = 'Network error occurred. Please check your internet connection or try again later.';
+      } else if (error.message) {
+        errorMessage = error.message;
+      }
+      
+      toast.error(errorMessage);
     } finally {
       setLoading(false);
     }
@@ -165,46 +167,22 @@ function ProductsListContent() {
     }
   }, [refreshTimestamp, fetchProducts]);
 
-  useEffect(() => {
-    // Reset error when refreshing products
-    if (loading) {
-      setError(null);
-    }
-  }, [loading]);
-
-  const handleRetry = () => {
-    setError(null);
-    fetchProducts();
-  };
-
   const handleDelete = async (productId) => {
     if (!window.confirm("Are you sure you want to delete this product?")) {
       return;
     }
 
     try {
-      // Use environment variable with fallback to relative API path for production
-      const backendApiUrl = typeof window !== 'undefined' && window.location.hostname === 'localhost' 
-        ? (process.env.NEXT_PUBLIC_SELLER_SERVICE_URL || 'http://localhost:8000/api')
-        : '/api/seller/products';
+      const backendApiUrl = process.env.NEXT_PUBLIC_SELLER_SERVICE_URL || 'http://localhost:8000/api'; // Define backend URL
       
       // Use correct backend URL for deleting product
-      const deleteUrl = typeof window !== 'undefined' && window.location.hostname === 'localhost'
-        ? `${backendApiUrl}/products/${productId}`
-        : `${backendApiUrl}/${productId}`;
-        
-      console.log(`Deleting product ${productId} at: ${deleteUrl}`);
+      console.log(`Deleting product ${productId} at: ${backendApiUrl}/products/${productId}`); // Add log
       const response = await authFetch(
-        deleteUrl,
+        `${backendApiUrl}/products/${productId}`, // Corrected endpoint
         {
           method: "DELETE",
         }
       );
-
-      // Check for network errors
-      if (response.status === 0) {
-        throw new Error("Network error. Please check your connection and try again.");
-      }
 
       if (!response.ok) {
         // Try parsing error response
@@ -217,16 +195,7 @@ function ProductsListContent() {
       }
 
       // Parse the response to check if it was actually deleted or just deactivated
-      let result;
-      try {
-        result = await response.json();
-      } catch (jsonError) {
-        console.error("Error parsing JSON response:", jsonError);
-        // Still show success if status was OK but JSON parsing failed
-        toast.success("Product deleted successfully");
-        fetchProducts(); // Refresh the list
-        return;
-      }
+      const result = await response.json();
       
       if (result.deactivated) {
         toast.success("Product has been deactivated because it is referenced in orders");
@@ -236,7 +205,7 @@ function ProductsListContent() {
       
       fetchProducts(); // Refresh the list
     } catch (error) {
-      console.error("Error deleting product:", error);
+      console.error("Error deleting product:", error); // Add log
       toast.error(`Error deleting product: ${error.message}`);
     }
   };
@@ -245,32 +214,6 @@ function ProductsListContent() {
     return (
       <div className="flex justify-center items-center min-h-screen">
         <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary"></div>
-      </div>
-    );
-  }
-
-  // Show error state with retry button if products failed to load
-  if (error) {
-    return (
-      <div className="bg-background min-h-screen">
-        <div className="max-w-7xl mx-auto px-4 py-10 sm:px-6 lg:px-8">
-          <div className="text-center">
-            <FiPackage className="mx-auto h-12 w-12 text-warning" />
-            <h3 className="mt-2 text-xl font-medium text-text-primary">Error Loading Products</h3>
-            <p className="mt-1 text-text-secondary">{error}</p>
-            <div className="mt-6">
-              <button
-                onClick={handleRetry}
-                className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-primary hover:bg-primary-dark focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary"
-              >
-                <svg className="mr-2 -ml-1 h-5 w-5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
-                  <path fillRule="evenodd" d="M4 2a1 1 0 011 1v2.101a7.002 7.002 0 0111.601 2.566 1 1 0 11-1.885.666A5.002 5.002 0 005.999 7H9a1 1 0 010 2H4a1 1 0 01-1-1V3a1 1 0 011-1zm.008 9.057a1 1 0 011.276.61A5.002 5.002 0 0014.001 13H11a1 1 0 110-2h5a1 1 0 011 1v5a1 1 0 11-2 0v-2.101a7.002 7.002 0 01-11.601-2.566 1 1 0 01.61-1.276z" clipRule="evenodd" />
-                </svg>
-                Retry
-              </button>
-            </div>
-          </div>
-        </div>
       </div>
     );
   }
