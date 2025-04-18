@@ -1,23 +1,6 @@
-// API base URLs with fallbacks
-const getBackendServiceUrl = (envVarName, defaultUrl) => {
-  const url = process.env[envVarName] || defaultUrl;
-  if (typeof window !== 'undefined') {
-    console.log(`Using ${envVarName}: ${url}`);
-  }
-  return url;
-};
-
-// API base URL for main app
-export const API_URL = getBackendServiceUrl(
-  "NEXT_PUBLIC_API_URL", 
-  "/api"
-);
-
-// API base URL for seller service
-export const SELLER_SERVICE_URL = getBackendServiceUrl(
-  "NEXT_PUBLIC_SELLER_SERVICE_URL", 
-  "http://localhost:8000/api"
-);
+// API base URL
+export const API_URL =
+  process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000";
 
 // Auth endpoints
 export const AUTH_ENDPOINTS = {
@@ -55,17 +38,14 @@ export const USER_ENDPOINTS = {
 
 // Product endpoints
 export const PRODUCT_ENDPOINTS = {
-  // Seller service endpoints
-  LIST: `${SELLER_SERVICE_URL}/products`,
-  DETAIL: (id) => `${SELLER_SERVICE_URL}/products/${id}`,
-  CREATE: `${SELLER_SERVICE_URL}/products`,
-  UPDATE: (id) => `${SELLER_SERVICE_URL}/products/${id}`,
-  DELETE: (id) => `${SELLER_SERVICE_URL}/products/${id}`,
-  UPLOAD_IMAGES: `${SELLER_SERVICE_URL}/products/upload-images`,
-  COLORS: (id) => `${SELLER_SERVICE_URL}/products/${id}/colors`,
-  
-  // Public API endpoints
+  LIST: `/api/seller/products`,
+  DETAIL: (id) => `/api/seller/products/${id}`,
+  CREATE: `/api/seller/products`,
+  UPDATE: (id) => `/api/seller/products/${id}`,
+  DELETE: (id) => `/api/seller/products/${id}`,
+  UPLOAD_IMAGES: `/api/products/upload-images`,
   PUBLIC_ACTIVE: `/api/public/products/active`,
+  COLORS: (id) => `/api/products/${id}/colors`,
 };
 
 // Public endpoints
