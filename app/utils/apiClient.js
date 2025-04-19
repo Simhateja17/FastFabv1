@@ -1,7 +1,8 @@
 import axios from "axios";
 
-// API base URL - use the seller-service backend running on port 8000
-export const API_BASE_URL = "http://localhost:8000";
+// API base URL - use environment variable, fallback to localhost for dev
+export const API_BASE_URL =
+  process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8000";
 
 /**
  * Creates an authenticated axios instance for admin API requests
