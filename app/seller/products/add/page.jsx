@@ -589,13 +589,11 @@ export default function AddProduct() {
 
     setUploading(true);
     try {
-      const backendApiUrl = process.env.NEXT_PUBLIC_SELLER_SERVICE_URL || 'http://localhost:8000/api'; // Define backend URL
-      
       // Create FormData
       const formData = new FormData();
       
       // Log the number of files being uploaded for debugging
-      console.log(`Uploading ${variantFiles.length} files for this variant to ${backendApiUrl}/products/upload-images`);
+      console.log(`Uploading ${variantFiles.length} files`);
       
       // Append files with unique names to prevent overwrites
       variantFiles.forEach((file, index) => {
@@ -604,51 +602,48 @@ export default function AddProduct() {
         formData.append("images", new File([file], fileName, { type: file.type }));
       });
 
-      // Upload images with retry logic
-      let response;
-      let retries = 0;
-      const maxRetries = 2;
-      
-      while (retries <= maxRetries) {
+      // Use the correct endpoint from PRODUCT_ENDPOINTS
+      const response = await authFetch(
+        PRODUCT_ENDPOINTS.UPLOAD_IMAGES,
+        {
+          method: "POST",
+          body: formData,
+          // Don't set Content-Type header - let the browser set it for FormData
+        }
+      );
+
+      // First check if the response is ok
+      if (!response.ok) {
+        let errorMessage;
         try {
-          // Use the correct backend URL for image uploads
-          response = await authFetch(
-            `${backendApiUrl}/products/upload-images`, // Use correct backend URL
-            {
-              method: "POST",
-              body: formData,
-              // Content-Type is set automatically for FormData by the browser/fetch
-            }
-          );
-          break; // If successful, break out of the retry loop
-        } catch (err) {
-          console.error(`Upload attempt ${retries + 1} failed:`, err);
-          if (retries === maxRetries) throw err; // Rethrow on final attempt
-          retries++;
-          // Wait before retrying (exponential backoff)
-          await new Promise(r => setTimeout(r, 1000 * retries));
+          const errorData = await response.json();
+          errorMessage = errorData.message || 'Failed to upload images';
+        } catch (e) {
+          errorMessage = `Upload failed with status ${response.status}`;
         }
+        throw new Error(errorMessage);
       }
 
-      if (!response || !response.ok) {
-        // Check if the response is JSON or HTML
-        const contentType = response?.headers?.get('content-type') || '';
-        if (contentType.includes('text/html')) {
-          console.error("Received HTML response instead of JSON. Server may be returning an error page.");
-          throw new Error("Server returned an HTML error page instead of JSON. Please try again.");
-        }
-        
-        const errorData = await response?.json?.() || { message: "Upload failed" };
-        throw new Error(errorData.message || "Failed to upload images");
+      // Try to parse the response
+      let data;
+      try {
+        data = await response.json();
+      } catch (e) {
+        console.error("Error parsing response:", e);
+        throw new Error("Invalid response from server");
       }
 
-      const data = await response.json();
-      console.log("Upload successful, received URLs:", data.imageUrls?.length || 0);
-      return data.imageUrls || [];
+      // Validate the response data
+      if (!data.imageUrls || !Array.isArray(data.imageUrls)) {
+        console.error("Invalid response format:", data);
+        throw new Error("Invalid response format from server");
+      }
+
+      console.log(`Successfully uploaded ${data.imageUrls.length} images`);
+      return data.imageUrls;
     } catch (error) {
-      console.error("Error uploading variant images:", error);
-      toast.error(`Failed to upload images: ${error.message || "Unknown error"}`);
-      return [];
+      console.error("Error uploading images:", error);
+      throw error;
     } finally {
       setUploading(false);
     }
@@ -782,11 +777,11 @@ export default function AddProduct() {
           colorInventories: [colorInventory]
         };
         
-        console.log(`Creating product for page ${i + 1} at: ${backendApiUrl}/products`);
+        console.log(`Creating product for page ${i + 1}`);
         
-        // Use the correct backend URL for product creation
+        // Use the correct endpoint from PRODUCT_ENDPOINTS with proper error handling
         const response = await authFetch(
-          `${backendApiUrl}/products`,
+          PRODUCT_ENDPOINTS.CREATE,
           {
             method: "POST",
             headers: {
@@ -796,10 +791,20 @@ export default function AddProduct() {
           }
         );
 
+        // Get the response data first
+        const responseData = await response.json();
+
+        // Check if the response was not ok
         if (!response.ok) {
-          const data = await response.json();
-          throw new Error(`Failed to add product on page ${i + 1}: ${data.message}`);
+          // Log the error details for debugging
+          console.error('Product creation failed:', responseData);
+          
+          // Throw error with the server's error message if available
+          throw new Error(responseData.message || `Failed to add product on page ${i + 1}: Server returned ${response.status}`);
         }
+
+        // Log success
+        console.log(`Successfully created product for page ${i + 1}:`, responseData);
       }
 
       toast.success(`Successfully added ${productPages.length} products!`);

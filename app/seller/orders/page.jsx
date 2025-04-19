@@ -39,7 +39,7 @@ function OrdersContent() {
     setPage(1);
     setOrders([]);
     fetchOrders(1);
-  }, [user?.id, activeTab, authLoading]);
+  }, [user?.id, activeTab, authLoading, fetchOrders]);
 
   const fetchOrders = async (pageToFetch = page) => {
     try {

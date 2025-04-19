@@ -88,7 +88,64 @@ export const GET = withErrorHandler(async (request) => {
 
 // Also handle POST, PUT, DELETE for products
 export async function POST(request) {
-  return handleProductRequest(request, 'POST');
+  try {
+    // Get token from cookies or authorization header
+    const cookieStore = cookies();
+    let accessToken = (await cookieStore.get('accessToken'))?.value;
+    
+    if (!accessToken && request.headers.has('authorization')) {
+      const authHeader = request.headers.get('authorization');
+      if (authHeader && authHeader.startsWith('Bearer ')) {
+        accessToken = authHeader.substring(7);
+      }
+    }
+    
+    if (!accessToken) {
+      return createErrorResponse('Authentication required', 401);
+    }
+
+    // Get request body
+    const body = await request.json();
+
+    // Forward request to seller service
+    const apiUrl = process.env.SELLER_SERVICE_URL || 'http://localhost:8000';
+    const endpoint = '/api/products';
+    
+    console.log('Forwarding product creation request to:', `${apiUrl}${endpoint}`);
+    
+    const response = await fetch(`${apiUrl}${endpoint}`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${accessToken}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(body)
+    });
+
+    // Get response data
+    let responseData;
+    try {
+      responseData = await response.json();
+    } catch (e) {
+      console.error('Failed to parse response:', e);
+      return createErrorResponse('Invalid response from server');
+    }
+
+    // Handle non-200 responses
+    if (!response.ok) {
+      console.error('Product creation failed:', responseData);
+      return createErrorResponse(
+        responseData.message || `Failed to create product: ${response.status}`,
+        response.status
+      );
+    }
+
+    // Return success response
+    return createSuccessResponse(responseData, 201);
+  } catch (error) {
+    console.error('Error in product creation:', error);
+    return createErrorResponse(error.message || 'Failed to create product');
+  }
 }
 
 export async function PUT(request) {

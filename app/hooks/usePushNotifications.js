@@ -266,7 +266,7 @@ export function usePushNotifications() {
     } finally {
       setIsLoading(false);
     }
-  }, [currentSubscription, authFetch]);
+  }, [currentSubscription]);
 
   return { permissionStatus, isSubscribed, subscribeUser, unsubscribeUser, isSupported, isLoading };
 } 
