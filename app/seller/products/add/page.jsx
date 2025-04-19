@@ -583,24 +583,19 @@ export default function AddProduct() {
 
   const uploadVariantImages = async (variantFiles) => {
     if (!variantFiles || variantFiles.length === 0) {
-      console.warn("No variant files to upload");
+      console.warn("No files provided for upload");
       return [];
     }
 
     setUploading(true);
     try {
-      const backendApiUrl = process.env.NEXT_PUBLIC_SELLER_SERVICE_URL || 'http://localhost:8000'; // Define backend URL
-      
-      // Ensure the backend URL starts with http:// or https://
-      const fullBackendUrl = backendApiUrl.startsWith('http') 
-        ? backendApiUrl 
-        : `https://${backendApiUrl}`;
+      const backendApiUrl = process.env.NEXT_PUBLIC_SELLER_SERVICE_URL || 'http://localhost:8000/api'; // Define backend URL
       
       // Create FormData
       const formData = new FormData();
       
       // Log the number of files being uploaded for debugging
-      console.log(`Uploading ${variantFiles.length} files for this variant to ${fullBackendUrl}/api/products/upload-images`);
+      console.log(`Uploading ${variantFiles.length} files for this variant to ${backendApiUrl}/products/upload-images`);
       
       // Append files with unique names to prevent overwrites
       variantFiles.forEach((file, index) => {
@@ -618,7 +613,7 @@ export default function AddProduct() {
         try {
           // Use the correct backend URL for image uploads
           response = await authFetch(
-            `${fullBackendUrl}/api/products/upload-images`, // Use correct backend URL
+            `${backendApiUrl}/products/upload-images`, // Use correct backend URL
             {
               method: "POST",
               body: formData,
@@ -729,12 +724,7 @@ export default function AddProduct() {
     setLoading(true);
     
     try {
-      const backendApiUrl = process.env.NEXT_PUBLIC_SELLER_SERVICE_URL || 'http://localhost:8000'; // Define backend URL
-      
-      // Ensure the backend URL starts with http:// or https://
-      const fullBackendUrl = backendApiUrl.startsWith('http') 
-        ? backendApiUrl 
-        : `https://${backendApiUrl}`;
+      const backendApiUrl = process.env.NEXT_PUBLIC_SELLER_SERVICE_URL || 'http://localhost:8000/api'; // Define backend URL
       
       // Process each page as a separate product
       for (let i = 0; i < productPages.length; i++) {
@@ -792,11 +782,11 @@ export default function AddProduct() {
           colorInventories: [colorInventory]
         };
         
-        console.log(`Creating product for page ${i + 1} at: ${fullBackendUrl}/api/products`);
+        console.log(`Creating product for page ${i + 1} at: ${backendApiUrl}/products`);
         
         // Use the correct backend URL for product creation
         const response = await authFetch(
-          `${fullBackendUrl}/api/products`,
+          `${backendApiUrl}/products`,
           {
             method: "POST",
             headers: {

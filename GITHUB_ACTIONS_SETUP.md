@@ -1,61 +1,98 @@
-# GitHub Actions Setup for Azure Deployment
+# Setting Up GitHub Actions CI/CD for AWS Deployment
 
-This document provides instructions for setting up GitHub Actions for deploying FastFab to Azure App Service.
+This guide will help you set up continuous integration and continuous deployment (CI/CD) for your seller-service application using GitHub Actions.
 
 ## Prerequisites
 
-1. GitHub repository with your FastFab codebase
-2. Azure App Service (CoutureServicesPrivateLimited)
-3. Azure publish profile
+1. Your code is hosted on GitHub
+2. You have an AWS EC2 instance running (IP: 35.173.220.158)
+3. You have SSH access to your EC2 instance
 
-## Setup Steps
+## Step 1: Prepare Your EC2 Instance for GitHub Actions
 
-### 1. Get Azure Publish Profile
+First, you need to create an SSH key pair that GitHub Actions will use to access your EC2 instance:
 
-1. Go to your Azure portal
-2. Navigate to your "CoutureServicesPrivateLimited" Web App
-3. Click on "Overview" → "Get publish profile"
-4. This will download an XML file containing deployment credentials
+1. Connect to your EC2 instance:
+   ```bash
+   ssh -i "C:\Users\mg875\Downloads\Backend.pem" ec2-user@35.173.220.158
+   ```
 
-### 2. Add Secret to GitHub
+2. Create a directory for your GitHub Actions SSH key:
+   ```bash
+   mkdir -p ~/.ssh
+   ```
 
-1. Go to your GitHub repository (https://github.com/couture-Services-Pvt-Ltd/FastFabv1)
-2. Click "Settings" → "Secrets and variables" → "Actions"
-3. Click "New repository secret"
-4. Name: `AZURE_WEBAPP_PUBLISH_PROFILE`
-5. Value: Paste the entire contents of the publish profile XML file
-6. Click "Add secret"
+3. Generate a new SSH key pair (without passphrase):
+   ```bash
+   ssh-keygen -t rsa -b 4096 -f ~/.ssh/github-actions
+   ```
 
-### 3. Workflow Configuration
+4. Add the public key to authorized_keys:
+   ```bash
+   cat ~/.ssh/github-actions.pub >> ~/.ssh/authorized_keys
+   chmod 600 ~/.ssh/authorized_keys
+   ```
 
-The workflow is already configured in `.github/workflows/azure-deploy.yml` and will:
+5. Display the private key to copy:
+   ```bash
+   cat ~/.ssh/github-actions
+   ```
+   Copy the entire output including the BEGIN and END lines.
 
-- Run when code is pushed to the `main` branch
-- Install dependencies
-- Generate the Prisma client with the correct binary targets for Azure
-- Build the application
-- Deploy it to Azure App Service
+## Step 2: Add Secrets to Your GitHub Repository
 
-### 4. Manual Deployment
+1. Go to your GitHub repository
+2. Navigate to "Settings" > "Secrets and variables" > "Actions"
+3. Add the following secrets:
+   - Name: `SSH_PRIVATE_KEY`
+     Value: The private key you copied in step 1.5
+   - Name: `EC2_HOST`
+     Value: `35.173.220.158`
+   - Name: `EC2_USER`
+     Value: `ec2-user`
 
-You can also trigger the workflow manually:
+## Step 3: Update Your Repository Structure
 
-1. Go to the "Actions" tab in your GitHub repository
-2. Select the "Deploy to Azure" workflow
-3. Click "Run workflow"
+Ensure your repository has the following files:
 
-## Important Notes
+1. `.github/workflows/deploy.yml`: GitHub Actions workflow file
+2. `deploy_aws.sh`: Deployment script
+3. `nginx.conf`: Nginx configuration
 
-- **DO NOT run `npx prisma migrate`** as per project guidelines
-- The Prisma client is configured with binary targets for Azure compatibility
-- Binary targets are set in both `schema.prisma` and `package.json`
-- A deployment script (`deploy.sh`) is included to handle Azure-specific deployment logic
+## Step 4: Push Changes to Trigger Deployment
+
+1. Commit and push changes to your repository's main branch:
+   ```bash
+   git add .
+   git commit -m "Add CI/CD configuration"
+   git push
+   ```
+
+2. Check the Actions tab in your GitHub repository to monitor the deployment progress.
+
+## Step 5: Manual Deployment
+
+If you want to manually trigger the deployment:
+
+1. Go to your GitHub repository
+2. Navigate to the "Actions" tab
+3. Select the "Deploy to AWS EC2" workflow
+4. Click "Run workflow" > "Run workflow"
 
 ## Troubleshooting
 
-If you experience issues with the Prisma client in production:
+If you encounter issues with the GitHub Actions deployment:
 
-1. Check Azure App Service logs
-2. Verify that the GitHub Actions workflow completed successfully
-3. Ensure the `AZURE_WEBAPP_PUBLISH_PROFILE` secret is set correctly
-4. Check that the binary targets are correctly specified in both places 
+1. Check if the workflow is failing at a specific step
+2. Verify your secrets are correctly set in GitHub
+3. Check the SSH access from GitHub Actions to your EC2 instance
+4. Test the deployment script manually on your EC2 instance
+
+## Securing Your Deployment
+
+For production environments, consider these additional security measures:
+
+1. Use AWS IAM roles instead of SSH keys
+2. Configure HTTPS with Let's Encrypt
+3. Use AWS Secrets Manager for sensitive environment variables
+4. Implement network security groups to restrict access to your EC2 instance 
