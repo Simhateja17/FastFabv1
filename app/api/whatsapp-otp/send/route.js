@@ -203,10 +203,19 @@ export async function POST(request) {
     });
     
     const body = await request.json();
-    let { phoneNumber } = body;
+    let { phone: phoneNumber } = body;
     
-    console.log('Received request to send OTP to:', phoneNumber);
+    console.log('Received request body:', body);
+    console.log('Extracted phone number:', phoneNumber);
     
+    // Check if phoneNumber is still undefined after extraction
+    if (typeof phoneNumber === 'undefined') {
+      console.error("Error: 'phone' property not found in request body.");
+      return NextResponse.json({ 
+        message: 'Internal server error: Missing phone number in request.' 
+      }, { status: 500 });
+    }
+
     // Format the phone number (add +91 prefix if it's a 10-digit number)
     phoneNumber = formatPhoneNumber(phoneNumber);
     

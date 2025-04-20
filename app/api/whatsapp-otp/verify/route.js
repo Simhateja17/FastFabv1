@@ -206,9 +206,21 @@ const debugVerify = (phoneNumber, otpCode, otp) => {
 export async function POST(request) {
   try {
     const body = await request.json();
-    let { phoneNumber, otpCode } = body;
+    // Correctly destructure 'phone' and 'code' from the request body
+    let { phone: phoneNumber, code: otpCode } = body;
     
-    console.log('OTP verification request received:', { phoneNumber, otpLength: otpCode?.length });
+    console.log('OTP verification request body received:', body); // Log the entire body
+    console.log('Extracted phone & code:', { phoneNumber, otpCode }); // Log extracted values
+    
+    // Check if phoneNumber or otpCode are undefined after extraction
+    if (typeof phoneNumber === 'undefined' || typeof otpCode === 'undefined') {
+      console.error("Error: 'phone' or 'code' property not found in request body.");
+      return NextResponse.json({ 
+        success: false,
+        message: 'Internal server error: Missing phone number or OTP code in request.', 
+        verified: false 
+      }, { status: 500 });
+    }
     
     // Format the phone number (add +91 prefix if it's a 10-digit number)
     phoneNumber = formatPhoneNumber(phoneNumber);

@@ -343,6 +343,12 @@ function EarningsContent() {
                 </svg>
               </div>
             </div>
+            <button
+              type="button"
+              className="mt-4 w-full px-4 py-2 bg-black text-white text-sm font-medium rounded-md shadow-sm hover:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-black focus:ring-gray-500"
+            >
+              Withdraw
+            </button>
           </div>
         </div>
       )}

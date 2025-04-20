@@ -661,7 +661,7 @@ export default function ProductDetailPage({ params }) {
           {!isEditing ? (
             <button
               onClick={() => setIsEditing(true)}
-              className="bg-primary hover:bg-primary-dark text-white px-5 py-2 rounded-md shadow-sm text-sm font-medium transition-colors flex items-center space-x-1"
+              className="bg-primary hover:bg-primary-dark text-black px-5 py-2 rounded-md shadow-sm text-sm font-medium transition-colors flex items-center space-x-1"
             >
               <FiEdit2 className="h-4 w-4" />
               <span>Edit Product</span>

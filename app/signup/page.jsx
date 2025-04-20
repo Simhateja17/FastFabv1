@@ -135,6 +135,7 @@ export default function SignUp() {
 
     try {
       // Use the WhatsApp OTP service from context
+      console.log("Sending OTP for phone (Signup Page):", formData.phone);
       const result = await sendWhatsAppOTP(formData.phone);
       console.log("WhatsApp OTP result:", result);
 
@@ -196,6 +197,7 @@ export default function SignUp() {
 
     try {
       // Use the WhatsApp OTP verification service from context
+      console.log("Verifying OTP for phone (Signup Page):", formData.phone);
       const result = await verifyWhatsAppOTP(formData.phone, otpCode);
 
       if (result.success) {
