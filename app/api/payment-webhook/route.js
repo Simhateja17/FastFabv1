@@ -168,19 +168,25 @@ export async function POST(request) {
 
     if (!order) {
        console.log(`Order not found using orderNumber ${orderId}. Trying alternative IDs...`);
-       const alternativeIdLookups = [
-         { externalOrderId: orderId },
-         { referenceId: orderId },
-         // Attempt lookup by transactionId if available and different from orderId
-         ...(transactionId && transactionId !== orderId ? [{ transactions: { some: { transactionId: transactionId } } }] : []),
-         // Final attempt: maybe the passed orderId is the internal UUID? Unlikely but possible.
-         { id: orderId }
-       ];
+       // Corrected fallback: Only search by internal ID if the Cashfree ID format matches UUID.
+       // Removed invalid fields: externalOrderId, referenceId.
+       // Also removed transactionId lookup for now as it wasn't extracted successfully.
+       let alternativeIdLookups = [];
+       // Basic check if the orderId looks like a UUID, if so, try searching by internal id
+       if (/^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/.test(orderId)) {
+          alternativeIdLookups.push({ id: orderId });
+       }
 
-       order = await prisma.order.findFirst({
-         where: { OR: alternativeIdLookups },
-         include: { items: true, user: true, address: true }
-       });
+       // Only proceed if there are valid alternative lookups
+       if (alternativeIdLookups.length > 0) {
+         order = await prisma.order.findFirst({
+           where: { OR: alternativeIdLookups },
+           // Include the same fields as the findUnique call
+           include: { items: true, user: true, address: true, transactions: true, primarySeller: true }
+         });
+       } else {
+         console.log('No valid alternative lookup fields identified for the given Order ID format.');
+       }
     }
 
     if (!order) {
