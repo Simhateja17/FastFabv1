@@ -113,7 +113,14 @@ export async function POST(request) {
       console.error("[POST /api/seller/products] Failed to get sellerId after successful auth check.");
       return createErrorResponse("Authentication failed or seller ID missing.", 401);
     }
-    body.sellerId = authResult.sellerId;
+    // body.sellerId = authResult.sellerId; // Remove previous attempt
+
+    // *** Structure sellerId according to Prisma connect relation ***
+    body.Seller = {
+      connect: {
+        id: authResult.sellerId
+      }
+    };
 
     // Forward request to seller service
     const apiUrl = process.env.NEXT_PUBLIC_SELLER_SERVICE_URL;

@@ -5,33 +5,6 @@ import { API_URL, USER_ENDPOINTS } from "@/app/config";
 
 const UserAuthContext = createContext();
 
-// Token management functions
-const setUserTokens = (accessToken, refreshToken) => {
-  if (accessToken) localStorage.setItem("userAccessToken", accessToken);
-  if (refreshToken) localStorage.setItem("userRefreshToken", refreshToken);
-
-  // Debug log
-  console.log("Tokens saved:", {
-    accessToken: accessToken ? "Present" : "Missing",
-    refreshToken: refreshToken ? "Present" : "Missing",
-  });
-};
-
-const getUserTokens = () => {
-  if (typeof window === "undefined")
-    return { accessToken: null, refreshToken: null };
-
-  return {
-    accessToken: localStorage.getItem("userAccessToken"),
-    refreshToken: localStorage.getItem("userRefreshToken"),
-  };
-};
-
-const clearUserTokens = () => {
-  localStorage.removeItem("userAccessToken");
-  localStorage.removeItem("userRefreshToken");
-};
-
 export function UserAuthProvider({ children }) {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -41,743 +14,475 @@ export function UserAuthProvider({ children }) {
   const updateUserState = useCallback((userData) => {
     console.log("Updating user state to:", userData);
     setUser(userData);
-    // Increment to force context consumers to re-render
-    setAuthStateChange((prev) => prev + 1);
+    setAuthStateChange((prev) => prev + 1); // Increment to force context consumers to re-render
+    // Persist user data to localStorage for non-sensitive UI state
+    if (userData) {
+      localStorage.setItem("userData", JSON.stringify(userData));
+    } else {
+      localStorage.removeItem("userData");
+    }
   }, []);
 
-  // Refresh the access token using the refresh token
+  // Refresh the access token using the refresh token cookie
   const refreshAccessToken = useCallback(async () => {
     try {
-      const { refreshToken } = getUserTokens();
-      console.log(
-        "Attempting to refresh token with:",
-        refreshToken ? "Valid refresh token" : "No refresh token"
-      );
-
-      if (!refreshToken) {
-        throw new Error("No refresh token available");
-      }
+      // No need to get refresh token from localStorage anymore
+      console.log("Attempting token refresh via API (using httpOnly cookie)");
 
       const response = await fetch(USER_ENDPOINTS.REFRESH_TOKEN, {
         method: "POST",
         headers: {
-          "Content-Type": "application/json",
+           // No Content-Type needed if no body is sent
+           // No body needed as refresh token is expected in httpOnly cookie
         },
-        body: JSON.stringify({ refreshToken }),
-        credentials: "include", // Include cookies
+        // IMPORTANT: credentials must be 'include' for cookies to be sent
+        credentials: "include", 
       });
 
       if (!response.ok) {
+         const errorData = await response.json().catch(() => ({})); // Try to parse error
         console.error(
           "Token refresh failed:",
           response.status,
-          response.statusText
+          response.statusText,
+          errorData
         );
-        throw new Error("Failed to refresh token");
+        throw new Error(errorData.message || "Failed to refresh token");
       }
 
-      const result = await response.json();
-      console.log("Token refresh response structure:", Object.keys(result));
+      // Successful refresh implies the backend set a new accessToken cookie
+      console.log("Token refresh API call successful. New access token cookie should be set by backend.");
+      
+      // Optionally, the refresh endpoint *could* return the new expiry or user data if needed
+      // const result = await response.json(); 
+      // console.log("Token refresh response:", result); 
 
-      // Extract token data more carefully with fallbacks
-      let newAccessToken = null;
-      let newRefreshToken = null;
-      let userData = null;
+      return true; // Indicate success
 
-      // Try to extract from different possible response structures
-      if (result.accessToken && result.refreshToken) {
-        newAccessToken = result.accessToken;
-        newRefreshToken = result.refreshToken;
-      } else if (result.tokens) {
-        newAccessToken = result.tokens.accessToken;
-        newRefreshToken = result.tokens.refreshToken;
-      } else if (result.data?.tokens) {
-        newAccessToken = result.data.tokens.accessToken;
-        newRefreshToken = result.data.tokens.refreshToken;
-      } else if (result.data?.accessToken) {
-        newAccessToken = result.data.accessToken;
-        newRefreshToken = result.data.refreshToken;
-      }
-
-      // Extract user data if present
-      userData = result.user || result.data?.user;
-
-      if (!newAccessToken || !newRefreshToken) {
-        console.error("Invalid token refresh response format:", result);
-        throw new Error("Invalid token refresh response format");
-      }
-
-      console.log("Token refresh successful, new tokens received");
-      setUserTokens(newAccessToken, newRefreshToken);
-
-      if (userData) {
-        updateUserState(userData);
-        localStorage.setItem("userData", JSON.stringify(userData));
-        console.log("User state updated after token refresh:", userData);
-      }
-
-      return newAccessToken;
     } catch (error) {
       console.error("Token refresh error:", error);
-      clearUserTokens();
-      updateUserState(null);
-      localStorage.removeItem("userData");
-      throw error;
+      // Don't necessarily clear user state here immediately,
+      // let the next authFetch handle the persistent failure.
+      // updateUserState(null); // Avoid immediate logout on refresh failure
+      throw error; // Re-throw for authFetch to handle
     }
-  }, [updateUserState]);
+  }, []); // Removed updateUserState dependency as it's not clearing state here
 
-  // Create an authenticated fetch function that handles token refresh
+  // Create an authenticated fetch function that handles token refresh via cookies
   const userAuthFetch = useCallback(async (url, options = {}) => {
-    const { accessToken } = getUserTokens();
-
-    // Set up headers with access token
+    // Set up headers (Content-Type is common, others as needed)
     const headers = {
       ...options.headers,
-      "Content-Type": "application/json",
+      "Content-Type": "application/json", // Keep for POST/PUT etc.
     };
-
-    if (accessToken) {
-      headers.Authorization = `Bearer ${accessToken}`;
-    }
+    
+    // REMOVE manual Authorization header - rely on browser sending cookies
+    // if (accessToken) { headers.Authorization = `Bearer ${accessToken}`; }
 
     try {
-      // First attempt with current access token
+      // First attempt - browser automatically sends cookies
+      console.log(`AuthFetch: Attempting fetch to ${url} (credentials: include)`);
       const response = await fetch(url, {
         ...options,
         headers,
-        credentials: "include", // Include cookies in all requests
+        // IMPORTANT: credentials must be 'include' for cookies to be sent
+        credentials: "include", 
       });
 
-      // If unauthorized and we have a refresh token, try to refresh
+      // If unauthorized, try to refresh
       if (response.status === 401) {
+         console.log(`AuthFetch: Received 401 from ${url}. Attempting token refresh.`);
         try {
-          // Try to refresh the token
-          const newAccessToken = await refreshAccessToken();
-          console.log("Retrying request with new access token");
+          // Try to refresh the token via API call
+          await refreshAccessToken();
+          console.log(`AuthFetch: Token refresh successful. Retrying fetch to ${url}.`);
 
-          // Retry the request with the new token
+          // Retry the request - browser should now send the new accessToken cookie
           return fetch(url, {
             ...options,
-            headers: {
-              ...headers,
-              Authorization: `Bearer ${newAccessToken}`,
-            },
+            headers, // Headers remain the same (no manual Bearer token)
             credentials: "include",
           });
         } catch (refreshError) {
-          // If refresh fails, clear tokens
+          // If refresh fails, this likely means the refresh token is also invalid/expired
           console.error(
-            "Token refresh failed, clearing auth state:",
+            "AuthFetch: Token refresh failed during retry, logging out:",
             refreshError
           );
-          clearUserTokens();
-          updateUserState(null);
-          localStorage.removeItem("userData");
-          throw refreshError;
+          // Clear user state ONLY if refresh fails definitively
+          updateUserState(null); 
+          // Optionally, trigger a redirect to login here or let the calling component handle it
+          throw refreshError; // Re-throw the refresh error
         }
       }
 
+      // If not 401, return the original response
       return response;
+
     } catch (error) {
-      console.error("Auth fetch error:", error);
+       // Catch network errors or other fetch issues
+      console.error(`AuthFetch: Error during fetch to ${url}:`, error);
+      // Don't clear auth state on general network errors
       throw error;
     }
   }, [refreshAccessToken, updateUserState]);
 
-  // Function to fetch the user profile
+  // Function to fetch the user profile (using userAuthFetch)
   const fetchUserProfile = useCallback(async () => {
     try {
-      console.log("Fetching user profile...");
-      const { accessToken } = getUserTokens();
-
-      // Set up headers with access token
-      const headers = {
-        "Content-Type": "application/json",
-      };
-
-      if (accessToken) {
-        headers.Authorization = `Bearer ${accessToken}`;
-      }
-
-      const response = await fetch(USER_ENDPOINTS.PROFILE, {
-        method: "GET",
-        headers,
-        credentials: "include", // Important: Include cookies in the request
+      console.log("Fetching user profile using userAuthFetch...");
+      // Use userAuthFetch which handles auth and refresh automatically
+      const response = await userAuthFetch(USER_ENDPOINTS.PROFILE, { 
+        method: "GET" 
       });
 
       if (!response.ok) {
-        if (response.status === 401) {
-          console.log("Authentication required for profile");
-          throw new Error("Authentication required");
-        }
-        throw new Error(`Profile fetch failed: ${response.status}`);
+        // userAuthFetch handles 401, so other errors are more critical
+        const errorData = await response.json().catch(() => ({}));
+        console.error("Profile fetch failed:", response.status, errorData);
+        throw new Error(errorData.message || `Profile fetch failed: ${response.status}`);
       }
 
-      const userData = await response.json();
-      console.log("User profile fetched successfully:", userData);
+      const result = await response.json();
+      console.log("User profile fetched successfully:", result);
       
-      // Handle both direct user object and response with success/user structure
-      return userData.user || userData;
+      // Handle potential nested user object in response
+      const userData = result.user || result.data?.user || result.data;
+      if (!userData || typeof userData !== 'object') {
+         console.error("Invalid user data structure in profile response:", result);
+         throw new Error("Invalid profile response structure");
+      }
+      return userData;
+
     } catch (error) {
       console.error("Error fetching user profile:", error);
-      throw error;
+      // Don't clear state here, let authFetch handle auth errors
+      // updateUserState(null); 
+      throw error; // Re-throw for initializeAuth or component to handle
     }
-  }, []);
+  }, [userAuthFetch]);
 
   // Initialize auth state on mount
   useEffect(() => {
     const initializeAuth = async () => {
       console.log("Initializing auth state...");
+      setLoading(true); // Start loading
       try {
-        // Get tokens first
-        const { accessToken, refreshToken } = getUserTokens();
-        console.log("Tokens from storage:", {
-          hasAccessToken: !!accessToken,
-          hasRefreshToken: !!refreshToken
-        });
-
-        // Try to get persisted user data from localStorage (for UI performance only)
+        // Check for persisted non-sensitive user data for quick UI update
         const savedUserData = localStorage.getItem("userData");
-        console.log("Saved user data exists:", !!savedUserData);
-
-        // If we have saved data, set it immediately to prevent UI flicker
         if (savedUserData) {
           try {
             const parsedUserData = JSON.parse(savedUserData);
             console.log("Using saved user data temporarily:", parsedUserData);
-            setUser(parsedUserData);
+            setUser(parsedUserData); // Set temporary user state
           } catch (e) {
             console.error("Error parsing saved user data:", e);
+            localStorage.removeItem("userData"); // Clear invalid data
           }
         }
 
-        // If we have no tokens at all, clear everything and exit
-        if (!accessToken && !refreshToken) {
-          console.log("No auth tokens available, clearing user state");
-          clearUserTokens();
-          updateUserState(null);
-          localStorage.removeItem("userData");
-          setLoading(false);
-          return;
-        }
+        // Verify auth status by fetching user profile
+        console.log("Verifying auth by fetching profile...");
+        const userData = await fetchUserProfile();
+        console.log("Auth verified, user profile:", userData);
+        updateUserState(userData); // Update with fresh data
 
-        // If we have a refresh token but no access token, try to refresh first
-        if (!accessToken && refreshToken) {
-          try {
-            console.log("No access token but have refresh token, attempting refresh");
-            await refreshAccessToken();
-            // After successful refresh, we'll have a new access token
-          } catch (refreshError) {
-            console.error("Failed to refresh token during init:", refreshError);
-            clearUserTokens();
-            updateUserState(null);
-            localStorage.removeItem("userData");
-            setLoading(false);
-            return;
-          }
-        }
-
-        // Now try to fetch the user profile with the current/new token
-        try {
-          const userData = await fetchUserProfile();
-          console.log("Successfully fetched user profile:", userData);
-          updateUserState(userData);
-          localStorage.setItem("userData", JSON.stringify(userData));
-        } catch (error) {
-          console.error("Failed to fetch user profile:", error);
-          // Only clear everything if it's an auth error
-          if (error.message === "Authentication required" || error.message.includes("401")) {
-            clearUserTokens();
-            updateUserState(null);
-            localStorage.removeItem("userData");
-          }
-        }
       } catch (error) {
-        console.error("Auth initialization error:", error);
-        clearUserTokens();
-        updateUserState(null);
-        localStorage.removeItem("userData");
+        // If fetchUserProfile fails (e.g., due to invalid/expired refresh token after retry),
+        // userAuthFetch or refreshAccessToken should have already cleared the user state.
+        console.log("Auth initialization failed or user not logged in:", error.message);
+        // Ensure state is cleared if fetchUserProfile failed after potential local storage load
+        if (user !== null) { 
+          updateUserState(null);
+        }
       } finally {
-        setLoading(false);
+        setLoading(false); // Stop loading
+        console.log("Auth initialization complete.");
       }
     };
 
     initializeAuth();
-  }, [fetchUserProfile, refreshAccessToken, updateUserState]);
+    // Dependencies: fetchUserProfile and updateUserState ensure this runs correctly on change
+  }, [fetchUserProfile, updateUserState]); 
 
-  // Login user with email and password
+  // Login user (simplified - relies on backend setting cookies)
   const login = async (email, password) => {
     try {
       setLoading(true);
       console.log("Login attempt for:", email);
+      // Use standard fetch, backend needs to set httpOnly cookies on success
       const response = await fetch(USER_ENDPOINTS.LOGIN, {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email, password }),
-        credentials: "include", // Include cookies
+        credentials: "include", // Send potential existing cookies, backend will overwrite/set new ones
       });
 
       const data = await response.json();
-      console.log("Login response structure:", Object.keys(data));
+      console.log("Login API response received");
 
       if (!response.ok) {
-        console.error("Login failed:", data);
+        console.error("Login API call failed:", data);
         throw new Error(data.message || "Login failed");
       }
-
-      // Extract tokens carefully with multiple fallbacks
-      let accessToken = null;
-      let refreshToken = null;
-      let userData = null;
-
-      // Try to extract tokens from different possible response structures
-      if (data.accessToken && data.refreshToken) {
-        accessToken = data.accessToken;
-        refreshToken = data.refreshToken;
-      } else if (data.tokens) {
-        accessToken = data.tokens.accessToken;
-        refreshToken = data.tokens.refreshToken;
-      } else if (data.data?.tokens) {
-        accessToken = data.data.tokens.accessToken;
-        refreshToken = data.data.tokens.refreshToken;
-      } else if (data.data?.accessToken) {
-        accessToken = data.data.accessToken;
-        refreshToken = data.data.refreshToken;
-      }
-
-      // Try to extract user data from different possible response structures
-      userData = data.user || data.data?.user || data.data;
+      
+      // Backend is responsible for setting cookies.
+      // Frontend just needs the user data from the response body.
+      const userData = data.user || data.data?.user || data.data;
 
       if (!userData) {
-        console.error("No user data found in response");
+        console.error("No user data found in login response");
         throw new Error("Invalid response format");
       }
 
-      if (!accessToken || !refreshToken) {
-        console.error("No tokens found in response:", data);
-        throw new Error("Missing authentication tokens");
-      }
+      // No need to call setUserTokens - cookies are httpOnly
+      // setUserTokens(accessToken, refreshToken); 
+      
+      updateUserState(userData); // Update frontend state
+      console.log("Login successful, user state updated.");
 
-      // Store tokens
-      setUserTokens(accessToken, refreshToken);
-      console.log("Tokens stored successfully");
-
-      // Store user data - use the new function
-      updateUserState(userData);
-      console.log("User state updated:", userData);
-
-      // Save user data to localStorage for persistence
-      localStorage.setItem("userData", JSON.stringify(userData));
-      console.log("User data saved to localStorage");
-
-      // Set flag to show location modal
+      // Set flag for location modal (optional)
       localStorage.setItem("justLoggedIn", "true");
-      console.log("Set justLoggedIn flag for location modal trigger");
 
       return { success: true, user: userData };
     } catch (error) {
       console.error("Login error:", error);
+      // Ensure user state is null on login failure
+      updateUserState(null); 
       return { success: false, error: error.message };
     } finally {
       setLoading(false);
     }
   };
 
-  // Register new user
+  // Register new user (simplified - relies on backend setting cookies)
   const register = async (userData) => {
     try {
       setLoading(true);
       const response = await fetch(USER_ENDPOINTS.REGISTER, {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify(userData),
-        credentials: "include", // Include cookies
+        credentials: "include", 
       });
 
       const result = await response.json();
-      console.log("Registration response structure:", Object.keys(result));
+      console.log("Registration API response received");
 
       if (!response.ok) {
         throw new Error(result.message || "Registration failed");
       }
+      
+      // Backend handles cookie setting if user is auto-logged in.
+      // Frontend updates state based on response body.
+      const user = result.user || result.data?.user || result.data;
+      const loggedIn = result.accessToken || result.tokens?.accessToken || result.data?.tokens?.accessToken; // Check if tokens were returned (indicating auto-login)
 
-      // Extract data with multiple fallbacks to handle different response formats
-      let accessToken = null;
-      let refreshToken = null;
-      let user = null;
-
-      // Try to extract tokens from different possible structures
-      if (result.accessToken && result.refreshToken) {
-        accessToken = result.accessToken;
-        refreshToken = result.refreshToken;
-      } else if (result.tokens) {
-        accessToken = result.tokens.accessToken;
-        refreshToken = result.tokens.refreshToken;
-      } else if (result.data?.tokens) {
-        accessToken = result.data.tokens.accessToken;
-        refreshToken = result.data.tokens.refreshToken;
-      }
-
-      // Try to extract user from different possible structures
-      user = result.user || result.data?.user || result.data;
-
-      // Store tokens if automatically logged in
-      if (accessToken && refreshToken) {
-        setUserTokens(accessToken, refreshToken);
+      if (loggedIn && user) {
+        console.log("Registration successful, user auto-logged in.");
         updateUserState(user);
-        localStorage.setItem("userData", JSON.stringify(user));
-
-        // Set flag to show location modal
+        // Set flag for location modal (optional)
         localStorage.setItem("justLoggedIn", "true");
-        console.log("Set justLoggedIn flag for location modal trigger");
+      } else {
+         console.log("Registration successful, user needs to log in separately or backend didn't auto-login.");
+         // Don't set user state if not logged in
       }
-
-      return { success: true, user };
+      
+      // No need to call setUserTokens
+      
+      return { success: true, user: user }; // Return user data if available
     } catch (error) {
+      console.error("Registration error:", error);
+      updateUserState(null); // Ensure user state is null on registration failure
       return { success: false, error: error.message };
     } finally {
       setLoading(false);
     }
   };
 
-  // Logout user
+  // Logout user (relies on backend clearing cookies)
   const logout = async () => {
     try {
-      console.log("Logging out user");
-      
-      // Always call logout API regardless of refresh token
-      // This ensures cookies are cleared on the server side
+      console.log("Logging out user via API call...");
+      // Call backend logout endpoint to invalidate session and clear cookies
       await fetch(USER_ENDPOINTS.LOGOUT, {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        credentials: "include", // Include cookies
-      }).catch((error) => console.error("Logout API error:", error));
+        credentials: "include", // Send cookies to be cleared
+      }).catch((error) => console.error("Logout API call error (ignoring):", error)); // Log error but proceed
       
     } catch (error) {
-      console.error("Logout error:", error);
+      // Should not happen with the catch above, but just in case
+      console.error("Unexpected logout error:", error);
     } finally {
-      // Clear tokens and user state regardless of API success
-      clearUserTokens();
-      localStorage.removeItem("userData");
-      updateUserState(null); // Use the new function
-      console.log("User logged out, state cleared");
+      // Clear frontend state regardless of API success
+      updateUserState(null); 
+      console.log("Frontend user state cleared after logout attempt.");
       
-      // Redirect to home page after logout
-      window.location.href = "/";
+      // Redirect to home page after logout attempt
+      window.location.href = "/"; 
     }
   };
 
-  // Update user profile
+  // Update user profile (using userAuthFetch)
   const updateUserProfile = async (userData) => {
-    try {
+     try {
+      // Use userAuthFetch for authenticated request
       const response = await userAuthFetch(USER_ENDPOINTS.UPDATE_PROFILE, {
-        method: "PUT",
+        method: "PUT", // Or PATCH depending on your API design
         body: JSON.stringify(userData),
       });
 
       if (!response.ok) {
-        const errorData = await response.json();
+        const errorData = await response.json().catch(() => ({}));
         throw new Error(errorData.message || "Failed to update profile");
       }
 
       const result = await response.json();
       console.log("Profile update response:", result);
 
-      // Extract user data handling both response formats
-      const updatedUserData =
-        result.data?.user || result.data || result.user || result;
+      // Extract updated user data
+      const updatedUserData = result.user || result.data?.user || result.data;
+      if (!updatedUserData) {
+          throw new Error("Invalid profile update response structure");
+      }
 
-      updateUserState(updatedUserData);
-      localStorage.setItem("userData", JSON.stringify(updatedUserData));
+      updateUserState(updatedUserData); // Update context state
 
       return { success: true, user: updatedUserData };
     } catch (error) {
+       console.error("Update profile error:", error);
       return { success: false, error: error.message };
     }
   };
 
-  // WhatsApp OTP Authentication
+  // --- WhatsApp OTP Functions (Need Review based on Cookie Auth) ---
+  // These likely need adjustment if the backend OTP endpoints also rely on cookies vs. tokens in body
+
   const sendWhatsAppOTP = async (phoneNumber) => {
-    try {
+    // ... (Existing implementation - review if USER_ENDPOINTS.PHONE_AUTH_START needs auth cookie)
+     try {
       setLoading(true);
-
-      // Just trim the phone number, the backend will handle formatting
-      const formattedPhone = phoneNumber.trim();
-
-      console.log("Sending request to WhatsApp OTP API:", formattedPhone);
-
-      const response = await fetch("/api/whatsapp-otp/send", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ phoneNumber: formattedPhone }),
+      const response = await fetch(USER_ENDPOINTS.PHONE_AUTH_START, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ phone: phoneNumber }),
+         // Check if this endpoint requires credentials (cookies)
+        // credentials: "include", 
       });
-
-      console.log("WhatsApp OTP API response status:", response.status);
-
-      let result;
-      try {
-        result = await response.json();
-        console.log("WhatsApp OTP API response body:", result);
-      } catch (jsonError) {
-        console.error("Failed to parse API response as JSON:", jsonError);
-        return {
-          success: false,
-          message: "Failed to communicate with OTP service",
-          error: jsonError,
-        };
-      }
-
-      // Check if the response includes the special "delivery may be delayed" message
-      const isDelayedDelivery =
-        result?.message?.includes("delivery may be delayed") ||
-        result?.message?.includes("cannot be sent");
-
-      // Even with a successful status code, the message might indicate a partial success
-      if (response.ok) {
-        // If OTP was generated but delivery might be delayed (partial success)
-        if (isDelayedDelivery) {
-          console.log("OTP generated but delivery may be delayed:", result);
-          return {
-            success: true, // Consider this a success since the OTP was created
-            message:
-              "OTP generated but delivery to WhatsApp may be delayed. Please check your app.",
-            expiresAt: result.expiresAt,
-            warning: true, // Flag to indicate this is a partial success
-          };
-        }
-
-        // Full success case
-        return {
-          success: true,
-          message: result.message || "OTP sent successfully",
-          expiresAt: result.expiresAt,
-        };
-      }
-
-      // Handle error cases
-      console.error(
-        "Error from WhatsApp OTP API:",
-        result?.error ||
-          result?.message ||
-          "No specific error details available from API"
-      );
-
-      // If we have a special case where OTP was generated but delivery failed
-      if (isDelayedDelivery && result.expiresAt) {
-        return {
-          success: true, // Consider this a success since the OTP was created
-          message:
-            "OTP generated but not delivered to WhatsApp. Please contact support if needed.",
-          expiresAt: result.expiresAt,
-          warning: true, // Flag to indicate this is a partial success
-        };
-      }
-
-      // Regular error case
-      return {
-        success: false,
-        message: result?.message || "Failed to send OTP",
-        error: result?.error || "Unknown error",
-        code: result?.code,
-      };
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.message || 'Failed to send OTP');
+      return { success: true, ...result };
     } catch (error) {
-      console.error("WhatsApp OTP send error:", error);
-      return {
-        success: false,
-        message: error.message || "Failed to send OTP",
-        error: error,
-      };
+      return { success: false, error: error.message };
     } finally {
       setLoading(false);
     }
   };
 
   const verifyWhatsAppOTP = async (phoneNumber, otpCode) => {
-    try {
+    // ... (Existing implementation - review if USER_ENDPOINTS.PHONE_AUTH_VERIFY needs auth cookie)
+    // This endpoint likely SETS auth cookies on success, so credentials: "include" is important
+     try {
       setLoading(true);
-
-      // Just trim the phone number, the backend will handle formatting
-      const formattedPhone = phoneNumber.trim();
-
-      console.log("Sending verification request to WhatsApp OTP API:", {
-        phone: formattedPhone,
-        otpCode,
+      const response = await fetch(USER_ENDPOINTS.PHONE_AUTH_VERIFY, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ phone: phoneNumber, code: otpCode }),
+        credentials: "include", // Important: To receive set-cookie headers
       });
-
-      const response = await fetch("/api/whatsapp-otp/verify", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          phoneNumber: formattedPhone,
-          otpCode,
-        }),
-        credentials: 'include', // Important: include cookies in request/response
-      });
-
-      console.log(
-        "WhatsApp OTP verification API response status:",
-        response.status
-      );
       const result = await response.json();
-      console.log("WhatsApp OTP verification API response body:", result);
+      if (!response.ok) throw new Error(result.message || 'Failed to verify OTP');
 
-      // Even if we get a non-200 status, we still have the error details in the result
-      if (!response.ok) {
-        console.error("Error from WhatsApp OTP verification API:", result);
-        return {
-          success: false,
-          message: result.message || "Failed to verify OTP",
-          error: result.error,
-          code: result.code,
-        };
-      }
-
-      // Our backend now handles setting auth cookies for existing users
-      // Just check if user is new or existing based on API response
-      if (result.isNewUser) {
-        console.log("OTP verified - new user detected");
-        // User needs to register
-        return {
-          success: true,
-          message: "OTP verified successfully. New user registration required.",
-          isNewUser: true,
-          userId: null,
-        };
+       // If verification is successful and backend logs in user, cookies are set.
+       // Update frontend state based on response.
+      if (result.success && result.verified && !result.isNewUser) {
+         // Attempt to fetch profile to confirm login and get user data
+         try {
+             const userData = await fetchUserProfile();
+             updateUserState(userData);
+             localStorage.setItem("justLoggedIn", "true"); // Set flag if needed
+             console.log("OTP verified, user logged in, profile fetched.");
+             return { success: true, verified: true, isNewUser: false, user: userData };
+         } catch (profileError) {
+             console.error("OTP verified, but failed to fetch profile:", profileError);
+              // User might be logged in (cookies set), but profile fetch failed.
+              // Return success but indicate potential issue.
+              return { success: true, verified: true, isNewUser: false, user: null, error: 'Failed to fetch profile post-verification' };
+         }
+      } else if (result.success && result.verified && result.isNewUser) {
+         // Handle new user case - no login, no cookies set yet.
+         console.log("OTP verified, new user detected.");
+         updateUserState(null); // Ensure no stale user state
+         return { success: true, verified: true, isNewUser: true };
       } else {
-        console.log("OTP verified - existing user logged in");
-        // Fetch user profile with the cookies that were just set
-        try {
-          const profileResponse = await fetch(USER_ENDPOINTS.PROFILE, {
-            method: "GET",
-            headers: {
-              "Content-Type": "application/json",
-            },
-            credentials: "include" // Important: Include cookies in the request
-          });
-          
-          if (profileResponse.ok) {
-            const profileData = await profileResponse.json();
-            console.log("User profile fetched successfully after login:", profileData);
-            
-            // Update user state with profile data
-            if (profileData.success && profileData.user) {
-              updateUserState(profileData.user);
-              localStorage.setItem("userData", JSON.stringify(profileData.user));
-            } else if (profileData) {
-              // Handle case where profileData is directly the user object
-              updateUserState(profileData);
-              localStorage.setItem("userData", JSON.stringify(profileData));
-            }
-          } else {
-            console.error("Failed to fetch user profile after OTP verification");
-          }
-        } catch (profileError) {
-          console.error("Error fetching user profile:", profileError);
-        }
-        
-        // Set flag to show location modal
-        localStorage.setItem("justLoggedIn", "true");
-        console.log("Set justLoggedIn flag for location modal trigger");
-
-        return {
-          success: true,
-          message: "Login successful",
-          isNewUser: false,
-          userId: result.userId,
-        };
+          // Handle other verification failure cases
+          updateUserState(null); // Ensure no stale user state
+          return { success: result.success !== undefined ? result.success : false, verified: false, isNewUser: false, message: result.message };
       }
     } catch (error) {
-      console.error("WhatsApp OTP verification error:", error);
-      return {
-        success: false,
-        message: error.message || "Failed to verify OTP",
-        error: error,
-      };
+      updateUserState(null); // Ensure no stale user state
+      return { success: false, verified: false, error: error.message };
     } finally {
       setLoading(false);
     }
   };
 
   const registerWithPhone = async (userData) => {
+    // ... (Existing implementation - review if USER_ENDPOINTS.REGISTER needs cookies)
+    // This endpoint likely SETS auth cookies on success if auto-login happens
     try {
       setLoading(true);
-      const { name, phone } = userData;
-
-      if (!name || !phone) {
-        throw new Error("Name and phone are required");
-      }
-
-      // Format phone number
-      let formattedPhone = phone.trim();
-      if (!formattedPhone.startsWith("+")) {
-        formattedPhone = "+" + formattedPhone;
-      }
-
-      const response = await fetch(USER_ENDPOINTS.REGISTER, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          name,
-          phone: formattedPhone,
-          isPhoneVerified: true, // Already verified via OTP
-        }),
+      const response = await fetch(USER_ENDPOINTS.REGISTER, { // Assuming REGISTER endpoint is used
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(userData),
+        credentials: "include", // Important: To receive set-cookie headers if auto-login occurs
       });
-
       const result = await response.json();
+      if (!response.ok) throw new Error(result.message || 'Registration failed');
 
-      if (!response.ok) {
-        throw new Error(result.message || "Registration failed");
+       // If registration results in login, cookies are set by backend
+       // Update frontend state based on response
+      const user = result.user || result.data?.user || result.data;
+       const loggedIn = result.accessToken || result.tokens?.accessToken || result.data?.tokens?.accessToken; 
+
+      if (loggedIn && user) {
+        console.log("Phone registration successful, user auto-logged in.");
+         updateUserState(user);
+         localStorage.setItem("justLoggedIn", "true"); // Set flag if needed
+      } else {
+         console.log("Phone registration successful, user may need to log in separately.");
+         // Don't set user state if not logged in
       }
 
-      // If registration succeeds, set the auth state
-      if (result.data?.tokens) {
-        const { accessToken, refreshToken } = result.data.tokens;
-        setUserTokens(accessToken, refreshToken);
-        updateUserState(result.data.user);
-        localStorage.setItem("userData", JSON.stringify(result.data.user));
-
-        // Set flag to show location modal
-        localStorage.setItem("justLoggedIn", "true");
-        console.log("Set justLoggedIn flag for location modal trigger");
-      }
-
-      return { success: true };
+      return { success: true, user: user }; // Return user data if available
     } catch (error) {
-      console.error("Registration with phone error:", error);
-      return {
-        success: false,
-        message: error.message || "Registration failed",
-      };
+       console.error("Phone registration error:", error);
+       updateUserState(null); // Ensure user state is null on failure
+      return { success: false, error: error.message };
     } finally {
       setLoading(false);
     }
   };
 
+  // Value provided to the context consumers
   const value = {
     user,
     loading,
-    authStateChange,
+    authStateChange, // Provide this if components need to react to auth changes explicitly
+    userAuthFetch,
     login,
     register,
     logout,
     updateUserProfile,
-    userAuthFetch,
     sendWhatsAppOTP,
     verifyWhatsAppOTP,
     registerWithPhone,
-    authFetch: userAuthFetch
+    // fetchUserProfile, // Expose if needed directly by components
   };
 
   return (
-    <UserAuthContext.Provider value={value}>
-      {children}
-    </UserAuthContext.Provider>
+    <UserAuthContext.Provider value={value}>{children}</UserAuthContext.Provider>
   );
 }
 
