@@ -15,6 +15,7 @@ import Script from 'next/script';
 import { v4 as uuidv4 } from 'uuid';
 
 function CheckoutContent() {
+  console.log('CheckoutContent component rendering...'); // DIAGNOSTIC LOG 1
   const searchParams = useSearchParams();
   const router = useRouter();
   const cartItems = useCartStore((state) => state.items);
@@ -80,6 +81,7 @@ function CheckoutContent() {
             quantity: quantity,
             size: finalSize,
             color: finalColor,
+            sellerId: productData.sellerId
           };
           setCheckoutItems([buyNowItem]);
           console.log("Checkout: Buy Now item prepared:", buyNowItem);
@@ -121,22 +123,43 @@ function CheckoutContent() {
   }, [user, authLoading, router]);
   
   useEffect(() => {
-    if (cashfreeLoaded) {
+    // Ensure this runs only once after cashfree is loaded and if instance isn't already set
+    if (cashfreeLoaded && !cashfreeInstance) { 
       try {
-        console.log('Attempting to initialize Cashfree...');
+        console.log('Attempting to initialize Cashfree... (Instance currently null)');
         const mode = process.env.NODE_ENV === 'production' ? 'production' : 'sandbox';
+
+        // Check if window.Cashfree function exists after script load
+        if (typeof window.Cashfree !== 'function') {
+             console.error('window.Cashfree function not found after SDK script loaded!');
+             throw new Error('Cashfree SDK did not load correctly.');
+        }
+
         const cashfree = window.Cashfree({
           mode: mode
         });
-        console.log('Cashfree initialization successful');
-        setCashfreeInstance(cashfree);
+
+        // Check if initialization returned a valid instance
+        if (!cashfree) {
+            console.error('window.Cashfree() initialization returned null or undefined!');
+            throw new Error('Cashfree SDK initialization failed to return instance.');
+        }
+
+        console.log('Cashfree initialization successful, setting instance.');
+        setCashfreeInstance(cashfree); // Set the instance
+
       } catch (err) {
         console.error("SDK initialization error:", err);
         toast.error("Payment gateway failed to load. Please refresh.");
         setError("Payment system error.");
+        setCashfreeInstance(null); // Ensure instance is null on error
       }
+    } else if (cashfreeLoaded && cashfreeInstance) {
+        console.log('Cashfree SDK already initialized, skipping.'); // Log if we skip re-initialization
+    } else if (!cashfreeLoaded) {
+        console.log('Cashfree SDK not loaded yet, waiting...');
     }
-  }, [cashfreeLoaded]);
+  }, [cashfreeLoaded, cashfreeInstance]); // Add cashfreeInstance to dependency array
   
   const subtotal = checkoutItems.reduce(
     (total, item) => total + (item.price || 0) * (item.quantity || 0),
@@ -197,12 +220,11 @@ function CheckoutContent() {
           size: item.size,
           color: item.color,
           productName: item.name, // Pass product name if available
-          // TODO: Ensure sellerId is available on checkoutItems
-          sellerId: item.sellerId || 'MISSING_SELLER_ID' // Placeholder - Needs correction
+          sellerId: item.sellerId // Use the actual sellerId from the item
         })),
         totalAmount: total,
         addressId: userLocation.id, // Assuming userLocation has the selected address ID
-        paymentMethod: 'ONLINE', // Or derive from state if needed
+        paymentMethod: 'UPI', // Send 'UPI' instead of 'ONLINE'
         // Include other relevant fields like shippingFee, tax, discount if calculated
       };
       
@@ -318,6 +340,7 @@ function CheckoutContent() {
        );
    }
   
+  console.log('Rendering main checkout UI including Cashfree Script tag...'); // DIAGNOSTIC LOG 2
   return (
     <div className="min-h-screen bg-gray-50 py-12">
       <Script

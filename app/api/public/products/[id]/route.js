@@ -7,7 +7,6 @@ import prisma from '@/app/api/lib/prisma';
  */
 export async function GET(request, { params }) {
   try {
-    // Await params before accessing properties
     const { id: productId } = params;
     
     console.log(`Fetching product details for ID: ${productId}`);
