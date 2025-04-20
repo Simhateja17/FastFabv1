@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { v4 as uuidv4 } from 'uuid'; // For generating unique order IDs
 
-const CASHFREE_API_KEY = process.env.CASHFREE_API_KEY;
+const CASHFREE_APP_ID = process.env.CASHFREE_APP_ID;
 const CASHFREE_SECRET_KEY = process.env.CASHFREE_SECRET_KEY;
 const CASHFREE_API_VERSION = '2022-09-01';
 const CASHFREE_BASE_URL = process.env.NODE_ENV === 'production' 
@@ -13,16 +13,14 @@ const APP_URL = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
 
 export async function POST(request) {
   try {
-    const { amount, currency = 'INR', customer_details } = await request.json();
+    const { order_id, amount, currency = 'INR', customer_details } = await request.json();
 
-    if (!amount || !customer_details?.customer_id || !customer_details?.customer_phone) {
+    if (!order_id || !amount || !customer_details?.customer_id || !customer_details?.customer_phone) {
       return NextResponse.json(
-        { error: 'Missing required fields: amount, customer_id, customer_phone' },
+        { error: 'Missing required fields: order_id, amount, customer_id, customer_phone' },
         { status: 400 }
       );
     }
-
-    const order_id = `order_${uuidv4()}`;
 
     const orderPayload = {
       order_id,
@@ -55,7 +53,7 @@ export async function POST(request) {
         'Accept': 'application/json',
         'Content-Type': 'application/json',
         'x-api-version': CASHFREE_API_VERSION,
-        'x-client-id': CASHFREE_API_KEY,
+        'x-client-id': CASHFREE_APP_ID,
         'x-client-secret': CASHFREE_SECRET_KEY,
       },
       body: JSON.stringify(orderPayload),

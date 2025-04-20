@@ -51,7 +51,7 @@ export async function POST(request) {
     console.log('Token refresh request received (cookie auth)');
     
     // Get the refresh token from the httpOnly cookie
-    const cookieStore = cookies();
+    const cookieStore = await cookies(); // Await the cookies() function
     const refreshTokenCookie = cookieStore.get('refreshToken');
     const refreshToken = refreshTokenCookie?.value;
     

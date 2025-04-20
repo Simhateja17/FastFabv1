@@ -65,7 +65,6 @@ model ColorInventory {
   colorCode   String   @default("")
   stockNumber String?
   product     Product  @relation(fields: [productId], references: [id], map: "ColorInventory_productId_product_fkey")
-  publicProduct PublicProducts? @relation(fields: [productId], references: [id], map: "ColorInventory_productId_publicProduct_fkey")
 
   @@unique([productId, color])
 }
@@ -82,65 +81,65 @@ model OTP {
 }
 
 model Order {
-  id                     String        @id @default(uuid())
-  orderNumber            String        @unique
-  userId                 String
-  totalAmount            Float
-  status                 OrderStatus   @default(PENDING)
-  paymentStatus          PaymentStatus @default(PENDING)
-  paymentMethod          PaymentMethod @default(COD)
-  addressId              String?
-  discount               Float         @default(0)
-  shippingFee            Float         @default(0)
-  tax                    Float         @default(0)
-  notes                  String?
-  deliveryNotes          String?
-  estimatedDelivery      DateTime?
-  trackingNumber         String?
-  deliveredAt            DateTime?
-  cancelledAt            DateTime?
-  createdAt              DateTime      @default(now())
-  updatedAt              DateTime      @updatedAt
-  sellerPhone            String?
-  adminNotified          Boolean       @default(false)
-  customerNotified       Boolean?      @default(false)
-  primarySellerId        String?
-  // Admin-focused fields
-  adminProcessed         Boolean       @default(false)
-  adminNotes             String?
-  sellerConfirmed        Boolean       @default(false)
-  
-  // Relationships
-  address                Address?      @relation(fields: [addressId], references: [id])
-  user                   User          @relation(fields: [userId], references: [id])
-  items                  OrderItem[]
-  transactions           PaymentTransaction[]
-  primarySeller          Seller?       @relation("SellerOrders", fields: [primarySellerId], references: [id])
-  
+  id                String               @id @default(uuid())
+  orderNumber       String               @unique
+  userId            String
+  totalAmount       Float
+  status            OrderStatus          @default(PENDING)
+  paymentStatus     PaymentStatus        @default(PENDING)
+  paymentMethod     PaymentMethod        @default(COD)
+  addressId         String?
+  discount          Float                @default(0)
+  shippingFee       Float                @default(0)
+  tax               Float                @default(0)
+  notes             String?
+  deliveryNotes     String?
+  estimatedDelivery DateTime?
+  trackingNumber    String?
+  deliveredAt       DateTime?
+  cancelledAt       DateTime?
+  createdAt         DateTime             @default(now())
+  updatedAt         DateTime             @updatedAt
+  sellerPhone       String?
+  adminNotified     Boolean?             @default(false)
+  customerNotified  Boolean?             @default(false)
+  primarySellerId   String?
+  adminProcessed    Boolean?             @default(false)
+  adminNotes        String?
+  sellerConfirmed   Boolean?             @default(false)
+  address           Address?             @relation(fields: [addressId], references: [id])
+  user              User                 @relation(fields: [userId], references: [id])
+  items             OrderItem[]
+  transactions      PaymentTransaction[]
+  primarySeller     Seller?              @relation("SellerOrders", fields: [primarySellerId], references: [id])
+
   @@index([createdAt])
   @@index([primarySellerId])
   @@index([status, paymentStatus])
   @@index([userId, status])
-  @@index([adminProcessed]) // Index for finding unprocessed orders
+  @@index([adminProcessed])
 }
 
 model OrderItem {
-  id         String       @id
-  orderId    String
-  sellerId   String
-  quantity   Int
-  mrpPrice   Float
-  discount   Float        @default(0)
-  taxPercent Float        @default(0)
-  taxAmount  Float        @default(0)
-  total      Float
-  name       String
-  createdAt  DateTime     @default(now())
-  updatedAt  DateTime
-  productId  String
-  product    Product      @relation(fields: [productId], references: [id])
-  order      Order        @relation(fields: [orderId], references: [id], onDelete: Cascade)
-  seller     Seller       @relation(fields: [sellerId], references: [id])
+  id          String   @id
+  orderId     String
+  productId   String
+  productName String
+  sellerId    String
+  quantity    Int
+  size        String
+  color       String?
+  price       Float
+  discount    Float    @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime
+  product     Product  @relation(fields: [productId], references: [id])
+  order       Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  seller      Seller   @relation(fields: [sellerId], references: [id])
+
+  @@index([orderId])
+  @@index([productId])
+  @@index([sellerId])
 }
 
 model PaymentTransaction {
@@ -212,35 +211,41 @@ model RefreshToken {
 
 /// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
 model Seller {
-  id              String                    @id @default(cuid())
-  phone           String                    @unique
-  password        String?
-  shopName        String?
-  ownerName       String?
-  address         String?
-  city            String?
-  state           String?
-  pincode         String?
-  openTime        String?
-  closeTime       String?
-  categories      String[]                  @default([])
-  createdAt       DateTime                  @default(now())
-  updatedAt       DateTime                  @default(now()) @updatedAt
-  latitude        Float?
-  longitude       Float?
-  isPhoneVerified Boolean                   @default(false)
-  gstNumber       String?
-  isVisible       Boolean                   @default(true)
-  manuallyHidden  Boolean                   @default(false)
-  location        Unsupported("geography")?
-  products        Product[]
-  orderItems      OrderItem[]
-  orders          Order[] @relation("SellerOrders")
-  publicProducts  PublicProducts[]
+  id                    String                    @id @default(cuid())
+  phone                 String                    @unique
+  password              String?
+  shopName              String?
+  ownerName             String?
+  address               String?
+  city                  String?
+  state                 String?
+  pincode               String?
+  openTime              String?
+  closeTime             String?
+  categories            String[]                  @default([])
+  createdAt             DateTime                  @default(now())
+  updatedAt             DateTime                  @default(now()) @updatedAt
+  latitude              Float?
+  longitude             Float?
+  isPhoneVerified       Boolean                   @default(false)
+  gstNumber             String?
+  isVisible             Boolean                   @default(true)
+  manuallyHidden        Boolean                   @default(false)
+  location              Unsupported("geography")?
+  bankAccountName       String?
+  bankName              String?
+  accountNumber         String?
+  ifsc                  String?
+  gupshupOtpPending     Boolean?                  @default(false)
+  cashfreeBeneficiaryId String?                   @unique
+  products              Product[]
+  orderItems            OrderItem[]
+  orders                Order[]                   @relation("SellerOrders")
 
   @@index([manuallyHidden], map: "idx_seller_manually_hidden")
   @@index([isVisible], map: "idx_seller_visibility")
   @@index([location], type: Gist)
+  @@index([accountNumber, ifsc], map: "idx_seller_bank_details")
 }
 
 model SuperAdmin {
@@ -316,6 +321,28 @@ model spatial_ref_sys {
   proj4text String? @db.VarChar(2048)
 }
 
+model Payout {
+  id               String       @id
+  sellerId         String
+  amount           Float
+  status           PayoutStatus @default(PENDING)
+  cashfreePayoutId String?      @unique
+  requestedAt      DateTime     @default(now())
+  processedAt      DateTime?
+
+  @@index([requestedAt])
+  @@index([sellerId])
+  @@index([status])
+}
+
+model SiteSettings {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  key       String   @unique
+  value     Json
+  createdAt DateTime @default(now())
+  updatedAt DateTime
+}
+
 enum OrderStatus {
   PENDING
   CONFIRMED
@@ -353,24 +380,8 @@ enum UserRole {
   MODERATOR
 }
 
-model PublicProducts {
-  id             String   @id @default(uuid())
-  name           String
-  description    String?
-  mrpPrice       Float
-  sellingPrice   Float
-  images         String[]
-  category       String?
-  subcategory    String?
-  sizeQuantities Json
-  isActive       Boolean  @default(true)
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
-  sellerId       String
-  variantGroupId String?
-  isReturnable   Boolean  @default(true)
-  seller         Seller   @relation(fields: [sellerId], references: [id])
-  colorInventory ColorInventory[]
-
-  @@map("PublicProducts")
+enum PayoutStatus {
+  PENDING
+  SUCCESS
+  FAILED
 }

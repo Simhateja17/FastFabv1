@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 
-const CASHFREE_API_KEY = process.env.CASHFREE_API_KEY;
+const CASHFREE_APP_ID = process.env.CASHFREE_APP_ID;
 const CASHFREE_SECRET_KEY = process.env.CASHFREE_SECRET_KEY;
 const CASHFREE_BASE_URL = process.env.NODE_ENV === 'production' 
   ? 'https://api.cashfree.com/pg'
@@ -23,7 +23,7 @@ export async function POST(request) {
       {
         headers: {
           'x-api-version': '2022-09-01',
-          'x-client-id': CASHFREE_API_KEY,
+          'x-client-id': CASHFREE_APP_ID,
           'x-client-secret': CASHFREE_SECRET_KEY,
         },
       }
