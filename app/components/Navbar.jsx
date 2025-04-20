@@ -597,29 +597,30 @@ function NavbarContent() {
                 </>
               )}
 
-              {/* Auth section (User/Seller/Login) */}
-              <div className="flex items-center space-x-4">
-                {user && !seller ? (
+              {/* Auth section */}
+              <div className="hidden md:flex items-center space-x-4">
+                {!isSellerRoute && !isAdminRoute && (
                   <>
-                    <UserDropdown
-                      user={user}
-                      isOpen={isUserDropdownOpen}
-                      setIsOpen={setIsUserDropdownOpen}
-                      onLogout={handleUserLogout}
-                      userDropdownRef={userDropdownRef}
-                    />
+                    {user ? (
+                      <UserDropdown
+                        user={user}
+                        isOpen={isUserDropdownOpen}
+                        setIsOpen={setIsUserDropdownOpen}
+                        onLogout={handleUserLogout}
+                        userDropdownRef={userDropdownRef}
+                      />
+                    ) : seller ? (
+                      <SellerDropdown
+                        seller={seller}
+                        isOpen={isSellerDropdownOpen}
+                        setIsOpen={setIsSellerDropdownOpen}
+                        onLogout={handleSellerLogout}
+                        sellerDropdownRef={sellerDropdownRef}
+                      />
+                    ) : (
+                      <AuthLinks />
+                    )}
                   </>
-                ) : seller && !user ? (
-                  <SellerDropdown
-                    seller={seller}
-                    isOpen={isSellerDropdownOpen}
-                    setIsOpen={setIsSellerDropdownOpen}
-                    onLogout={handleSellerLogout}
-                    sellerDropdownRef={sellerDropdownRef}
-                  />
-                ) : (
-                  // Show Login/Signup only on non-seller/non-admin routes when logged out
-                  !isSellerRoute && !isAdminRoute && <AuthLinks />
                 )}
               </div>
             </div>
