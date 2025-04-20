@@ -1,6 +1,5 @@
 import { NextResponse } from 'next/server';
 import { PrismaClient } from '@prisma/client';
-import { getAuth } from '@clerk/nextjs/server'; // Or your auth method
 
 const prisma = new PrismaClient();
 
