@@ -39,7 +39,6 @@ export default function UserProfile() {
           name: user.name || "",
           email: user.email || "",
           phone: user.phone || "",
-          ...formData,
         });
       } catch (error) {
         console.error("Authentication check error:", error);
@@ -49,7 +48,7 @@ export default function UserProfile() {
     };
 
     checkAuth();
-  }, [user, authLoading, router, formData]);
+  }, [user, authLoading, router]);
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;

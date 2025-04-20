@@ -69,7 +69,7 @@ export default function Orders() {
   // Fetch orders on component mount
   useEffect(() => {
     const checkAuth = async () => {
-      if (loading) return; // Skip if auth context is still loading
+      if (authLoading) return; // Skip if auth context is still loading
 
       console.log("Orders page - Checking auth:", !!user);
 
@@ -104,7 +104,7 @@ export default function Orders() {
     };
 
     checkAuth();
-  }, [user, loading, router, fetchOrders]);
+  }, [user, authLoading, router, fetchOrders]);
 
   const handleSearch = (e) => {
     e.preventDefault();

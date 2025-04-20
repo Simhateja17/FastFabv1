@@ -108,7 +108,12 @@ export async function POST(request) {
     const body = await request.json();
 
     // Forward request to seller service
-    const apiUrl = process.env.SELLER_SERVICE_URL || 'http://localhost:8000';
+    const apiUrl = process.env.NEXT_PUBLIC_SELLER_SERVICE_URL;
+    if (!apiUrl) {
+      console.error("[POST /api/seller/products] Error: NEXT_PUBLIC_SELLER_SERVICE_URL environment variable is not set.");
+      return createErrorResponse("Server configuration error: Seller service URL is missing.", 500);
+    }
+
     const endpoint = '/api/products';
     
     console.log('Forwarding product creation request to:', `${apiUrl}${endpoint}`);
@@ -187,7 +192,11 @@ async function handleProductRequest(request, method) {
     }
 
     // Forward request to seller service
-    const apiUrl = process.env.SELLER_SERVICE_URL || 'http://localhost:8000';
+    const apiUrl = process.env.NEXT_PUBLIC_SELLER_SERVICE_URL;
+    if (!apiUrl) {
+      console.error(`[${method} /api/seller/products] Error: NEXT_PUBLIC_SELLER_SERVICE_URL environment variable is not set.`);
+      return createErrorResponse("Server configuration error: Seller service URL is missing.", 500);
+    }
     
     // Similar to GET, try different potential endpoints
     const endpoints = [
