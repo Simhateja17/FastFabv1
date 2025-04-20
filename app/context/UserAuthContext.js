@@ -188,11 +188,20 @@ export function UserAuthProvider({ children }) {
   const fetchUserProfile = useCallback(async () => {
     try {
       console.log("Fetching user profile...");
+      const { accessToken } = getUserTokens();
+
+      // Set up headers with access token
+      const headers = {
+        "Content-Type": "application/json",
+      };
+
+      if (accessToken) {
+        headers.Authorization = `Bearer ${accessToken}`;
+      }
+
       const response = await fetch(USER_ENDPOINTS.PROFILE, {
         method: "GET",
-        headers: {
-          "Content-Type": "application/json",
-        },
+        headers,
         credentials: "include", // Important: Include cookies in the request
       });
 
@@ -220,6 +229,13 @@ export function UserAuthProvider({ children }) {
     const initializeAuth = async () => {
       console.log("Initializing auth state...");
       try {
+        // Get tokens first
+        const { accessToken, refreshToken } = getUserTokens();
+        console.log("Tokens from storage:", {
+          hasAccessToken: !!accessToken,
+          hasRefreshToken: !!refreshToken
+        });
+
         // Try to get persisted user data from localStorage (for UI performance only)
         const savedUserData = localStorage.getItem("userData");
         console.log("Saved user data exists:", !!savedUserData);
@@ -235,41 +251,52 @@ export function UserAuthProvider({ children }) {
           }
         }
 
-        // Now try to fetch the user profile to update with current data
+        // If we have no tokens at all, clear everything and exit
+        if (!accessToken && !refreshToken) {
+          console.log("No auth tokens available, clearing user state");
+          clearUserTokens();
+          updateUserState(null);
+          localStorage.removeItem("userData");
+          setLoading(false);
+          return;
+        }
+
+        // If we have a refresh token but no access token, try to refresh first
+        if (!accessToken && refreshToken) {
+          try {
+            console.log("No access token but have refresh token, attempting refresh");
+            await refreshAccessToken();
+            // After successful refresh, we'll have a new access token
+          } catch (refreshError) {
+            console.error("Failed to refresh token during init:", refreshError);
+            clearUserTokens();
+            updateUserState(null);
+            localStorage.removeItem("userData");
+            setLoading(false);
+            return;
+          }
+        }
+
+        // Now try to fetch the user profile with the current/new token
         try {
           const userData = await fetchUserProfile();
           console.log("Successfully fetched user profile:", userData);
           updateUserState(userData);
           localStorage.setItem("userData", JSON.stringify(userData));
         } catch (error) {
-          // If profile fetch fails, we need to check if we have tokens to retry
-          const { accessToken, refreshToken } = getUserTokens();
-          
-          // Only clear user state if we have no tokens at all
-          if (!accessToken && !refreshToken) {
-            console.log("No auth tokens available, clearing user state");
+          console.error("Failed to fetch user profile:", error);
+          // Only clear everything if it's an auth error
+          if (error.message === "Authentication required" || error.message.includes("401")) {
+            clearUserTokens();
             updateUserState(null);
             localStorage.removeItem("userData");
-          } else if (refreshToken) {
-            // Try to refresh token
-            try {
-              console.log("Attempting to refresh token");
-              await refreshAccessToken();
-              
-              // Now retry profile fetch
-              const userData = await fetchUserProfile();
-              updateUserState(userData);
-              localStorage.setItem("userData", JSON.stringify(userData));
-            } catch (refreshError) {
-              console.error("Token refresh failed:", refreshError);
-              updateUserState(null);
-              localStorage.removeItem("userData");
-            }
           }
         }
       } catch (error) {
         console.error("Auth initialization error:", error);
+        clearUserTokens();
         updateUserState(null);
+        localStorage.removeItem("userData");
       } finally {
         setLoading(false);
       }

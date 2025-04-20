@@ -107,6 +107,14 @@ export async function POST(request) {
     // Get request body
     const body = await request.json();
 
+    // Add the authenticated sellerId to the body
+    const authResult = await auth(request);
+    if (!authResult.success || !authResult.sellerId) {
+      console.error("[POST /api/seller/products] Failed to get sellerId after successful auth check.");
+      return createErrorResponse("Authentication failed or seller ID missing.", 401);
+    }
+    body.sellerId = authResult.sellerId;
+
     // Forward request to seller service
     const apiUrl = process.env.NEXT_PUBLIC_SELLER_SERVICE_URL;
     if (!apiUrl) {
