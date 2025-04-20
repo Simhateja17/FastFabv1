@@ -163,7 +163,7 @@ export async function POST(request) {
     console.log(`Attempting to find order in database using Order ID: ${orderId}`);
     let order = await prisma.order.findUnique({
       where: { orderNumber: orderId },
-      include: { items: true, user: true, shippingAddress: true }
+      include: { items: true, user: true, address: true }
     });
 
     if (!order) {
@@ -179,7 +179,7 @@ export async function POST(request) {
 
        order = await prisma.order.findFirst({
          where: { OR: alternativeIdLookups },
-         include: { items: true, user: true, shippingAddress: true }
+         include: { items: true, user: true, address: true }
        });
     }
 
@@ -426,7 +426,7 @@ async function sendAdminNotification(order, sellerIds) {
     }
 
     // Get formatted shipping address
-    const shippingAddress = order.shippingAddress ? formatAddress(order.shippingAddress) : 'Address not available';
+    const shippingAddress = order.address ? formatAddress(order.address) : 'Address not available';
     
     // Send notification to admin
     await sendAdminOrderPendingSeller(adminPhone, {
