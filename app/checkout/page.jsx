@@ -12,6 +12,7 @@ import { PUBLIC_ENDPOINTS, USER_ENDPOINTS, API_URL } from "@/app/config";
 import LoadingSpinner from "@/app/components/LoadingSpinner";
 import { FiMapPin, FiShield } from "react-icons/fi";
 import Script from 'next/script';
+import { v4 as uuidv4 } from 'uuid';
 
 function CheckoutContent() {
   const searchParams = useSearchParams();
@@ -179,7 +180,48 @@ function CheckoutContent() {
     setIsProcessingPayment(true);
     setError(null);
     
+    // --- Generate Order ID FIRST ---
+    const orderIdForCashfree = `order_${uuidv4()}`;
+    console.log(`Generated Order ID for Cashfree & DB: ${orderIdForCashfree}`);
+
     try {
+      // --- Prepare Order Data for Internal DB Save ---
+      const internalOrderData = {
+        orderId: orderIdForCashfree, // Use the generated ID
+        userId: user.id,
+        items: checkoutItems.map(item => ({
+          productId: item.id, // Assuming item.id holds productId
+          quantity: item.quantity,
+          price: item.price,
+          mrpPrice: item.mrpPrice || item.price,
+          size: item.size,
+          color: item.color,
+          productName: item.name, // Pass product name if available
+          // TODO: Ensure sellerId is available on checkoutItems
+          sellerId: item.sellerId || 'MISSING_SELLER_ID' // Placeholder - Needs correction
+        })),
+        totalAmount: total,
+        addressId: userLocation.id, // Assuming userLocation has the selected address ID
+        paymentMethod: 'ONLINE', // Or derive from state if needed
+        // Include other relevant fields like shippingFee, tax, discount if calculated
+      };
+      
+      // --- 1. Create Order Record Internally ---
+      console.log("Creating internal order record...");
+      const internalOrderResponse = await fetch('/api/create-internal-order', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(internalOrderData)
+      });
+      const internalOrderResult = await internalOrderResponse.json();
+
+      if (!internalOrderResponse.ok || !internalOrderResult.success) {
+        console.error('Failed to create internal order record:', internalOrderResult);
+        throw new Error(internalOrderResult.error || 'Failed to save order before payment.');
+      }
+      console.log(`Internal order ${internalOrderResult.order?.id} created successfully.`);
+
+      // --- 2. Create Cashfree Payment Order ---
       const customerDetailsPayload = {
         customer_id: user?.id || `guest_${Date.now()}`,
         customer_phone: user?.phone || '',
@@ -187,54 +229,57 @@ function CheckoutContent() {
       };
 
       if (!customerDetailsPayload.customer_phone) {
-        toast.error("Phone number is required for payment. Please update your profile.");
-        setIsProcessingPayment(false);
-        return;
+        throw new Error("Phone number is required for payment. Please update your profile.");
       }
 
-      console.log("Creating payment order...");
-      const response = await fetch('/api/create-payment-order', {
+      console.log("Creating Cashfree payment order...");
+      const cashfreeOrderResponse = await fetch('/api/create-payment-order', {
         method: "POST",
         headers: {
           "Content-Type": "application/json"
         },
         body: JSON.stringify({
+          order_id: orderIdForCashfree, // Pass the SAME generated order ID
           amount: total,
           currency: 'INR',
           customer_details: customerDetailsPayload
         })
       });
       
-      const data = await response.json();
-      console.log("Order creation response:", data);
+      const cashfreeOrderData = await cashfreeOrderResponse.json();
+      console.log("Cashfree order creation response:", cashfreeOrderData);
 
-      if (!response.ok || !data.success) {
-        throw new Error(data.error || "Could not initiate payment process.");
+      if (!cashfreeOrderResponse.ok || !cashfreeOrderData.success) {
+        // TODO: Consider rolling back internal order creation or marking it as failed?
+        throw new Error(cashfreeOrderData.error || "Could not initiate payment process with Cashfree.");
       }
 
-      if (!data.payment_session_id) {
-        throw new Error("Payment session could not be created.");
+      if (!cashfreeOrderData.payment_session_id) {
+        // TODO: Consider rolling back internal order creation or marking it as failed?
+        throw new Error("Payment session could not be created by Cashfree.");
       }
 
+      // --- 3. Launch Cashfree Checkout ---
       const checkoutOptions = {
-        paymentSessionId: data.payment_session_id,
+        paymentSessionId: cashfreeOrderData.payment_session_id,
         redirectTarget: "_self",
       };
       
       console.log("Launching Cashfree checkout with options:", checkoutOptions);
-      
       cashfreeInstance.checkout(checkoutOptions);
 
+      // --- 4. Clear Cart (if applicable) ---
       if (!isBuyNow) {
         clearCart();
       }
 
     } catch (error) {
-      console.error("Payment error:", error);
-      toast.error(error.message || "Payment failed. Please try again.");
-      setError(error.message || "Payment failed");
-      setIsProcessingPayment(false);
+      console.error("Checkout process error:", error);
+      toast.error(error.message || "Checkout failed. Please try again.");
+      setError(error.message || "Checkout failed");
+      setIsProcessingPayment(false); // Ensure loading state stops on error
     }
+    // Note: Don't set processing to false here if checkout launch is successful
   };
 
   if (loading) {
