@@ -115,9 +115,17 @@ export async function POST(request) {
       size: `${(file.size / 1024 / 1024).toFixed(2)} MB`,
     })));
 
-    // Use the seller service URL
-    const apiUrl = process.env.SELLER_SERVICE_URL || 'http://localhost:8000';
-    const uploadUrl = `${apiUrl}/api/products/upload-images`;
+    // Use the seller service URL from environment variables
+    const apiUrl = process.env.NEXT_PUBLIC_SELLER_SERVICE_URL;
+    if (!apiUrl) {
+      console.error("[UPLOAD] Error: NEXT_PUBLIC_SELLER_SERVICE_URL environment variable is not set.");
+      return NextResponse.json(
+        { message: "Server configuration error: Image service URL is missing." },
+        { status: 500 } // Internal Server Error
+      );
+    }
+
+    const uploadUrl = `${apiUrl}/api/products/upload-images`; // Ensure API path is appended correctly if base URL doesn't have it
     console.log(`[UPLOAD] Forwarding upload request to: ${uploadUrl}`);
     
     // Create a timeout promise with a longer timeout (2 minutes)
