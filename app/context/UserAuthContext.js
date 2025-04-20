@@ -359,8 +359,8 @@ export function UserAuthProvider({ children }) {
   // These likely need adjustment if the backend OTP endpoints also rely on cookies vs. tokens in body
 
   const sendWhatsAppOTP = async (phoneNumber) => {
-    // ... (Existing implementation - review if USER_ENDPOINTS.PHONE_AUTH_START needs auth cookie)
-     try {
+    console.log("Sending OTP for phone (Auth Context):", phoneNumber);
+    try {
       setLoading(true);
       const response = await fetch(USER_ENDPOINTS.PHONE_AUTH_START, {
         method: 'POST',
@@ -380,9 +380,8 @@ export function UserAuthProvider({ children }) {
   };
 
   const verifyWhatsAppOTP = async (phoneNumber, otpCode) => {
-    // ... (Existing implementation - review if USER_ENDPOINTS.PHONE_AUTH_VERIFY needs auth cookie)
-    // This endpoint likely SETS auth cookies on success, so credentials: "include" is important
-     try {
+    console.log("Verifying OTP for phone (Auth Context):", phoneNumber);
+    try {
       setLoading(true);
       const response = await fetch(USER_ENDPOINTS.PHONE_AUTH_VERIFY, {
         method: 'POST',

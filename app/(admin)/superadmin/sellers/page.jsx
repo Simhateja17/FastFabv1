@@ -200,7 +200,7 @@ export default function SellersPage() {
                       </div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-text">
-                      {seller._count?.products || 0} products
+                      {seller._count?.Product || 0} products
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-text-muted">
                       {new Date(seller.createdAt).toLocaleDateString()}
