@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { useState, useEffect } from "react";
 import Link from "next/link";
 import { useAuth } from "@/app/context/AuthContext";
 import ProtectedRoute from "@/app/components/ProtectedRoute";
@@ -192,251 +191,241 @@ function EarningsContent() {
 
   // Handle opening the withdraw modal
   const handleOpenWithdrawModal = () => {
-      if (stats.availableBalance > 0) {
-         setIsWithdrawModalOpen(true);
-      } else {
-          // Optionally, show a message that withdrawal isn't possible
-          alert("Available balance is zero. Cannot initiate withdrawal.");
-          // Or use a more sophisticated notification system
-      }
+    if (stats.availableBalance > 0) {
+      setIsWithdrawModalOpen(true);
+    } else {
+      // Optionally, show a message that withdrawal isn't possible
+      alert("Available balance is zero. Cannot initiate withdrawal.");
+      // Or use a more sophisticated notification system
+    }
   };
 
-  // Handle closing the withdraw modal
   const handleCloseWithdrawModal = () => {
     setIsWithdrawModalOpen(false);
   };
 
-  // --- NEW: Handler for successful withdrawal --- 
   const handleWithdrawSuccess = (newBalance) => {
-      console.log('Withdrawal success callback received. New balance:', newBalance);
-      setStats(prevStats => ({ 
-          ...prevStats,
-          // Update availableBalance immediately for better UX
-          availableBalance: newBalance, 
-          // Optionally, update totalPayouts if the API provides that, 
-          // otherwise, it might be better to refetch stats after modal closes.
-      }));
-      // Close the modal (already handled by WithdrawModal itself after a delay)
-      // setIsWithdrawModalOpen(false); 
-      // Maybe refetch stats after a delay to ensure totalPayouts etc. are updated
-      // setTimeout(fetchEarnings, 3000); // Example: Refetch after 3s
+    // Update the stats with the new balance
+    setStats(prevStats => ({
+      ...prevStats,
+      availableBalance: newBalance
+    }));
+    setIsWithdrawModalOpen(false);
   };
 
-  if (loading) {
-    return <div className="flex justify-center items-center h-64">Loading earnings data...</div>;
-  }
-
-  if (error) {
-    return <div className="text-center text-red-600 mt-10">Error loading earnings: {error}</div>;
-  }
-
   return (
-    <div className="max-w-7xl mx-auto p-4 md:p-6">
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4">
-        <h1 className="text-2xl font-semibold text-gray-800">
-          Earnings Dashboard
-        </h1>
-
-        <div className="inline-flex rounded-md shadow-sm">
-          <button
-            type="button"
-            className={`px-4 py-2 text-sm font-medium rounded-l-lg border ${
-              dateRange === "7days"
-                ? "bg-black text-white border-black"
-                : "bg-white text-gray-700 border-gray-300 hover:bg-gray-50"
-            }`}
-            onClick={() => setDateRange("7days")}
-          >
-            7 Days
-          </button>
-          <button
-            type="button"
-            className={`px-4 py-2 text-sm font-medium border-t border-b ${
-              dateRange === "30days"
-                 ? "bg-black text-white border-black"
-                : "bg-white text-gray-700 border-gray-300 hover:bg-gray-50"
-            }`}
-            onClick={() => setDateRange("30days")}
-          >
-            30 Days
-          </button>
-          <button
-            type="button"
-            className={`px-4 py-2 text-sm font-medium rounded-r-lg border ${
-              dateRange === "90days"
-                 ? "bg-black text-white border-black"
-                : "bg-white text-gray-700 border-gray-300 hover:bg-gray-50"
-            }`}
-            onClick={() => setDateRange("90days")}
-          >
-            90 Days
-          </button>
+    <div className="container mx-auto px-4 py-8">
+      {/* Error Display */}
+      {error && (
+        <div className="mb-4 p-4 bg-red-100 border border-red-400 text-red-700 rounded">
+          {error}
         </div>
-      </div>
+      )}
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-        <div className="bg-white p-4 rounded-lg border border-gray-200 shadow-sm">
-          <h3 className="text-sm font-medium text-gray-500 mb-1">Total Sales</h3>
-          <p className="text-2xl font-semibold text-gray-800">{formatCurrency(stats.totalSales)}</p>
+      {/* Loading State */}
+      {loading ? (
+        <div className="flex justify-center items-center h-64">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-gray-900"></div>
         </div>
+      ) : (
+        <>
+          {/* Stats Grid */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-8">
+            {/* Total Sales Card */}
+            <div className="bg-white p-6 rounded-lg shadow">
+              <h3 className="text-sm font-medium text-gray-500">Total Sales</h3>
+              <p className="mt-2 text-3xl font-semibold text-gray-900">
+                {formatCurrency(stats.totalSales)}
+              </p>
+            </div>
 
-        <div className="bg-white p-4 rounded-lg border border-gray-200 shadow-sm">
-          <h3 className="text-sm font-medium text-gray-500 mb-1">Platform Fees</h3>
-          <p className="text-2xl font-semibold text-gray-800">{formatCurrency(stats.platformFees)}</p>
-        </div>
+            {/* Platform Fees Card */}
+            <div className="bg-white p-6 rounded-lg shadow">
+              <h3 className="text-sm font-medium text-gray-500">Platform Fees</h3>
+              <p className="mt-2 text-3xl font-semibold text-gray-900">
+                {formatCurrency(stats.platformFees)}
+              </p>
+            </div>
 
-        <div className="bg-white p-4 rounded-lg border border-gray-200 shadow-sm">
-          <h3 className="text-sm font-medium text-gray-500 mb-1">Net Earnings</h3>
-          <p className="text-2xl font-semibold text-gray-800">{formatCurrency(stats.netEarnings)}</p>
-        </div>
+            {/* Net Earnings Card */}
+            <div className="bg-white p-6 rounded-lg shadow">
+              <h3 className="text-sm font-medium text-gray-500">Net Earnings</h3>
+              <p className="mt-2 text-3xl font-semibold text-gray-900">
+                {formatCurrency(stats.netEarnings)}
+              </p>
+            </div>
 
-        <div className="bg-white p-4 rounded-lg border border-gray-200 shadow-sm flex flex-col justify-between">
-          <div>
-            <h3 className="text-sm font-medium text-gray-500 mb-1">Available Balance</h3>
-            <p className="text-2xl font-semibold text-gray-800">{formatCurrency(stats.availableBalance)}</p>
+            {/* Available Balance Card */}
+            <div className="bg-white p-6 rounded-lg shadow">
+              <div className="flex justify-between items-start">
+                <div>
+                  <h3 className="text-sm font-medium text-gray-500">Available Balance</h3>
+                  <p className="mt-2 text-3xl font-semibold text-gray-900">
+                    {formatCurrency(stats.availableBalance)}
+                  </p>
+                </div>
+                <button
+                  onClick={handleOpenWithdrawModal}
+                  disabled={stats.availableBalance <= 0}
+                  className={`px-4 py-2 rounded ${
+                    stats.availableBalance > 0
+                      ? 'bg-blue-600 text-white hover:bg-blue-700'
+                      : 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                  }`}
+                >
+                  Withdraw
+                </button>
+              </div>
+            </div>
+
+            {/* Total Payouts Card */}
+            <div className="bg-white p-6 rounded-lg shadow">
+              <h3 className="text-sm font-medium text-gray-500">Total Payouts</h3>
+              <p className="mt-2 text-3xl font-semibold text-gray-900">
+                {formatCurrency(stats.totalPayouts)}
+              </p>
+            </div>
+
+            {/* Total Refunds Card */}
+            <div className="bg-white p-6 rounded-lg shadow">
+              <h3 className="text-sm font-medium text-gray-500">Total Refunds</h3>
+              <p className="mt-2 text-3xl font-semibold text-gray-900">
+                {formatCurrency(stats.totalRefunds)}
+              </p>
+            </div>
           </div>
-          <button
-            onClick={handleOpenWithdrawModal}
-            disabled={stats.availableBalance <= 0}
-            className="mt-3 w-full bg-black text-white px-4 py-2 rounded-md text-sm font-medium hover:bg-gray-800 disabled:bg-gray-400 disabled:cursor-not-allowed transition duration-150 ease-in-out"
-          >
-            Withdraw
-          </button>
-        </div>
-      </div>
 
-      <div className="mb-4 border-b border-gray-200">
-        <nav className="-mb-px flex space-x-6" aria-label="Tabs">
-          {[
-            { key: "all", label: "All Transactions" },
-            { key: "sale", label: "Sales" },
-            { key: "refund", label: "Refunds" },
-            { key: "payout", label: "Payouts" },
-          ].map((tab) => (
-            <button
-              key={tab.key}
-              onClick={() => setActiveTab(tab.key)}
-              className={`whitespace-nowrap py-3 px-1 border-b-2 font-medium text-sm ${
-                activeTab === tab.key
-                  ? "border-black text-black"
-                  : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
-              }`}
-              aria-current={activeTab === tab.key ? "page" : undefined}
+          {/* Date Range Filter */}
+          <div className="mb-6">
+            <select
+              value={dateRange}
+              onChange={(e) => setDateRange(e.target.value)}
+              className="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm rounded-md"
             >
-              {tab.label}
-            </button>
-          ))}
-        </nav>
-      </div>
+              <option value="7days">Last 7 Days</option>
+              <option value="30days">Last 30 Days</option>
+              <option value="90days">Last 90 Days</option>
+              <option value="all">All Time</option>
+            </select>
+          </div>
 
-      <div className="bg-white rounded-lg border border-gray-200 shadow-sm overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="min-w-full divide-y divide-gray-200">
-            <thead className="bg-gray-50">
-              <tr>
-                <th
-                  scope="col"
-                  className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
-                >
-                  Date
-                </th>
-                <th
-                  scope="col"
-                  className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
-                >
-                  Type
-                </th>
-                <th
-                  scope="col"
-                  className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
-                >
-                  Details
-                </th>
-                 <th
-                  scope="col"
-                  className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
-                >
-                  Order ID
-                </th>
-                <th
-                  scope="col"
-                  className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider"
-                >
-                  Amount
-                </th>
-                <th
-                  scope="col"
-                  className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider"
-                >
-                  Balance
-                </th>
-              </tr>
-            </thead>
-            <tbody className="bg-white divide-y divide-gray-200">
-              {filteredTransactions.length > 0 ? (
-                filteredTransactions.map((transaction, index) => (
-                  <tr key={transaction.id || index} className="hover:bg-gray-50">
-                    <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-600">
-                      {formatDate(transaction.createdAt)}
-                    </td>
-                    <td className="px-4 py-3 whitespace-nowrap">
-                      <span
-                        className={`px-2.5 py-0.5 inline-flex text-xs leading-5 font-semibold rounded-full ${getTypeBadgeClass(
-                          transaction.type
-                        )}`}
-                      >
-                        {transaction.type ? transaction.type.charAt(0).toUpperCase() + transaction.type.slice(1) : 'N/A'}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-800">
-                      {transaction.description || "-"}
-                    </td>
-                    <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-600">
-                       {transaction.orderId ? (
-                        <Link href={`/seller/orders/${transaction.orderId}`} className="text-blue-600 hover:underline">
-                          {transaction.orderId}
-                        </Link>
-                      ) : (
-                        "N/A"
-                      )}
-                    </td>
-                    <td className="px-4 py-3 whitespace-nowrap text-sm text-right font-medium ${transaction.amount >= 0 ? 'text-green-600' : 'text-red-600'}">
-                      {transaction.amount >= 0 ? '+' : ''}{formatCurrency(transaction.amount)}
-                    </td>
-                    <td className="px-4 py-3 whitespace-nowrap text-sm text-right text-gray-600">
-                      {formatCurrency(transaction.balanceAfter || 0)}
+          {/* Transaction Type Tabs */}
+          <div className="border-b border-gray-200 mb-6">
+            <nav className="-mb-px flex space-x-8">
+              <button
+                onClick={() => setActiveTab("all")}
+                className={`${
+                  activeTab === "all"
+                    ? "border-blue-500 text-blue-600"
+                    : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
+                } whitespace-nowrap pb-4 px-1 border-b-2 font-medium text-sm`}
+              >
+                All Transactions
+              </button>
+              <button
+                onClick={() => setActiveTab("sale")}
+                className={`${
+                  activeTab === "sale"
+                    ? "border-blue-500 text-blue-600"
+                    : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
+                } whitespace-nowrap pb-4 px-1 border-b-2 font-medium text-sm`}
+              >
+                Sales
+              </button>
+              <button
+                onClick={() => setActiveTab("payout")}
+                className={`${
+                  activeTab === "payout"
+                    ? "border-blue-500 text-blue-600"
+                    : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
+                } whitespace-nowrap pb-4 px-1 border-b-2 font-medium text-sm`}
+              >
+                Payouts
+              </button>
+              <button
+                onClick={() => setActiveTab("refund")}
+                className={`${
+                  activeTab === "refund"
+                    ? "border-blue-500 text-blue-600"
+                    : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
+                } whitespace-nowrap pb-4 px-1 border-b-2 font-medium text-sm`}
+              >
+                Refunds
+              </button>
+            </nav>
+          </div>
+
+          {/* Transactions Table */}
+          <div className="bg-white shadow overflow-hidden sm:rounded-lg">
+            <table className="min-w-full divide-y divide-gray-200">
+              <thead className="bg-gray-50">
+                <tr>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Date
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Type
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Description
+                  </th>
+                  <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Amount
+                  </th>
+                </tr>
+              </thead>
+              <tbody className="bg-white divide-y divide-gray-200">
+                {filteredTransactions.length === 0 ? (
+                  <tr>
+                    <td colSpan="4" className="px-6 py-4 text-center text-gray-500">
+                      No transactions found
                     </td>
                   </tr>
-                ))
-              ) : (
-                <tr>
-                  <td
-                    colSpan="6"
-                    className="px-4 py-10 text-center text-sm text-gray-500"
-                  >
-                    No transactions found for the selected period or filter.
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
-      </div>
+                ) : (
+                  filteredTransactions.map((transaction, index) => (
+                    <tr key={transaction.id || index}>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                        {formatDate(transaction.date)}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <span
+                          className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${getTypeBadgeClass(
+                            transaction.type
+                          )}`}
+                        >
+                          {transaction.type}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4 text-sm text-gray-500">
+                        {transaction.description}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-right font-medium">
+                        {formatCurrency(transaction.amount)}
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+        </>
+      )}
 
+      {/* Withdraw Modal */}
       <WithdrawModal
         isOpen={isWithdrawModalOpen}
         onClose={handleCloseWithdrawModal}
-        availableBalance={stats.availableBalance}
-        onWithdrawSuccess={handleWithdrawSuccess}
+        onSuccess={handleWithdrawSuccess}
+        currentBalance={stats.availableBalance}
       />
     </div>
   );
 }
 
-// Wrap the content component with ProtectedRoute
+// Wrap the EarningsContent with ProtectedRoute
 export default function SellerEarnings() {
   return (
-    <ProtectedRoute allowedRoles={['seller']}>
+    <ProtectedRoute>
       <EarningsContent />
     </ProtectedRoute>
   );
