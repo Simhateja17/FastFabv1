@@ -30,13 +30,11 @@ function ProductsListContent() {
   const fetchProducts = useCallback(async () => {
     try {
       setLoading(true);
-      const backendApiUrl = process.env.NEXT_PUBLIC_SELLER_SERVICE_URL || 'http://localhost:8000'; // Corrected fallback - '/api' added below
-      
       // Add cache-busting timestamp to prevent stale data
       const timestamp = Date.now();
       
-      // Construct the correct API endpoint URL including /api
-      const productsApiEndpoint = `${backendApiUrl}/api/products?_=${timestamp}`;
+      // Construct the correct RELATIVE API endpoint URL
+      const productsApiEndpoint = `/api/seller/products?_=${timestamp}`; // Use the correct relative path
       console.log(`Fetching products from: ${productsApiEndpoint}`); // Update log
       
       // Add timeout handling for fetch
@@ -89,8 +87,8 @@ function ProductsListContent() {
         const productsWithColors = await Promise.all(
           productsArray.map(async (product) => {
             try {
-              // Use correct backend URL for fetching colors (also needs /api)
-              const colorsApiEndpoint = `${backendApiUrl}/api/products/${product.id}/colors`;
+              // Use correct RELATIVE backend URL for fetching colors
+              const colorsApiEndpoint = `/api/seller/products/${product.id}/colors`; // Use the correct relative path
               console.log(`Fetching colors for product ${product.id} from: ${colorsApiEndpoint}`); // Update log
               const colorResponse = await authFetch(
                 colorsApiEndpoint // Use the correctly constructed endpoint
@@ -137,16 +135,6 @@ function ProductsListContent() {
           origin: window.location.origin,
           targetUrl: process.env.NEXT_PUBLIC_SELLER_SERVICE_URL || 'http://localhost:8000'
         });
-        // Try a direct request to the health endpoint to test connectivity
-        try {
-          const backendApiUrl = process.env.NEXT_PUBLIC_SELLER_SERVICE_URL || 'http://localhost:8000';
-          const healthCheck = await fetch(`${backendApiUrl}/health`, {
-            mode: 'no-cors' // Try with no-cors mode
-          });
-          console.log("Health check response type:", healthCheck.type);
-        } catch (healthError) {
-          console.error("Health check failed:", healthError);
-        }
       } else if (error.message) {
         errorMessage = error.message;
       }
@@ -185,61 +173,11 @@ function ProductsListContent() {
     
     window.addEventListener('focus', handleFocus);
     
-    // Run CORS diagnostic test on component mount
-    runCorsDiagnostic();
-    
     // Clean up the event listener
     return () => {
       window.removeEventListener('focus', handleFocus);
     };
   }, [fetchProducts]);
-  
-  // Function to diagnose CORS issues
-  const runCorsDiagnostic = async () => {
-    try {
-      const backendApiUrl = process.env.NEXT_PUBLIC_SELLER_SERVICE_URL || 'http://localhost:8000';
-      
-      console.log("=== CORS Diagnostic Test ===");
-      console.log("Frontend origin:", window.location.origin);
-      console.log("Backend API URL:", backendApiUrl);
-      
-      // Test 1: Simple fetch with no special options (browser default)
-      console.log("Test 1: Default fetch");
-      try {
-        const test1 = await fetch(`${backendApiUrl}/health`);
-        console.log("Test 1 result:", test1.status, test1.statusText);
-      } catch (e) {
-        console.error("Test 1 failed:", e.message);
-      }
-      
-      // Test 2: Fetch with no-cors mode
-      console.log("Test 2: no-cors mode");
-      try {
-        const test2 = await fetch(`${backendApiUrl}/health`, {
-          mode: 'no-cors'
-        });
-        console.log("Test 2 result type:", test2.type);
-      } catch (e) {
-        console.error("Test 2 failed:", e.message);
-      }
-      
-      // Test 3: Fetch with explicit CORS mode
-      console.log("Test 3: explicit cors mode");
-      try {
-        const test3 = await fetch(`${backendApiUrl}/health`, {
-          mode: 'cors',
-          credentials: 'include'
-        });
-        console.log("Test 3 result:", test3.status, test3.statusText);
-      } catch (e) {
-        console.error("Test 3 failed:", e.message);
-      }
-      
-      console.log("=== End CORS Diagnostic ===");
-    } catch (error) {
-      console.error("CORS diagnostic failed:", error);
-    }
-  };
   
   // Add another useEffect to refetch when timestamp changes
   useEffect(() => {
@@ -254,10 +192,8 @@ function ProductsListContent() {
     }
 
     try {
-      const backendApiUrl = process.env.NEXT_PUBLIC_SELLER_SERVICE_URL || 'http://localhost:8000'; // Define backend URL
-      
-      // Use correct backend URL for deleting product (add /api)
-      const deleteApiEndpoint = `${backendApiUrl}/api/products/${productId}`;
+      // Use correct RELATIVE backend URL for deleting product
+      const deleteApiEndpoint = `/api/seller/products/${productId}`; // Use the correct relative path
       console.log(`Deleting product ${productId} at: ${deleteApiEndpoint}`); // Update log
       const response = await authFetch(
         deleteApiEndpoint, // Corrected endpoint

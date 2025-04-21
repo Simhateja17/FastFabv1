@@ -168,6 +168,8 @@ export default function EditProductClient({ productId }) {
 
   // Helper function to process product data
   const processProductData = useCallback((product) => {
+      console.log("[processProductData] Received product:", JSON.stringify(product, null, 2)); // Log the received product object
+
       // Update subcategories based on category
       const categoryData = CATEGORIES.find((c) => c.name === product.category);
       setAvailableSubcategories(categoryData ? categoryData.subcategories : []);
@@ -182,7 +184,7 @@ export default function EditProductClient({ productId }) {
       // Fetch color inventories if available
       fetchColorInventories(product.id || productId);
 
-      setFormData({
+      const newFormData = {
         name: product.name || "",
         description: product.description || "",
         mrpPrice: product.mrpPrice ? product.mrpPrice.toString() : "",
@@ -209,7 +211,12 @@ export default function EditProductClient({ productId }) {
           "10XL": 0,
         },
         images: product.images || [],
-      });
+      };
+
+      console.log("[processProductData] Setting formData to:", JSON.stringify(newFormData, null, 2)); // Log the object before setting state
+      setFormData(newFormData);
+      
+      console.log("[processProductData] Setting previewImages to:", product.images || []); // Log images being set
       setPreviewImages(product.images || []);
   }, [fetchColorInventories, productId]);
 
@@ -241,10 +248,17 @@ export default function EditProductClient({ productId }) {
         );
       }
 
-      const product = await response.json();
-      console.log("Fetched product data:", product);
-        processProductData(product);
-        return; // Exit function if successful
+      const data = await response.json();
+      if (!data || !data.product) {
+        console.error("Fetched data is missing the 'product' key:", data);
+        throw new Error("Invalid data structure received from server.");
+      }
+      
+      console.log("Fetched data:", data);
+      console.log("Processing product data:", data.product);
+      
+      processProductData(data.product);
+      return;
       } catch (primaryError) {
         console.warn("Error with primary endpoint, trying direct seller service:", primaryError);
         

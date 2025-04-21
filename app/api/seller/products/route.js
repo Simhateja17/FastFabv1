@@ -1,6 +1,10 @@
 import { NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
 import { auth } from "@/app/lib/auth";
+import { PrismaClient, Prisma } from '@prisma/client'; // Import PrismaClient and Prisma types
+import { v4 as uuidv4 } from 'uuid'; // Import uuid
+
+const prisma = new PrismaClient(); // Initialize PrismaClient
 
 // Server-side error handler functions (direct implementations instead of imports)
 function createErrorResponse(message, status = 500) {
@@ -40,269 +44,141 @@ function withErrorHandler(handler) {
 }
 
 export const GET = withErrorHandler(async (request) => {
+  // 1. Authenticate the request
   const authResult = await auth(request);
   
-  if (!authResult.success) {
-    return createErrorResponse(authResult.message, 401);
+  if (!authResult.success || !authResult.sellerId) {
+    console.error("[GET /api/seller/products] Authentication failed:", authResult.message);
+    return createErrorResponse(authResult.message || "Authentication required", 401);
   }
   
   const sellerId = authResult.sellerId;
+  console.log(`[GET /api/seller/products] Authenticated seller: ${sellerId}`);
   
+  // 3. Fetch products directly using Prisma
   try {
-    const apiUrl = `${process.env.NEXT_PUBLIC_API_URL}/seller/products`;
-    
-    const response = await fetch(apiUrl, {
-      headers: {
-        'Authorization': `Bearer ${authResult.token}`,
-        'Content-Type': 'application/json'
-      }
+    console.log(`Fetching products for sellerId: ${sellerId}`);
+    const products = await prisma.product.findMany({
+        where: {
+            sellerId: sellerId, 
+            isActive: true, // Optionally only fetch active products
+        },
+        include: {
+            colorInventory: {
+                 select: {
+                     color: true,
+                     colorCode: true,
+                     inventory: true // Assuming inventory is stored here
+                 }
+            },
+            // The `images` field (String[]) is automatically included
+            // Add other relations like category, variants if needed
+        },
+        orderBy: {
+            createdAt: 'desc', // Order by creation date, newest first
+        },
     });
-    
-    if (!response.ok) {
-      const contentType = response.headers.get('content-type') || '';
-      
-      // For HTML responses (error pages), return a clean error
-      if (contentType.includes('text/html')) {
-        throw new Error('Server error occurred while fetching products');
-      }
-      
-      // Try to get detailed error message from the response
-      try {
-        const errorData = await response.json();
-        return createErrorResponse(
-          errorData.message || `Error fetching products: ${response.status}`,
-          response.status
-        );
-      } catch (e) {
-        return createErrorResponse(`Error fetching products: ${response.status}`, response.status);
-      }
-    }
-    
-    const data = await response.json();
-    return createSuccessResponse(data);
-  } catch (error) {
-    console.error('Error in seller products API:', error);
-    return createErrorResponse(error.message || 'Failed to fetch products');
+
+    console.log(`Found ${products.length} products for seller ${sellerId}`);
+
+    // Format the response structure if needed, e.g., { products: [...] }
+    return createSuccessResponse({ products: products });
+
+  } catch (dbError) {
+    console.error(`[GET /api/seller/products] Database error fetching products for seller ${sellerId}:`, dbError);
+    return createErrorResponse('Failed to fetch products due to a database error.', 500);
+  } finally {
+     // Disconnect Prisma client
+     await prisma.$disconnect().catch(e => console.error("Error disconnecting Prisma:", e));
   }
 });
 
-// Also handle POST, PUT, DELETE for products
+// Ensure POST handler correctly structures data for Prisma
 export async function POST(request) {
   try {
-    // Get token from cookies or authorization header
-    const cookieStore = cookies();
-    let accessToken = (await cookieStore.get('accessToken'))?.value;
-    
-    if (!accessToken && request.headers.has('authorization')) {
-      const authHeader = request.headers.get('authorization');
-      if (authHeader && authHeader.startsWith('Bearer ')) {
-        accessToken = authHeader.substring(7);
-      }
-    }
-    
-    if (!accessToken) {
-      return createErrorResponse('Authentication required', 401);
-    }
-
-    // Get request body
-    const body = await request.json();
-
-    // Add the authenticated sellerId to the body
+    // 1. Authenticate
     const authResult = await auth(request);
     if (!authResult.success || !authResult.sellerId) {
-      console.error("[POST /api/seller/products] Failed to get sellerId after successful auth check.");
-      return createErrorResponse("Authentication failed or seller ID missing.", 401);
+        return createErrorResponse(authResult.message || "Authentication required", 401);
     }
-    // body.sellerId = authResult.sellerId; // Remove previous attempt
+    const sellerId = authResult.sellerId;
 
-    // *** Structure sellerId according to Prisma connect relation ***
-    body.Seller = {
-      connect: {
-        id: authResult.sellerId
-      }
+    // 2. Get request body
+    const body = await request.json();
+
+    // 3. Generate a unique ID for the new product
+    const newProductId = uuidv4();
+    console.log(`[POST /api/seller/products] Generated new Product ID: ${newProductId}`);
+
+    // 4. Structure data for Prisma create, including nested create for colors
+    const productData = {
+        id: newProductId,
+        name: body.name,
+        description: body.description,
+        mrpPrice: body.mrpPrice,
+        sellingPrice: body.sellingPrice,
+        images: body.images || [],
+        category: body.category,
+        subcategory: body.subcategory,
+        isReturnable: body.isReturnable,
+        sizeQuantities: body.sizeQuantities || {},
+        updatedAt: new Date(),
+        seller: { connect: { id: sellerId } },
+        
+        // Correct syntax for nested create of related colorInventories
+        colorInventory: {
+            create: (body.colorInventories || []).map(inv => ({
+                id: uuidv4(), // Generate unique ID for each ColorInventory
+                // Prisma automatically links productId
+                color: inv.color,
+                colorCode: inv.colorCode,
+                inventory: inv.inventory || {},
+                updatedAt: new Date() // Also set updatedAt for ColorInventory
+            }))
+        }
     };
 
-    // Forward request to seller service
-    const apiUrl = process.env.NEXT_PUBLIC_SELLER_SERVICE_URL;
-    if (!apiUrl) {
-      console.error("[POST /api/seller/products] Error: NEXT_PUBLIC_SELLER_SERVICE_URL environment variable is not set.");
-      return createErrorResponse("Server configuration error: Seller service URL is missing.", 500);
-    }
+    // Remove fields that shouldn't be directly in Product create data
+    delete productData.sellerId; // Handled by connect
+    delete productData.colorInventories; // Handled by nested create
 
-    const endpoint = '/api/products';
-    
-    console.log('Forwarding product creation request to:', `${apiUrl}${endpoint}`);
-    
-    const response = await fetch(`${apiUrl}${endpoint}`, {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${accessToken}`,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify(body)
+    console.log(`Creating product for seller ${sellerId} with ID ${newProductId} and data:`, JSON.stringify(productData));
+
+    // 5. Create product directly using Prisma
+    const newProduct = await prisma.product.create({
+        data: productData,
+        include: { colorInventory: true }
     });
 
-    // Get response data
-    let responseData;
-    try {
-      responseData = await response.json();
-    } catch (e) {
-      console.error('Failed to parse response:', e);
-      return createErrorResponse('Invalid response from server');
-    }
+    console.log(`Successfully created product ${newProduct.id} for seller ${sellerId}`);
+    return createSuccessResponse(newProduct, 201);
 
-    // Handle non-200 responses
-    if (!response.ok) {
-      console.error('Product creation failed:', responseData);
-      return createErrorResponse(
-        responseData.message || `Failed to create product: ${response.status}`,
-        response.status
-      );
-    }
-
-    // Return success response
-    return createSuccessResponse(responseData, 201);
   } catch (error) {
-    console.error('Error in product creation:', error);
-    return createErrorResponse(error.message || 'Failed to create product');
+    console.error('[POST /api/seller/products] Error creating product:', error);
+    // Use the imported Prisma object for the instanceof check
+    if (error instanceof Prisma.PrismaClientValidationError) {
+        console.error("Prisma Validation Error Details:", error.message);
+        return createErrorResponse(`Product creation failed due to invalid data: ${error.message}`, 400);
+    }
+    if (error.code === 'P2002') { // Example: Handle unique constraint violation
+         return createErrorResponse(`Product creation failed: A unique constraint was violated.`, 409); // Conflict
+    }
+    return createErrorResponse(error.message || 'Failed to create product', 500);
+  } finally {
+     await prisma.$disconnect().catch(e => console.error("Error disconnecting Prisma:", e));
   }
 }
 
 export async function PUT(request) {
-  return handleProductRequest(request, 'PUT');
+  // TODO: Refactor PUT to use Prisma directly, similar to POST
+  return createErrorResponse("PUT method not fully implemented yet.", 501); 
 }
 
 export async function DELETE(request) {
-  return handleProductRequest(request, 'DELETE');
+   // TODO: Refactor DELETE to use Prisma directly 
+   // Needs to get product ID from URL or body and verify ownership
+  return createErrorResponse("DELETE method not fully implemented yet.", 501);
 }
 
-async function handleProductRequest(request, method) {
-  try {
-    // Get token from cookies or authorization header
-    const cookieStore = cookies();
-    let accessToken = (await cookieStore.get('accessToken'))?.value;
-    
-    if (!accessToken && request.headers.has('authorization')) {
-      const authHeader = request.headers.get('authorization');
-      if (authHeader && authHeader.startsWith('Bearer ')) {
-        accessToken = authHeader.substring(7);
-      }
-    }
-    
-    if (!accessToken) {
-      return NextResponse.json(
-        { message: 'Authentication required' },
-        { status: 401 }
-      );
-    }
-
-    // Get request body if needed
-    let body = null;
-    if (method !== 'GET' && method !== 'DELETE') {
-      if (request.headers.get('content-type')?.includes('multipart/form-data')) {
-        body = await request.formData();
-      } else {
-        body = await request.json();
-      }
-    }
-
-    // Forward request to seller service
-    const apiUrl = process.env.NEXT_PUBLIC_SELLER_SERVICE_URL;
-    if (!apiUrl) {
-      console.error(`[${method} /api/seller/products] Error: NEXT_PUBLIC_SELLER_SERVICE_URL environment variable is not set.`);
-      return createErrorResponse("Server configuration error: Seller service URL is missing.", 500);
-    }
-    
-    // Similar to GET, try different potential endpoints
-    const endpoints = [
-      '/api/products', 
-      '/api/seller/products',
-      '/api/products/seller'
-    ];
-    
-    let response = null;
-    let foundEndpoint = null;
-    
-    for (const endpoint of endpoints) {
-      console.log(`Trying to ${method} seller products to: ${apiUrl}${endpoint}`);
-      
-      try {
-        response = await fetch(`${apiUrl}${endpoint}`, {
-          method,
-          headers: {
-            'Authorization': `Bearer ${accessToken}`,
-            ...(body && !(body instanceof FormData) ? {
-              'Content-Type': 'application/json'
-            } : {})
-          },
-          body: body instanceof FormData ? body : JSON.stringify(body)
-        });
-        
-        console.log(`Endpoint ${endpoint} response: ${response.status}`);
-        
-        if (response.status !== 404) {
-          foundEndpoint = endpoint;
-          break;
-        }
-      } catch (error) {
-        console.error(`Error trying endpoint ${endpoint}:`, error);
-      }
-    }
-    
-    if (!foundEndpoint) {
-      console.error(`All product endpoints returned 404 for ${method} operation`);
-      return NextResponse.json(
-        { 
-          message: `Failed to ${method.toLowerCase()} product`, 
-          error: 'Product API endpoints not available'
-        },
-        { status: 404 }
-      );
-    }
-    
-    console.log(`Using product endpoint for ${method}: ${foundEndpoint}`);
-    
-    // Process the response
-    if (!response.ok) {
-      let errorMessage = `Failed to ${method.toLowerCase()} product`;
-      try {
-        const errorData = await response.json();
-        console.error(`Product ${method} error data:`, errorData);
-        errorMessage = errorData.message || errorMessage;
-      } catch (e) {
-        try {
-          const errorText = await response.text();
-          console.error(`Error response text for ${method}:`, errorText);
-        } catch (textError) {
-          // Ignore text errors
-        }
-      }
-      
-      return NextResponse.json(
-        { message: errorMessage },
-        { status: response.status }
-      );
-    }
-
-    // Handle successful response
-    try {
-      const data = await response.json();
-      console.log(`Product ${method.toLowerCase()} operation successful:`, data.id || 'unknown ID');
-      
-      return NextResponse.json(data);
-    } catch (e) {
-      console.error(`Failed to parse ${method} response:`, e);
-      return NextResponse.json(
-        { message: 'Operation completed but received invalid response format' },
-        { status: 200 }
-      );
-    }
-    
-  } catch (error) {
-    console.error(`Error in product ${method} operation:`, error);
-    return NextResponse.json(
-      { message: `Failed to ${method.toLowerCase()} product`, error: error.message },
-      { status: 500 }
-    );
-  }
-} 
+// Remove the old handleProductRequest function if it's no longer needed
+// async function handleProductRequest(request, method) { ... } 

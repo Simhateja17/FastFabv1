@@ -1,191 +1,311 @@
 import { NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
+import { PrismaClient, PrismaClientValidationError } from '@prisma/client';
+import { auth } from "@/app/lib/auth";
 
-// Handles GET, PUT, DELETE for a specific product by ID
-export async function GET(request, { params }) {
-  const { id } = params;
-  return handleProductIdRequest(request, 'GET', id);
+// Singleton pattern for PrismaClient
+const globalForPrisma = global;
+
+const prisma = globalForPrisma.prisma || new PrismaClient();
+
+if (process.env.NODE_ENV !== 'production') globalForPrisma.prisma = prisma;
+
+// Reuse error/success helpers (or define them here if not shared)
+function createErrorResponse(message, status = 500) {
+  return NextResponse.json({ error: true, message }, { status });
 }
-
-export async function PUT(request, { params }) {
-  const { id } = params;
-  return handleProductIdRequest(request, 'PUT', id);
+function createSuccessResponse(data, status = 200) {
+  return NextResponse.json({ error: false, ...data }, { status });
 }
-
-export async function DELETE(request, { params }) {
-  const { id } = params;
-  return handleProductIdRequest(request, 'DELETE', id);
-}
-
-async function handleProductIdRequest(request, method, productId) {
-  try {
-    // Get token from cookies or authorization header - updated to use async cookies API
-    const cookieStore = cookies();
-    let accessToken = (await cookieStore.get('accessToken'))?.value;
-    
-    if (!accessToken && request.headers.has('authorization')) {
-      const authHeader = request.headers.get('authorization');
-      if (authHeader && authHeader.startsWith('Bearer ')) {
-        accessToken = authHeader.substring(7);
-        console.log('Using access token from Authorization header');
-      }
-    }
-    
-    if (!accessToken) {
-      console.error('No access token found in cookies or auth header');
-      return NextResponse.json(
-        { message: 'Authentication required. Please login again.' },
-        { status: 401 }
-      );
-    }
-
-    // Get request body if needed
-    let body = null;
-    if (method !== 'GET' && method !== 'DELETE') {
-      if (request.headers.get('content-type')?.includes('multipart/form-data')) {
-        body = await request.formData();
-      } else {
-        body = await request.json();
-      }
-    }
-
-    // Forward request to seller service
-    const apiUrl = process.env.SELLER_SERVICE_URL || 'http://localhost:8000';
-    const targetEndpoint = `/api/products/${productId}`; // Correct endpoint on the seller service
-
-    console.log(`Forwarding ${method} request for product ${productId} to: ${apiUrl}${targetEndpoint}`);
-    
-    let response = null;
+function withErrorHandler(handler) {
+  return async function(req, context) {
     try {
-      response = await fetch(`${apiUrl}${targetEndpoint}`, {
-        method,
-        headers: {
-          'Authorization': `Bearer ${accessToken}`,
-          ...(body && !(body instanceof FormData) ? {
-            'Content-Type': 'application/json'
-          } : {})
-        },
-        body: method !== 'GET' && method !== 'DELETE' ? 
-          (body instanceof FormData ? body : JSON.stringify(body)) : 
-          undefined
-      });
-
-      console.log(`Seller service response status: ${response.status}`);
-      // Log content type for debugging
-      const contentType = response.headers.get('content-type') || 'unknown';
-      console.log(`Seller service response content type: ${contentType}`);
-
-      if (!response) {
-        throw new Error('No response received from seller service');
-      }
-
+      return await handler(req, context);
     } catch (error) {
-      console.error(`Error forwarding request to ${apiUrl}${targetEndpoint}:`, error);
-      return NextResponse.json(
-        { message: `Error connecting to seller service`, error: error.message },
-        { status: 502 } // Bad Gateway
-      );
-    }
-    
-    // Process the response
-    if (!response.ok) {
-      let errorMessage = `Failed to ${method.toLowerCase()} product via seller service`;
-      let errorDetails = null;
-      const contentType = response.headers.get('content-type') || 'unknown';
-      
-      // Check if response is HTML instead of JSON
-      if (contentType.includes('text/html')) {
-        const htmlContent = await response.text();
-        console.error(`Received HTML error page from seller service:`, htmlContent.substring(0, 200) + '...');
-        
-        return NextResponse.json(
-          { 
-            message: "Server returned an HTML error page", 
-            details: { 
-              contentType,
-              statusCode: response.status,
-              preview: htmlContent.substring(0, 200) + '...'
-            }
-          },
-          { status: 502 } // Bad Gateway
-        );
-      }
-      
-      try {
-        // Try to parse JSON error first
-        errorDetails = await response.json();
-        console.error(`Seller service error data (${response.status}):`, errorDetails);
-        errorMessage = errorDetails.message || errorMessage;
-      } catch (e) {
-        // If not JSON, try to get text
-        try {
-          const errorText = await response.text();
-          console.error(`Seller service error text (${response.status}):`, errorText);
-          // Use text as details if available and not too long
-          if (errorText && errorText.length < 500) {
-             errorDetails = { 
-               errorText,
-               contentType,
-               statusCode: response.status
-             };
-          }
-        } catch (textError) {
-          console.error('Failed to parse error response as JSON or text');
-        }
-      }
-      
-      return NextResponse.json(
-        { message: errorMessage, details: errorDetails },
-        { status: response.status } // Use the status code from the seller service
-      );
-    }
-
-    // Handle successful response
-    try {
-      const contentType = response.headers.get('content-type') || 'unknown';
-      
-      // Check if successful response is not JSON
-      if (!contentType.includes('application/json')) {
-        console.warn(`Unexpected content type in successful response: ${contentType}`);
-      }
-      
-      const data = await response.json();
-      console.log(`Product ${method.toLowerCase()} operation successful for ID ${productId}`);
-      
-      return NextResponse.json(data);
-    } catch (e) {
-      // For DELETE operations, an empty 2xx response (like 204 No Content) is often successful
-      // Check if the status is successful (2xx) before treating empty body as error
-      if (method === 'DELETE' && response.status >= 200 && response.status < 300) {
-        console.log(`Product DELETE operation successful for ID ${productId} with status ${response.status}`);
-        // Return a standard success response as the body might be empty
-        return NextResponse.json({ message: "Product deleted successfully", success: true }); 
-      }
-      
-      const contentType = response.headers.get('content-type') || 'unknown';
-      console.error(`Failed to parse successful ${method} response:`, e, `Content-Type: ${contentType}`);
-      
-      try {
-        const text = await response.text();
-        console.log(`Response body preview: ${text.substring(0, 200)}`);
-      } catch (textError) {
-        console.log('Could not read response text');
-      }
-      
+      console.error('API Error in [id] route:', error);
       return NextResponse.json(
         { 
-          message: 'Operation completed but received invalid response format from seller service',
-          details: { contentType, status: response.status }
+          error: true, 
+          message: error.message || 'An unexpected error occurred',
+          stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
         },
-        { status: 502 } // Bad Gateway, as the downstream service sent unexpected success response
+        { status: error.status || 500 }
       );
     }
+  };
+}
+
+// GET handler for a specific product
+export const GET = withErrorHandler(async (request, context) => {
+    let productId = null;
+    let authResult = null;
+    try {
+        // 1. Get Product ID from URL
+        productId = context.params.id;
+        if (!productId) {
+            return createErrorResponse("Product ID is missing in the URL.", 400);
+        }
+        console.log(`[GET /api/seller/products/${productId}] Request received.`);
+
+        // 2. Authenticate the request
+        authResult = await auth(request);
+        if (!authResult.success || !authResult.sellerId) {
+            console.error(`[GET /api/seller/products/${productId}] Authentication failed:`, authResult.message);
+            return createErrorResponse(authResult.message || "Authentication required", 401);
+        }
+        const sellerId = authResult.sellerId;
+        console.log(`[GET /api/seller/products/${productId}] Authenticated seller: ${sellerId}`);
+
+        // 3. Fetch Product with related data
+        console.log(`Fetching product ${productId} for seller ${sellerId}`);
+        const product = await prisma.product.findUnique({
+            where: { 
+                id: productId, 
+                // Optional: Include sellerId here if you only want to find *their* product directly
+                // sellerId: sellerId 
+            },
+            include: {
+                colorInventory: true // Include related color inventory records
+            }
+        });
+
+        // 4. Verify Product Existence and Ownership
+        if (!product) {
+            console.log(`Product ${productId} not found.`);
+            return createErrorResponse("Product not found.", 404);
+        }
+
+        if (product.sellerId !== sellerId) {
+            console.warn(`Seller ${sellerId} attempted to access product ${productId} owned by ${product.sellerId}.`);
+            // Even if found, return 404 to not leak existence of other sellers' products
+            return createErrorResponse("Product not found.", 404); 
+        }
+
+        console.log(`Successfully fetched product ${productId} with related data.`);
+        // 5. Return Product Data
+        return createSuccessResponse({ product }, 200);
+
+    } catch (error) {
+        console.error(`[GET /api/seller/products/${productId}] Error during fetch:`, error);
+        
+        // Handle specific Prisma errors if needed (e.g., P2025 is covered by !product check)
+        if (error.code === 'P2023' && error.message.includes('Malformed ObjectID')) {
+             console.log(`Malformed product ID received: ${productId}`);
+             return createErrorResponse("Invalid product ID format.", 400);
+        }
+        
+        // Default error from withErrorHandler will catch others
+        throw error; // Re-throw for the wrapper to handle
+    } finally {
+        // Consider if disconnect is needed after every request in serverless environments
+        // await prisma.$disconnect().catch(e => console.error("Error disconnecting Prisma:", e));
+    }
+});
+
+// DELETE handler for a specific product
+export const DELETE = withErrorHandler(async (request, context) => {
+    let productId = null;
+    let authResult = null;
+    try {
+        // 1. Get Product ID from URL
+        productId = context.params.id;
+        if (!productId) {
+            return createErrorResponse("Product ID is missing in the URL.", 400);
+        }
+        console.log(`[DELETE /api/seller/products/${productId}] Request received.`);
+
+        // 2. Authenticate the request
+        authResult = await auth(request);
+        if (!authResult.success || !authResult.sellerId) {
+            console.error(`[DELETE /api/seller/products/${productId}] Authentication failed:`, authResult.message);
+            return createErrorResponse(authResult.message || "Authentication required", 401);
+        }
+        const sellerId = authResult.sellerId;
+        console.log(`[DELETE /api/seller/products/${productId}] Authenticated seller: ${sellerId}`);
+
+        // 3. Verify Ownership
+        console.log(`Verifying ownership for product ${productId} and seller ${sellerId}`);
+        const product = await prisma.product.findUnique({
+            where: { id: productId },
+            select: { sellerId: true } // Only select sellerId for ownership check
+        });
+
+        if (!product) {
+            console.log(`Product ${productId} not found.`);
+            return createErrorResponse("Product not found.", 404);
+        }
+
+        if (product.sellerId !== sellerId) {
+            console.warn(`Seller ${sellerId} attempted to delete product ${productId} owned by ${product.sellerId}.`);
+            return createErrorResponse("You do not have permission to delete this product.", 403); // Forbidden
+        }
+
+        // 4. DEACTIVATE the product (Soft Delete)
+        console.log(`Attempting to deactivate product ${productId}`);
+        
+        const deactivatedProduct = await prisma.product.update({
+            where: { id: productId },
+            data: { isActive: false },
+        });
+
+        // Remove old transaction delete:
+        // const deleteResult = await prisma.$transaction(async (tx) => {
+        //     // First, delete related color inventories
+        //     const deletedColors = await tx.colorInventory.deleteMany({
+        //         where: { productId: productId },
+        //     });
+        //     console.log(`Deleted ${deletedColors.count} color inventory records for product ${productId}`);
+        //     // Then, delete the product itself
+        //     const deletedProduct = await tx.product.delete({
+        //         where: { id: productId },
+        //     });
+        //     console.log(`Deleted product ${productId}`);
+        //     return deletedProduct; 
+        // });
+
+        console.log(`Successfully deactivated product ${productId}`);
+        // Return success message indicating deactivation
+        return createSuccessResponse({ 
+            message: "Product deactivated successfully",
+            deactivated: true // Add flag for frontend if needed
+         }, 200);
     
   } catch (error) {
-    console.error(`Unhandled error in product ${method} operation for ID ${productId}:`, error);
-    return NextResponse.json(
-      { message: `Internal server error while processing product ${method}`, error: error.message, stack: error.stack },
-      { status: 500 }
-    );
-  }
-} 
+        console.error(`[DELETE /api/seller/products/${productId}] Error during deactivation:`, error);
+        
+        // Handle potential errors during update
+        if (error.code === 'P2025') { // Record to update not found
+             console.log(`Product ${productId} not found during deactivation attempt.`);
+             return createErrorResponse("Product not found.", 404);
+        } 
+        // Default error from withErrorHandler will catch others
+        throw error; // Re-throw for the wrapper to handle
+    } finally {
+        await prisma.$disconnect().catch(e => console.error("Error disconnecting Prisma:", e));
+    }
+});
+
+// PUT handler for updating a specific product
+export const PUT = withErrorHandler(async (request, context) => {
+    let productId = null;
+    let authResult = null;
+    try {
+        // 1. Get Product ID from URL
+        productId = context.params.id;
+        if (!productId) {
+            return createErrorResponse("Product ID is missing in the URL.", 400);
+        }
+        console.log(`[PUT /api/seller/products/${productId}] Request received.`);
+
+        // 2. Authenticate the request
+        authResult = await auth(request);
+        if (!authResult.success || !authResult.sellerId) {
+            console.error(`[PUT /api/seller/products/${productId}] Authentication failed:`, authResult.message);
+            return createErrorResponse(authResult.message || "Authentication required", 401);
+        }
+        const sellerId = authResult.sellerId;
+        console.log(`[PUT /api/seller/products/${productId}] Authenticated seller: ${sellerId}`);
+
+        // 3. Get Update Data from Request Body
+        const updateData = await request.json();
+        console.log(`[PUT /api/seller/products/${productId}] Received update data:`, JSON.stringify(updateData).substring(0, 500) + '...'); // Log snippet
+
+        // Basic validation (can be enhanced)
+        if (!updateData || typeof updateData !== 'object') {
+            return createErrorResponse("Invalid update data provided.", 400);
+        }
+        if (!updateData.name || !updateData.category || !updateData.subcategory) {
+             return createErrorResponse("Missing required fields (name, category, subcategory).", 400);
+        }
+        
+        // Separate color inventory data
+        const { colorInventories, ...productUpdateData } = updateData;
+
+        // Prepare color inventory data for nested write
+        const colorInventoryCreateData = (colorInventories || []).map(ci => ({
+            color: ci.color,
+            colorCode: ci.colorCode || '', 
+            inventory: ci.inventory || {} 
+         }));
+         console.log(`[PUT /api/seller/products/${productId}] Prepared color inventory create data:`, JSON.stringify(colorInventoryCreateData).substring(0, 300) + '...');
+
+        // 4. Verify Ownership
+        console.log(`[PUT /api/seller/products/${productId}] Verifying ownership...`);
+        const existingProduct = await prisma.product.findUnique({
+            where: { id: productId },
+            select: { sellerId: true } // Only need sellerId for check
+        });
+
+        if (!existingProduct) {
+            console.log(`[PUT /api/seller/products/${productId}] Product not found.`);
+            return createErrorResponse("Product not found.", 404);
+        }
+
+        if (existingProduct.sellerId !== sellerId) {
+            console.warn(`[PUT /api/seller/products/${productId}] Seller ${sellerId} attempted to update product owned by ${existingProduct.sellerId}.`);
+            return createErrorResponse("You do not have permission to update this product.", 403);
+        }
+
+        // 5. Perform Update within a Transaction using Nested Write
+        console.log(`[PUT /api/seller/products/${productId}] Starting update transaction with nested write...`);
+        const updatedProduct = await prisma.$transaction(async (tx) => {
+            const productResult = await tx.product.update({
+                where: { id: productId },
+                data: {
+                    // Explicitly list ONLY the fields to update on Product
+                    name: productUpdateData.name,
+                    description: productUpdateData.description,
+                    mrpPrice: productUpdateData.mrpPrice, 
+                    sellingPrice: productUpdateData.sellingPrice,
+                    category: productUpdateData.category,
+                    subcategory: productUpdateData.subcategory,
+                    isReturnable: productUpdateData.isReturnable,
+                    images: productUpdateData.images,
+                    sizeQuantities: productUpdateData.sizeQuantities || {},
+                    // Ensure updatedAt is handled automatically by Prisma (@updatedAt)
+                    
+                    // Nested write for colorInventory remains the same for now:
+                    colorInventory: {
+                        deleteMany: {}, 
+                        create: colorInventoryCreateData 
+                    }
+                },
+                include: { 
+                    colorInventory: true 
+                }
+            });
+            console.log(`[PUT /api/seller/products/${productId}] Product and color inventory update attempted.`);
+            return productResult; 
+        });
+        
+        console.log(`[PUT /api/seller/products/${productId}] Transaction completed successfully.`);
+
+        // No need to fetch again, update returns the included data
+        // const finalProduct = await prisma.product.findUnique(...);
+
+        // 6. Return Success Response
+        return createSuccessResponse({ 
+            message: "Product updated successfully", 
+            product: updatedProduct // Return the result from the update call
+        }, 200);
+    
+  } catch (error) {
+        console.error(`[PUT /api/seller/products/${productId}] Error during update:`, error);
+        // Handle potential Prisma or validation errors
+        if (error.code === 'P2025') { 
+             console.log(`[PUT /api/seller/products/${productId}] Product not found during update/delete operation.`);
+             return createErrorResponse("Product not found or conflict during update.", 404);
+        } 
+        // Use the correctly imported PrismaClientValidationError
+        if (error instanceof PrismaClientValidationError) { 
+            console.warn(`[PUT /api/seller/products/${productId}] Validation error:`, error.message);
+            // Extract a more specific message if possible
+            const specificError = error.message.split('\n').slice(-2)[0]; // Try to get the last meaningful line
+            return createErrorResponse(`Invalid data format: ${specificError || error.message}`, 400);
+        }
+        // Default error from withErrorHandler will catch others
+        throw error; // Re-throw for the wrapper to handle
+    } finally {
+         await prisma.$disconnect().catch(e => console.error("Error disconnecting Prisma:", e));
+    }
+}); 

@@ -1,111 +1,82 @@
 import { NextResponse } from 'next/server';
-import { cookies } from 'next/headers';
+// import { cookies } from 'next/headers'; // Not needed here
+import { PrismaClient } from '@prisma/client';
+import { auth } from "@/app/lib/auth";
 
-async function handleProductColorsRequest(request, productId) {
-  try {
-    // 1. Get Authentication Token from either cookies or Authorization header
-    const cookieStore = cookies();
-    let accessToken = (await cookieStore.get('accessToken'))?.value;
-    
-    // If not in cookies, check headers - important for client-side requests
-    if (!accessToken && request.headers.has('authorization')) {
-      const authHeader = request.headers.get('authorization');
-      if (authHeader && authHeader.startsWith('Bearer ')) {
-        accessToken = authHeader.substring(7);
-        console.log('Using access token from Authorization header');
-      }
-    }
-    
-    // If still no token, try localStorage backup from client
-    if (!accessToken) {
-      console.error('No access token found in cookies or auth header');
-      return NextResponse.json(
-        { message: 'Authentication required. Please login again.' },
-        { status: 401 }
-      );
-    }
+const prisma = new PrismaClient();
 
-    // 2. Forward Request to Seller Service
-    const apiUrl = process.env.SELLER_SERVICE_URL || 'http://localhost:8000';
-    // Correct endpoint on the seller service
-    const targetEndpoint = `/api/products/${productId}/colors`; 
-
-    console.log(`Forwarding GET request for product colors ${productId} to: ${apiUrl}${targetEndpoint}`);
-    
-    let response = null;
-    try {
-      response = await fetch(`${apiUrl}${targetEndpoint}`, {
-        method: 'GET', // Explicitly GET for colors
-        headers: {
-          'Authorization': `Bearer ${accessToken}`,
-          'Content-Type': 'application/json' // Generally good practice
-        }
-      });
-
-      console.log(`Seller service response status for colors: ${response.status}`);
-
-      if (!response) {
-        throw new Error('No response received from seller service for colors');
-      }
-
-    } catch (error) {
-      console.error(`Error forwarding color request to ${apiUrl}${targetEndpoint}:`, error);
-      return NextResponse.json(
-        { message: `Error connecting to seller service for colors`, error: error.message },
-        { status: 502 } // Bad Gateway
-      );
-    }
-    
-    // 3. Process the Response
-    const responseBody = await response.text(); // Read body once
-    
-    if (!response.ok) {
-      let errorMessage = `Failed to fetch product colors via seller service (Status: ${response.status})`;
-      let errorDetails = null;
-      try {
-        // Try to parse JSON error 
-        errorDetails = JSON.parse(responseBody);
-        console.error(`Seller service color error data (${response.status}):`, errorDetails);
-        errorMessage = errorDetails.message || errorMessage;
-      } catch (e) {
-        // If not JSON, use the text body if available
-        console.error(`Seller service color error text (${response.status}):`, responseBody);
-        if (responseBody && responseBody.length < 500) {
-           errorDetails = { errorText: responseBody };
-        }
-      }
-      
-      return NextResponse.json(
-        { message: errorMessage, details: errorDetails },
-        { status: response.status } 
-      );
-    }
-
-    // Handle successful response (expecting JSON)
-    try {
-      const data = JSON.parse(responseBody); 
-      console.log(`Product colors fetch successful for ID ${productId}`);
-      return NextResponse.json(data); // Forward the JSON data
-    } catch (e) {
-      console.error(`Failed to parse successful colors response as JSON:`, e, `Response Body: ${responseBody}`);
-      return NextResponse.json(
-        { message: 'Received invalid response format for colors from seller service' },
-        { status: 502 } 
-      );
-    }
-    
-  } catch (error) {
-    console.error(`Unhandled error fetching colors for product ID ${productId}:`, error);
-    return NextResponse.json(
-      { message: `Internal server error while fetching product colors`, error: error.message },
-      { status: 500 }
-    );
-  }
+// Keep error/success helpers
+function createErrorResponse(message, status = 500) {
+  return NextResponse.json({ error: true, message }, { status });
+}
+function createSuccessResponse(data, status = 200) {
+  return NextResponse.json({ error: false, ...data }, { status });
 }
 
-// Export the GET handler
-export async function GET(request, { params }) {
-  // Extract ID from params
-  const { id } = params;
-  return handleProductColorsRequest(request, id); 
-} 
+// Remove the HOC wrapper function or just don't use it for GET
+// function withErrorHandler(handler) { ... }
+
+// Define and Export the GET handler directly
+export async function GET(request, { params }) { // Use destructured params
+    let productId = null;
+    try {
+        // 1. Get Product ID from URL
+        productId = params.id; // Use destructured params
+        if (!productId) {
+            return createErrorResponse("Product ID is missing in the URL.", 400);
+        }
+        console.log(`[GET /api/seller/products/${productId}/colors] Request received.`);
+
+        // 2. Authenticate the request
+        const authResult = await auth(request);
+        if (!authResult.success) {
+            console.error(`[GET /api/seller/products/${productId}/colors] Authentication failed:`, authResult.message);
+            return createErrorResponse(authResult.message || "Authentication required", 401);
+        }
+
+        // 3. Verify Product Exists (Optional but good practice)
+        const productExists = await prisma.product.findUnique({
+            where: { id: productId },
+            select: { id: true } // Only need to check existence
+        });
+
+        if (!productExists) {
+            console.log(`Product ${productId} not found when fetching colors.`);
+            return createErrorResponse("Product not found.", 404);
+        }
+
+        // 4. Fetch Color Inventories Directly using Prisma
+        console.log(`Fetching color inventories for product ${productId}`);
+        const colorInventories = await prisma.colorInventory.findMany({
+            where: {
+                productId: productId,
+            },
+        });
+
+        console.log(`Found ${colorInventories.length} color inventories for product ${productId}`);
+        return createSuccessResponse({ colorInventories: colorInventories });
+
+    // Move error handling inside the main function
+    } catch (error) {
+      console.error(`API Error in [id]/colors route for product ${productId}:`, error);
+      // Basic error check for Prisma client connection issues
+       if (error.code === 'P1001' || error.code === 'P1017') {
+             return createErrorResponse('Database connection error.', 503);
+       }
+      // Default error response
+      return NextResponse.json(
+        { 
+          error: true, 
+          message: error.message || 'An unexpected error occurred fetching colors',
+          stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
+        },
+        { status: error.status || 500 }
+      );
+    } finally {
+        await prisma.$disconnect().catch(e => console.error("Error disconnecting Prisma:", e));
+    }
+}
+
+// Keep stubs for PUT/DELETE if they exist, wrapped or unwrapped as needed
+// export const PUT = withErrorHandler(...) // Or define directly if needed
+// export const DELETE = withErrorHandler(...) // Or define directly if needed 

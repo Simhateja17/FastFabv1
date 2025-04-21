@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { PrismaClient } from '@prisma/client';
+import jwt from 'jsonwebtoken'; // Import jsonwebtoken
 
 // Create a more reliable Prisma client with reconnection
 let prisma;
@@ -68,6 +69,17 @@ const initPrisma = async () => {
 
 // Initialize Prisma on module load
 initPrisma().catch(e => console.error('Initial Prisma connection failed:', e));
+
+// Load JWT configuration from environment variables
+const JWT_SECRET = process.env.JWT_SECRET;
+const JWT_REFRESH_SECRET = process.env.JWT_REFRESH_SECRET;
+const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || '15m'; // Default access token expiry
+const JWT_REFRESH_EXPIRES_IN = process.env.JWT_REFRESH_EXPIRES_IN || '30d'; // Default refresh token expiry
+
+if (!JWT_SECRET || !JWT_REFRESH_SECRET) {
+    console.error("FATAL ERROR: JWT_SECRET or JWT_REFRESH_SECRET environment variables are not set.");
+    // In a real app, you might want to prevent the server from starting
+}
 
 /**
  * Format 10-digit phone number to E.164 format with +91 prefix
@@ -218,18 +230,50 @@ export async function POST(request) {
     const sellerCheck = await checkSellerExists(phoneNumber);
     console.log('Seller existence check:', sellerCheck);
 
-    // Determine if the seller profile is complete (for existing sellers)
-    const isProfileComplete = sellerCheck.exists ? sellerCheck.isComplete : false;
+    // We need a seller ID to generate tokens
+    if (!sellerCheck.exists || !sellerCheck.sellerId) {
+        // This case should ideally not happen if verifyOTP requires a linked seller,
+        // but handle it defensively. If a new seller needs to be created first,
+        // that logic would go in checkSellerExists or here.
+        // For now, assume checkSellerExists provides sellerId if exists.
+        console.error('OTP verified but no associated seller found or sellerId missing.');
+        return NextResponse.json({
+            success: false,
+            message: 'Authentication error: Seller identity could not be confirmed.',
+            verified: true, // OTP was verified, but login failed
+        }, { status: 500 });
+    }
 
+    const sellerId = sellerCheck.sellerId;
+
+    // Generate JWT Tokens
+    if (!JWT_SECRET || !JWT_REFRESH_SECRET) {
+        console.error("JWT secrets are missing, cannot generate tokens.");
+        return NextResponse.json({ message: 'Internal server configuration error.', success: false }, { status: 500 });
+    }
+
+    const accessTokenPayload = { sellerId: sellerId };
+    const refreshTokenPayload = { sellerId: sellerId }; // Keep payloads simple or add roles etc. if needed
+
+    const accessToken = jwt.sign(accessTokenPayload, JWT_SECRET, { expiresIn: JWT_EXPIRES_IN });
+    const refreshToken = jwt.sign(refreshTokenPayload, JWT_REFRESH_SECRET, { expiresIn: JWT_REFRESH_EXPIRES_IN });
+
+    console.log(`Generated tokens for sellerId: ${sellerId}`);
+
+    // Determine if the seller profile is complete (for existing sellers)
+    const isProfileComplete = sellerCheck.isComplete;
+
+    // Return success, tokens, and seller info
     return NextResponse.json({
       success: true,
-      message: 'OTP verified successfully',
-      verified: true, // Explicitly set verified to true on success
-      isNewSeller: !sellerCheck.exists,
+      message: 'OTP verified successfully. Tokens issued.',
+      verified: true, // OTP was verified
+      accessToken: accessToken, // Add access token
+      refreshToken: refreshToken, // Add refresh token
+      isNewSeller: !sellerCheck.exists, // This seems logically inconsistent if we require sellerId above
       isExistingSeller: sellerCheck.exists,
-      sellerId: sellerCheck.sellerId || null,
+      sellerId: sellerId,
       isProfileComplete: isProfileComplete, // Add completion status
-      // Include any other necessary fields from the original successful response if needed
     }, { status: 200 });
 
   } catch (error) {

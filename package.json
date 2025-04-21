@@ -11,7 +11,10 @@
     "apply-migration": "powershell -ExecutionPolicy Bypass -File scripts/apply_migration_correct.ps1"
   },
   "prisma": {
-    "binaryTargets": ["native", "debian-openssl-3.0.x"]
+    "binaryTargets": [
+      "native",
+      "debian-openssl-3.0.x"
+    ]
   },
   "dependencies": {
     "@prisma/client": "^6.4.1",
@@ -40,6 +43,7 @@
     "zustand": "^5.0.3"
   },
   "devDependencies": {
+    "@types/uuid": "^10.0.0",
     "eslint": "^9.23.0",
     "eslint-config-next": "15.2.4",
     "eslint-plugin-react": "^7.37.4",
