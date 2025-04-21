@@ -76,4 +76,5 @@ jobs:
           app-name: 'FastFab'
           slot-name: 'Production'
           package: .
+          app-settings-json: '[{"name": "SCM_DO_BUILD_DURING_DEPLOYMENT", "value": "false"}]'
           
