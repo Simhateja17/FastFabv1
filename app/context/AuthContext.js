@@ -484,7 +484,7 @@ export function AuthProvider({ children }) {
       // Removed setLoading(true) here, let components manage their own loading states
       // based on the promise resolution if needed. setLoading in AuthContext is for initial load.
 
-      const endpoint = `/api/seller/auth/signin-with-otp`; // Use seller-specific endpoint
+      const endpoint = `/api/auth/signin-with-otp`; // Updated endpoint path
       const body = { phone };
 
       console.log('Attempting OTP sign-in for phone:', phone);
