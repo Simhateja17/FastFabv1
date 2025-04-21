@@ -71,7 +71,11 @@ export function AuthProvider({ children }) {
         // Add a timestamp to prevent caching issues
         const timestamp = new Date().getTime();
         // Try with trailing slash first to handle both router configurations
-        const response = await fetch(`/api/auth/refresh/?_=${timestamp}`, {
+        // Using '/api/seller/auth/refresh/' assuming seller-specific auth routes
+        const refreshEndpoint = `/api/seller/auth/refresh/?_=${timestamp}`;
+        console.log(`Attempting refresh at: ${refreshEndpoint}`);
+
+        const response = await fetch(refreshEndpoint, {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
@@ -89,7 +93,9 @@ export function AuthProvider({ children }) {
         // If 404 error, try alternative URL format without trailing slash
         if (response.status === 404) {
           console.log("Refresh endpoint not found with trailing slash, trying without");
-          const altResponse = await fetch(`/api/auth/refresh?_=${timestamp}`, {
+          const altRefreshEndpoint = `/api/seller/auth/refresh?_=${timestamp}`;
+          console.log(`Attempting refresh at alternative: ${altRefreshEndpoint}`);
+          const altResponse = await fetch(altRefreshEndpoint, {
             method: "POST",
             headers: {
               "Content-Type": "application/json",
@@ -113,16 +119,23 @@ export function AuthProvider({ children }) {
             // Store tokens
             setTokens(data.accessToken, data.refreshToken || refreshToken);
             
+            // Check for seller data in response (might come from refresh now)
             if (data.seller) {
-              setSeller(data.seller);
+                console.log("Setting seller data from refresh response:", data.seller);
+                setSeller(data.seller);
+            } else {
+                 // If seller data isn't in the refresh response, we might need to fetch it separately
+                 // or rely on the initial profile fetch. Let's log this.
+                 console.log("No seller data in refresh response. Profile fetch may be needed.");
             }
 
             return data.accessToken;
           }
           
-          // If alternative also failed, handle error
+          // If alternative also failed, handle error based on its status
           if (!altResponse.ok) {
-            throw new Error(`Failed to refresh token: ${altResponse.status}`);
+            // Re-throw a specific error based on the alternative response
+            throw new Error(`Failed to refresh token (alt URL): ${altResponse.status}`);
           }
         }
         
@@ -153,10 +166,6 @@ export function AuthProvider({ children }) {
           if (response.status === 401) {
             // Token invalid or expired
             throw new Error("Invalid refresh token");
-          } else if (response.status === 404) {
-            // Endpoint not found - this is likely a routing issue
-            console.error("Refresh endpoint not found (404). Check API routes configuration.");
-            throw new Error("Token refresh endpoint not found");
           } else {
             // Other client errors
             throw new Error(errorMessage);
@@ -171,16 +180,20 @@ export function AuthProvider({ children }) {
           throw new Error("Invalid refresh response: missing access token");
         }
         
-        // Store tokens in localStorage for backward compatibility
+        // Store tokens in localStorage
         setTokens(data.accessToken, data.refreshToken || refreshToken);
         
+        // Check for seller data in response
         if (data.seller) {
-          setSeller(data.seller);
+            console.log("Setting seller data from primary refresh response:", data.seller);
+            setSeller(data.seller);
+        } else {
+            console.log("No seller data in primary refresh response.");
         }
 
         return data.accessToken;
       } catch (fetchError) {
-        clearTimeout(timeoutId);
+        clearTimeout(timeoutId); // Ensure timeout is cleared on fetch errors too
         
         // Network errors (abort, network failure) shouldn't clear auth state
         if (fetchError.name === 'AbortError' || fetchError instanceof TypeError) {
@@ -189,7 +202,7 @@ export function AuthProvider({ children }) {
           return getTokens().accessToken;
         }
         
-        throw fetchError; // Re-throw other errors
+        throw fetchError; // Re-throw other errors (like JSON parsing, etc.)
       }
     } catch (error) {
       console.error("Token refresh error:", error);
@@ -197,12 +210,15 @@ export function AuthProvider({ children }) {
       // Only clear auth on specific error conditions that indicate invalid authentication
       if (
         error.message === "No refresh token available" || 
-        error.message === "Invalid refresh token"
+        error.message === "Invalid refresh token" ||
+        error.message.startsWith("Failed to refresh token (alt URL): 401") // Handle 401 from alt URL too
       ) {
+        console.log("Clearing tokens and seller due to refresh error:", error.message);
         clearTokens();
         setSeller(null);
       }
       
+      // Re-throw the error so callers (like authFetch or initializeAuth) know it failed
       throw error;
     }
   };
@@ -210,507 +226,558 @@ export function AuthProvider({ children }) {
   // Create an authenticated fetch function that handles token refresh
   const authFetch = async (url, options = {}) => {
     console.log(`Starting authFetch for: ${url}`);
-    const { accessToken, refreshToken } = getTokens();
+    const initialTokens = getTokens(); // Get tokens at the start
+    let { accessToken, refreshToken } = initialTokens;
     
     console.log(`Auth tokens available: access=${!!accessToken}, refresh=${!!refreshToken}`);
 
-    // Safety check: If this is a seller visibility endpoint and seller is not available, return an error
-    if (url.includes('/seller/visibility') && !seller) {
-      console.error('Cannot perform seller visibility operations: No seller data available');
-      return new Response(JSON.stringify({
-        success: false,
-        message: 'Seller data not available. Please refresh the page or log in again.'
-      }), {
-        status: 400,
-        headers: { 'Content-Type': 'application/json' },
-        ok: false
-      });
-    }
-
-    // Set up headers with access token
+    // Set up headers
     const headers = {
       ...options.headers,
     };
-
     // Only add Content-Type: application/json if we're not sending FormData
     if (!(options.body instanceof FormData)) {
       headers["Content-Type"] = "application/json";
     }
+    // Authorization header will be added within makeRequest
 
-    if (accessToken) {
-      headers.Authorization = `Bearer ${accessToken}`;
-    }
-
-    // Add timeout and retry logic with increased timeout for production
+    // Add timeout logic
     const controller = new AbortController();
-    // Use a longer timeout for production environments
-    const timeoutMs = url.includes('localhost') ? 15000 : 30000;
-    const timeoutId = setTimeout(() => {
-      console.warn(`Request to ${url} timed out after ${timeoutMs}ms`);
-      controller.abort();
-    }, timeoutMs);
-    
-    // Add signal to options if not already provided
-    const requestOptions = {
-      ...options,
-      signal: options.signal || controller.signal
-    };
-    
-    const makeRequest = async (token = accessToken, retryCount = 0) => {
+    const timeoutMs = url.includes('localhost') ? 15000 : 30000; // Use different timeouts
+    let timeoutId; // Define timeoutId here
+
+    const makeRequest = async (currentAccessToken, retryCount = 0) => {
+      // Clear previous timeout if retrying
+      if (timeoutId) clearTimeout(timeoutId);
+      // Set new timeout
+      timeoutId = setTimeout(() => {
+          console.warn(`Request to ${url} timed out after ${timeoutMs}ms (Retry: ${retryCount})`);
+          controller.abort();
+      }, timeoutMs);
+
       try {
         const requestHeaders = { ...headers };
-        if (token) {
-          requestHeaders.Authorization = `Bearer ${token}`;
+        if (currentAccessToken) {
+          requestHeaders.Authorization = `Bearer ${currentAccessToken}`;
         }
         
-        console.log(`Making request to ${url} (retry: ${retryCount})`);
-        
-        // Add connection debugging for production environments
-        if (!url.includes('localhost')) {
-          console.log(`Connection test before fetch: ${new Date().toISOString()}`);
-        }
+        console.log(`Making request to ${url} (Retry: ${retryCount})`);
         
         const response = await fetch(url, {
-          ...requestOptions,
-          headers: requestHeaders,
+          ...options, // Spread original options first
+          headers: requestHeaders, // Override headers
+          signal: controller.signal, // Use the abort controller signal
           credentials: 'include', // Always include cookies
           mode: 'cors' // Explicitly set CORS mode
         });
 
-        // Log response status and content type for debugging
         console.log(`Response: ${response.status} ${response.statusText}`);
-        const contentType = response.headers.get('content-type') || '';
         
-        // Check for auth errors that need handling
+        // Check for 401 Unauthorized
         if (response.status === 401) {
-          console.log("Received 401 Unauthorized, trying to refresh token");
+          console.log("Received 401 Unauthorized.");
           
+          // Only attempt refresh if we haven't already tried (retryCount === 0) and have a refresh token
           if (retryCount === 0 && refreshToken) {
-            // Try to refresh the token and retry the request once
+            console.log("Attempting token refresh...");
             try {
               const newToken = await refreshAccessToken();
               if (newToken) {
-                console.log("Successfully refreshed token, retrying request");
-                clearTimeout(timeoutId);
-                // Retry the request with the new token
-                return makeRequest(newToken, retryCount + 1);
+                console.log("Successfully refreshed token, retrying request.");
+                // Update accessToken for the retry
+                accessToken = newToken; 
+                // Don't clear timeout here, makeRequest will handle it on retry
+                return makeRequest(newToken, retryCount + 1); // Retry with new token
+              } else {
+                // If refreshAccessToken returned null (e.g., due to network error during refresh)
+                console.warn("Refresh attempt returned no new token. Returning original 401 response.");
+                // Fall through to return the original 401 response
               }
             } catch (refreshError) {
-              console.error("Failed to refresh token:", refreshError);
-              // Only clear tokens for specific auth errors
-              if (refreshError.message === "Invalid refresh token" || 
-                  refreshError.message === "No refresh token available") {
-                clearTokens();
-                setSeller(null);
-              }
+              console.error("Failed to refresh token during authFetch:", refreshError);
+              // If refresh failed (e.g., invalid refresh token), the error handler in refreshAccessToken
+              // should have already cleared tokens/seller if necessary.
+              // We should not retry the original request. Fall through to return the 401.
+              console.log("Returning original 401 response after refresh failure.");
             }
+          } else {
+             console.log("Not attempting refresh (already retried or no refresh token). Returning 401 response.");
           }
-        } else if (response.status === 404) {
-          // Don't treat 404 as a fatal error that logs users out
-          console.warn(`Endpoint not found: ${url} - This might be a routing issue`);
-        } else if (response.status >= 500) {
-          // Don't log users out on server errors
-          console.warn(`Server error: ${response.status} when accessing ${url}`);
         }
         
-        return response;
+        // For any response (including 401 if refresh wasn't attempted/failed), clear the timeout
+        clearTimeout(timeoutId);
+        return response; // Return the response (could be 401, 200, etc.)
+
       } catch (error) {
-        // Add more detailed logging for network errors
+        clearTimeout(timeoutId); // Clear timeout on error too
+
+        // Handle network errors specifically
         if (error.name === 'AbortError') {
-          console.warn(`Request aborted/timed out: ${url}`);
+          console.warn(`Request aborted/timed out: ${url} (Retry: ${retryCount})`);
+          // Don't automatically retry timeouts, let the caller handle it if needed.
         } else if (error instanceof TypeError && error.message.includes('Failed to fetch')) {
-          console.warn(`Network error when fetching from ${url}: ${error.message}`);
-          
-          // Log additional information for CORS or connection issues
-          console.error(`Detailed error: ${error.stack || 'No stack trace'}`);
-          
-          // For "0 Network Error" cases which are commonly CORS issues
+          console.warn(`Network error fetching ${url}: ${error.message} (Retry: ${retryCount})`);
+           // Log potential CORS issues
           if (error.message.includes('0') || error.message.toLowerCase().includes('network error')) {
-            console.error("Possible CORS issue or server unreachable");
+            console.error("Hint: This might be a CORS issue or the server might be unreachable.");
           }
+          // Don't clear auth state for network errors.
+        } else {
+           // Log other types of errors
+           console.error(`Unexpected error during fetch to ${url}:`, error);
         }
         
-        // For network errors, retry once and don't log out
-        if ((error.name === 'AbortError' || error instanceof TypeError) && retryCount === 0) {
-          console.warn(`Network error: ${error.message}, retrying...`);
-          await new Promise(resolve => setTimeout(resolve, 1000));
-          return makeRequest(token, retryCount + 1);
-        }
-        
-        // For network errors that might be CORS-related, try one more time with no-cors mode
-        if (error instanceof TypeError && error.message.includes('Failed to fetch') && retryCount === 1) {
-          console.warn(`Possible CORS issue: ${error.message}, trying with no-cors mode...`);
-          
-          // For no-cors mode, we can't access the response content, but can test connectivity
-          try {
-            console.log(`Attempting no-cors mode for ${url}`);
-            const noCorsResponse = await fetch(url, {
-              method: 'GET', // Only GET is allowed with no-cors
-              mode: 'no-cors',
-              credentials: 'include'
-            });
-            
-            console.log(`no-cors response type: ${noCorsResponse.type}`);
-            // We can't actually use this response with no-cors, but if it doesn't throw,
-            // we know we can reach the server. We'll still throw the original error below.
-          } catch (noCorsError) {
-            console.error(`no-cors request also failed: ${noCorsError.message}`);
-          }
-        }
-        
-        // For network errors, don't clear tokens or log users out
-        if (error.name === 'AbortError' || error instanceof TypeError) {
-          console.warn(`Network error: ${error.message}, but maintaining session`);
-        }
-        throw error;
+        // Re-throw the error so the calling code knows the fetch failed
+        throw error; 
       }
     };
 
     try {
-      const response = await makeRequest();
-      clearTimeout(timeoutId);
-      return response;
+      // Make the initial request using the accessToken obtained at the start
+      const response = await makeRequest(accessToken, 0);
+      return response; // Return the final response (could be success, 401, etc.)
     } catch (error) {
-      clearTimeout(timeoutId);
-      console.error("Auth fetch error:", error);
-      // Don't throw errors for network issues
+      // Catch errors from makeRequest (network errors, aborts, etc.)
+      console.error("Auth fetch failed:", url, error.message);
+      // Do not clear tokens on fetch errors.
+      
+      // Return a response-like object for network errors to prevent crashes in callers expecting a response
       if (error.name === 'AbortError' || error instanceof TypeError) {
-        // Return a response-like object that won't trigger token clearing
-        return {
-          ok: false,
-          status: 0,
-          statusText: "Network Error",
-          json: async () => ({ message: "Network error", networkError: true }),
-          text: async () => "Network error",
-        };
+          return {
+              ok: false,
+              status: 0, // Indicate network error
+              statusText: `Network Error: ${error.message}`,
+              json: async () => ({ message: `Network error: ${error.message}`, networkError: true }),
+              text: async () => `Network error: ${error.message}`,
+              headers: new Headers(), // Provide empty headers
+          };
       }
+      
+      // For other unexpected errors caught here, re-throw them
       throw error;
     }
   };
 
   // Initialize auth state on mount
   useEffect(() => {
+    let isMounted = true; // Flag to prevent state updates after unmount
+
     const initializeAuth = async () => {
       try {
-        console.log("[AuthContext] Initializing auth state..."); // Log start
+        console.log("[AuthContext] Initializing auth state...");
         const { accessToken, refreshToken } = getTokens();
         
-        console.log("[AuthContext] Tokens from storage:", { hasAccessToken: !!accessToken, hasRefreshToken: !!refreshToken }); // Log tokens found
+        console.log("[AuthContext] Tokens from storage:", { hasAccessToken: !!accessToken, hasRefreshToken: !!refreshToken });
 
-        if (!accessToken && !refreshToken) {
-          console.log("[AuthContext] No tokens found, auth init complete (no user).");
-          setLoading(false);
+        if (!refreshToken) {
+          // No refresh token means definitely not logged in
+          console.log("[AuthContext] No refresh token found. User is not logged in.");
+          if (isMounted) {
+              setSeller(null); // Ensure seller state is cleared
+              setLoading(false);
+          }
           return;
         }
 
-        // If we have a refresh token but no access token, try to refresh
-        if (!accessToken && refreshToken) {
+        let currentAccessToken = accessToken;
+
+        // If no access token but have refresh token, try refreshing immediately
+        if (!currentAccessToken) {
           console.log("[AuthContext] No access token, attempting refresh...");
           try {
-            await refreshAccessToken();
-             console.log("[AuthContext] Token refresh successful during init.");
-            // After successful refresh, the seller state should be set internally by refreshAccessToken
-            setLoading(false);
-            return;
+            currentAccessToken = await refreshAccessToken(); // This will set seller state if successful and seller data is returned
+             if (currentAccessToken) {
+                 console.log("[AuthContext] Token refresh successful during init.");
+             } else {
+                 console.warn("[AuthContext] Token refresh during init returned no token.");
+                 // If refresh fails but doesn't throw a critical error (e.g., network issue),
+                 // we might still be logged out effectively. Let profile fetch handle it.
+             }
           } catch (refreshError) {
-            console.error("[AuthContext] Failed to refresh token during init:", refreshError);
-            // Don't clear tokens on network errors or non-critical auth issues
-            if (refreshError.message === "No refresh token available" ||
-                refreshError.message === "Invalid refresh token") {
-              clearTokens();
-              setSeller(null);
+            // refreshAccessToken already handles clearing tokens on critical auth errors (401)
+            console.error("[AuthContext] Failed to refresh token during init:", refreshError.message);
+             // If refresh failed critically, seller is already null, loading should stop.
+             if (isMounted) setLoading(false);
+             return; // Stop initialization if refresh fails critically
+          }
+        }
+
+        // If after potential refresh, we still have no access token, we can't proceed
+        if (!currentAccessToken) {
+            console.log("[AuthContext] Still no access token after potential refresh. Cannot fetch profile.");
+            if (isMounted) {
+                // It's possible refresh failed non-critically (network) but left us without a token
+                // Let's ensure state reflects this if refresh didn't already clear it.
+                clearTokens(); 
+                setSeller(null);
+                setLoading(false);
             }
-            setLoading(false);
             return;
-          }
         }
 
-        // Try to get seller profile with current access token
-        try {
-          console.log("[AuthContext] Have access token, attempting to fetch profile...");
-          // --- Make sure this fetch call uses the correct endpoint --- 
-          // It was previously `/api/auth/profile`, let's ensure it's correct
-          const profileEndpoint = '/api/seller/profile'; // Assuming profile is under /api/seller now
-          console.log(`[AuthContext] Fetching profile from: ${profileEndpoint}`);
-          const response = await fetch(profileEndpoint, {
-            headers: {
-              Authorization: `Bearer ${accessToken}`,
-            },
-            credentials: 'include' // Include cookies
-          });
+        // Now, try to fetch the seller profile using the obtained access token
+        console.log("[AuthContext] Have access token, attempting to fetch profile...");
+        // Use the correct seller profile endpoint
+        const profileEndpoint = '/api/seller/profile'; 
+        console.log(`[AuthContext] Fetching profile from: ${profileEndpoint}`);
+        
+        // Use authFetch for profile fetch as it handles potential 401s during this call too
+        const response = await authFetch(profileEndpoint); 
 
-          console.log(`[AuthContext] Profile fetch response status: ${response.status}`); // Log status
+        console.log(`[AuthContext] Profile fetch response status: ${response.status}`);
 
-          if (response.ok) {
-            const sellerData = await response.json();
-            // --- Check the structure of sellerData --- 
-            console.log("[AuthContext] Profile fetch successful, raw data:", JSON.stringify(sellerData));
-            // Ensure we are setting the correct data structure 
-            // The backend /api/seller/profile returns { success: true, data: {...seller details...} }
-            if (sellerData && sellerData.success && sellerData.data) { 
-                console.log("[AuthContext] Setting seller state with data:", JSON.stringify(sellerData.data));
-                setSeller(sellerData.data);
+        if (response.ok) {
+            const profileData = await response.json();
+            console.log("[AuthContext] Profile fetch successful, raw data:", JSON.stringify(profileData));
+            
+            // Assuming backend returns { success: true, data: {...seller details...} }
+            if (profileData && profileData.success && profileData.data) { 
+                console.log("[AuthContext] Setting seller state with profile data:", JSON.stringify(profileData.data));
+                 if (isMounted) setSeller(profileData.data);
             } else {
-                 console.warn("[AuthContext] Profile data received but format is unexpected:", JSON.stringify(sellerData));
-                 setSeller(null); // Set seller to null if data format is wrong
-                 clearTokens(); // Clear tokens if profile data is bad
+                 console.warn("[AuthContext] Profile data received but format is unexpected or success=false:", JSON.stringify(profileData));
+                 // If profile fetch worked (e.g., 200 OK) but data is bad, treat as logged out
+                 if (isMounted) {
+                     clearTokens();
+                     setSeller(null);
+                 }
             }
-          } else if (response.status === 401) {
-             // ... (rest of the 401 / refresh logic - seems okay) ...
-          } else {
-            // Handle other non-OK responses without necessarily logging out
-            console.error(`[AuthContext] Profile fetch failed with status: ${response.status}`);
-            // Consider if tokens should be cleared here or not depending on error type
-             // clearTokens(); 
-             // setSeller(null);
-          }
-        } catch (fetchError) {
-            console.error("[AuthContext] Auth profile fetch network/fetch error:", fetchError);
+        } else {
+            // Handle non-OK responses from profile fetch (authFetch might have already refreshed)
+            console.error(`[AuthContext] Profile fetch failed with status: ${response.status}. User might be logged out.`);
+             // If authFetch resulted in a 401 (even after refresh attempt), or other error, clear state.
+             // Also handle network errors returned by authFetch (status 0)
+            if (isMounted && (response.status === 401 || response.status === 0)) {
+                // Tokens likely cleared by refreshAccessToken or this indicates invalid session
+                setSeller(null); // Ensure seller is cleared
+            }
+            // For other errors (e.g., 500), we might keep the tokens temporarily, but seller won't be set.
         }
+
       } catch (error) {
-        console.error("[AuthContext] Auth initialization error:", error);
+        // Catch any unexpected errors during the initialization process
+        console.error("[AuthContext] Unexpected error during auth initialization:", error);
+         if (isMounted) {
+             // Safe default: clear state on unexpected errors
+             clearTokens();
+             setSeller(null);
+         }
       } finally {
         console.log("[AuthContext] Auth initialization finished.");
-        setLoading(false);
+        if (isMounted) setLoading(false);
       }
     };
 
     initializeAuth();
-  }, []); // Keep dependency array empty to run only once on mount
 
-  // Login function
-  const login = async (phone, password, isOtpLogin = false) => {
+    // Cleanup function to prevent setting state on unmounted component
+    return () => {
+        isMounted = false;
+        console.log("[AuthContext] Unmounting, cancelling potential state updates.");
+    };
+  }, []); // Empty dependency array runs only once on mount
+
+  // Login function (Simplified for OTP only)
+  const login = async (phone) => {
     try {
-      setLoading(true);
+      // Removed setLoading(true) here, let components manage their own loading states
+      // based on the promise resolution if needed. setLoading in AuthContext is for initial load.
 
-      // Always use OTP login for sellers now
-      const endpoint = `/api/auth/signin-with-otp`;
+      const endpoint = `/api/seller/auth/signin-with-otp`; // Use seller-specific endpoint
       const body = { phone };
 
-      console.log('Attempting to login with phone:', phone);
+      console.log('Attempting OTP sign-in for phone:', phone);
       const response = await fetch(endpoint, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
         body: JSON.stringify(body),
-        credentials: 'include' // Include cookies in request
+        credentials: 'include'
       });
 
-      console.log('Login response status:', response.status, response.statusText);
+      console.log('Sign-in response status:', response.status, response.statusText);
       const data = await response.json();
-      console.log('Login response:', data.success ? 'Success' : 'Failed');
+      console.log('Sign-in response data:', data);
 
       if (!response.ok) {
-        return { success: false, error: data.message || 'Login failed' };
+        // Throw an error that the caller can catch
+        throw new Error(data.message || `Sign-in failed with status ${response.status}`);
       }
 
-      // Check if we got tokens back
-      if (data.accessToken && data.refreshToken) {
-        // Store in localStorage for backward compatibility
+      // OTP sign-in successful, expect tokens and seller data
+      if (data.accessToken && data.refreshToken && data.seller) {
         setTokens(data.accessToken, data.refreshToken);
-        
-        // Update seller state
-        if (data.seller) {
-          setSeller(data.seller);
-        }
-        
-        return { success: true, seller: data.seller };
+        setSeller(data.seller); // Update seller state
+        console.log("Sign-in successful, tokens stored, seller state updated.");
+        return { success: true, seller: data.seller }; // Return success and seller data
       } else {
-        console.error('Missing tokens in login response');
-        return { success: false, error: 'Invalid server response' };
+        console.error('Missing tokens or seller data in sign-in response:', data);
+        throw new Error('Invalid server response during sign-in');
       }
     } catch (error) {
-      console.error("Login error:", error);
-      return { success: false, error: error.message || 'Something went wrong' };
-    } finally {
-      setLoading(false);
+      console.error("Sign-in error:", error);
+      // Re-throw the error so the calling component knows it failed and can show a message
+      throw error;
     }
+    // Removed finally setLoading(false)
   };
 
-  // Register function
+  // Register function (Assuming this is now handled by OTP flow or separate process)
+  // If direct registration with phone/password is still needed, uncomment and update endpoint.
+  /*
   const register = async (phone, password) => {
     try {
-      setLoading(true);
-      const response = await fetch(`/api/auth/signup`, {
+      // setLoading(true); // Manage loading in component
+      // Update endpoint if needed
+      const response = await fetch(`/api/auth/signup`, { 
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ phone }),
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ phone, password }), // Send password if required
+        credentials: 'include'
       });
-
       const data = await response.json();
-
       if (!response.ok) {
         throw new Error(data.message || "Registration failed");
       }
-
-      setTokens(data.accessToken, data.refreshToken);
-      setSeller(data.seller);
-      return data;
+      // Assuming registration also returns tokens and seller data
+      if (data.accessToken && data.refreshToken && data.seller) {
+         setTokens(data.accessToken, data.refreshToken);
+         setSeller(data.seller);
+         return { success: true, seller: data.seller };
+      } else {
+         throw new Error("Invalid registration response from server");
+      }
     } catch (error) {
       console.error("Registration error:", error);
-      throw error;
+      throw error; // Re-throw
     } finally {
-      setLoading(false);
+      // setLoading(false);
     }
   };
+  */
 
   // Logout function
   const logout = async () => {
+    console.log("Attempting logout...");
     try {
-      await authFetch(`/api/auth/logout`, { method: "POST" });
+      // Call the logout endpoint using authFetch to ensure token is sent
+      // Use seller-specific endpoint
+      const response = await authFetch(`/api/seller/auth/logout`, { method: "POST" }); 
+      console.log("Logout API call status:", response.status);
+      if (!response.ok && response.status !== 401) {
+         // Log errors unless it's 401 (meaning already logged out server-side)
+         console.warn(`Logout API call failed with status: ${response.status}`);
+         try {
+             const errorData = await response.json();
+             console.warn("Logout error data:", errorData);
+         } catch (e) {
+             console.warn("Could not parse logout error response.");
+         }
+      }
     } catch (error) {
-      console.error("Logout error:", error);
+      // Catch network errors from authFetch
+      console.error("Error during logout API call:", error);
     } finally {
+      // Always clear local state regardless of API call success/failure
+      console.log("Clearing local tokens and seller state.");
       clearTokens();
       setSeller(null);
+      // Optionally: redirect or update UI after state is cleared
+      // window.location.href = '/login'; // Example redirect
     }
   };
 
   // Update seller details
-  const updateSellerDetails = async (sellerId, details) => {
+  const updateSellerDetails = async (details) => {
+     if (!seller || !seller._id) {
+         console.error("Cannot update details: Seller ID is missing.");
+         throw new Error("Seller not available for update.");
+     }
+     const sellerId = seller._id; // Get ID from current seller state
+     console.log(`Attempting to update details for seller ID: ${sellerId}`);
     try {
-      const response = await authFetch(`/api/auth/${sellerId}/details`, {
+      // Use seller-specific endpoint, ensure it matches your API route structure
+      // Example: /api/seller/profile or /api/seller/{sellerId}/details
+      const response = await authFetch(`/api/seller/profile`, { // Assuming PATCH to profile updates details
         method: "PATCH",
         body: JSON.stringify(details),
       });
 
       if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.message || "Failed to update seller details");
+        let errorMsg = "Failed to update seller details";
+        try {
+            const errorData = await response.json();
+            errorMsg = errorData.message || errorMsg;
+        } catch (e) { /* Ignore parsing error */ }
+        console.error(`Update details failed: ${response.status} - ${errorMsg}`);
+        throw new Error(errorMsg);
       }
 
       const data = await response.json();
-      setSeller(data.seller);
-      return { success: true, seller: data.seller };
+       // Assuming the PATCH response returns the updated seller object in `data.data`
+       if (data && data.success && data.data) {
+            console.log("Seller details updated successfully. Updating context.", data.data);
+            setSeller(data.data); // Update context with the latest data
+            return { success: true, seller: data.data };
+       } else {
+            console.warn("Update details response format unexpected:", data);
+            // Fetch profile again to ensure consistency if response format is odd
+            await fetchCurrentSellerProfile(); 
+            return { success: false, error: "Update succeeded but response format unexpected." };
+       }
     } catch (error) {
       console.error("Error updating seller details:", error);
-      return { success: false, error: error.message };
+      throw error; // Re-throw error for the caller
     }
   };
 
-  // Send WhatsApp OTP for seller verification
+  // Send WhatsApp OTP for seller verification/login
   const sendSellerOTP = async (phone) => {
+    // Removed setLoading(true)
     try {
-      setLoading(true);
-      
-      // Use the new seller WhatsApp OTP endpoint
+      console.log(`Sending OTP to phone: ${phone}`);
+      // Use the correct seller WhatsApp OTP endpoint
       const response = await fetch(`/api/seller-whatsapp-otp/send`, {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ phoneNumber: phone }),
       });
 
       const data = await response.json();
 
       if (!response.ok) {
-        return { 
-          success: false, 
-          error: data.message || 'Failed to send OTP' 
-        };
+        console.error(`Send OTP failed: ${response.status} - ${data.message}`);
+        throw new Error(data.message || 'Failed to send OTP');
       }
 
+      console.log("Send OTP successful:", data);
+      // Return relevant data to the component
       return { 
         success: true, 
-        expiresAt: data.expiresAt,
-        isExistingSeller: data.isExistingSeller  
+        expiresAt: data.expiresAt, // Let component handle expiry display
+        isExistingSeller: data.isExistingSeller // Useful for UI logic
       };
     } catch (error) {
       console.error("Send seller OTP error:", error);
-      return { 
-        success: false, 
-        error: error.message || 'Something went wrong' 
-      };
+      throw error; // Re-throw
     } finally {
-      setLoading(false);
+      // Removed setLoading(false)
     }
   };
 
   // Verify WhatsApp OTP for seller
   const verifySellerOTP = async (phone, otpCode) => {
+    // Removed setLoading(true)
     try {
-      setLoading(true);
-      
-      // Use the new seller WhatsApp OTP verification endpoint
+      console.log(`Verifying OTP for phone: ${phone} with code: ${otpCode}`);
+      // Use the correct seller WhatsApp OTP verification endpoint
       const response = await fetch(`/api/seller-whatsapp-otp/verify`, {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ 
-          phoneNumber: phone, 
-          otpCode 
-        }),
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ phoneNumber: phone, otpCode }),
       });
 
       const data = await response.json();
 
       if (!response.ok) {
-        return { 
-          success: false, 
-          error: data.message || 'Failed to verify OTP' 
-        };
+         console.error(`Verify OTP failed: ${response.status} - ${data.message}`);
+        throw new Error(data.message || 'Failed to verify OTP');
       }
 
+      console.log("Verify OTP successful:", data);
+
+      // Handle side effects based on verification result
+      if (data.success && data.accessToken && data.refreshToken && data.seller) {
+          // If verification returns tokens (meaning successful login/registration)
+          console.log("OTP verified, received tokens and seller data. Updating auth state.");
+          setTokens(data.accessToken, data.refreshToken);
+          setSeller(data.seller);
+      } else if (data.success) {
+          // If verification succeeded but didn't necessarily log the user in
+          // (e.g., just verifying phone number during signup)
+          console.log("OTP verification successful, but no tokens received in this step.");
+      }
+
+      // Return all relevant data to the component
       return { 
         success: true,
         isNewSeller: data.isNewSeller,
         isExistingSeller: data.isExistingSeller,
-        sellerId: data.sellerId,
-        isSellerComplete: data.isSellerComplete
+        sellerId: data.sellerId, // Might be useful even if not logged in yet
+        isSellerComplete: data.isSellerComplete, // For profile completion checks
+        // Include tokens/seller if returned, otherwise they'll be undefined
+        accessToken: data.accessToken,
+        refreshToken: data.refreshToken,
+        seller: data.seller 
       };
     } catch (error) {
       console.error("Verify seller OTP error:", error);
-      return { 
-        success: false, 
-        error: error.message || 'Something went wrong' 
-      };
+      throw error; // Re-throw
     } finally {
-      setLoading(false);
+      // Removed setLoading(false)
     }
   };
 
   // Fetch the current seller's profile details from the backend
   const fetchCurrentSellerProfile = async () => {
     console.log("Attempting to fetch current seller profile data...");
-    // Indicate loading state if desired (optional)
-    // setLoading(true); 
+    if (!getTokens().accessToken) {
+        console.warn("Cannot fetch profile: No access token available.");
+        // Optionally clear state here if this situation arises unexpectedly
+        // clearTokens(); setSeller(null);
+        return { success: false, error: "Not authenticated" };
+    }
+    
     try {
-      // Use authFetch to make an authenticated request to the profile endpoint
-      // Ensure this endpoint exists in your Next.js API routes (e.g., app/api/auth/profile/route.js) 
-      // or that your backend service route is correctly proxied/called.
-      const response = await authFetch('/api/auth/profile'); // Assuming this endpoint fetches the logged-in seller's data
+      // Use authFetch for authenticated request to the seller profile endpoint
+      const response = await authFetch('/api/seller/profile'); 
 
       if (!response.ok) {
-        const errorData = await response.json().catch(() => ({ message: "Failed to parse error response" }));
-        console.error("Failed to fetch seller profile:", response.status, errorData.message);
-        // Don't clear seller state on fetch failure, just log the error
-        // Optionally: Show a toast message
-        // toast.error(`Failed to load profile: ${errorData.message}`);
-        return { success: false, error: errorData.message || "Failed to fetch profile" };
+        let errorMsg = "Failed to fetch seller profile";
+         try {
+            // Attempt to parse error only if it's likely JSON
+            if (response.headers.get('content-type')?.includes('application/json')) {
+                const errorData = await response.json();
+                errorMsg = errorData.message || errorMsg;
+            } else {
+                errorMsg = `${errorMsg} (${response.status} ${response.statusText})`;
+            }
+         } catch (e) { 
+             errorMsg = `${errorMsg} (Could not parse error response: ${response.status} ${response.statusText})`;
+         }
+        console.error(`Profile fetch failed: ${response.status} - ${errorMsg}`);
+        
+        // If the error is 401 or network error (0), logout might have happened or session is invalid
+        if (response.status === 401 || response.status === 0) {
+            console.log("Clearing seller state due to profile fetch failure (401 or network error).");
+            setSeller(null); // Don't clear tokens here, authFetch handles refresh/clearing based on refresh token validity
+        }
+        return { success: false, error: errorMsg };
       }
 
+      // Profile fetch was successful (2xx status)
       const data = await response.json();
       
-      if (!data.seller) {
-          console.error("API response missing seller data");
-          return { success: false, error: "Invalid profile data received" };
+      // Expecting { success: true, data: sellerObject }
+      if (data && data.success && data.data) {
+          console.log("Successfully fetched seller profile data, updating context.", data.data);
+          setSeller(data.data); // Update the context state with fresh data
+          return { success: true, seller: data.data };
+      } else {
+           console.error("API response missing seller data or success=false:", data);
+           // If the fetch was OK but data is bad, treat as an error, potentially clear state
+           setSeller(null); // Clear seller if data format is wrong
+           // Don't clear tokens here, maybe it was a temporary server issue returning bad data
+           return { success: false, error: "Invalid profile data received from server" };
       }
-
-      console.log("Successfully fetched seller profile data, updating context.", data.seller);
-      setSeller(data.seller); // Update the context state with fresh data
-      return { success: true, seller: data.seller };
+      
     } catch (error) {
-      console.error("Error fetching seller profile:", error);
-      // Don't clear seller state on fetch failure
-      return { success: false, error: error.message || "An unexpected error occurred" };
-    } finally {
-      // Indicate loading finished if using loading state (optional)
-      // setLoading(false);
+      // Catch errors from authFetch (e.g., network errors re-thrown)
+      console.error("Error during fetchCurrentSellerProfile:", error);
+      // Don't clear state on general fetch errors, could be temporary network issue
+      return { success: false, error: error.message || "An unexpected error occurred while fetching profile" };
     }
   };
 
@@ -718,17 +785,18 @@ export function AuthProvider({ children }) {
     <AuthContext.Provider
       value={{
         seller,
-        setSeller, // Keep setSeller if needed elsewhere, but prefer specific functions
-        loading,
-        login,
+        // Avoid exposing setSeller directly if possible, use specific functions like updateSellerDetails
+        // setSeller, 
+        loading, // Represents initial loading state
+        login, // Simplified OTP-based login/signin trigger
         logout,
-        register,
-        sendSellerOTP,
-        verifySellerOTP,
-        updateSellerDetails,
-        fetchCurrentSellerProfile, // Expose the new function
-        authFetch, // Expose authFetch if needed by components
-        getAccessToken
+        // register, // Include if register function is kept
+        sendSellerOTP, // Function to trigger OTP sending
+        verifySellerOTP, // Function to verify OTP (might log in or just verify)
+        updateSellerDetails, // Function to update seller profile info
+        fetchCurrentSellerProfile, // Function to manually refresh profile data
+        authFetch, // Expose authenticated fetch for custom API calls if needed
+        getAccessToken // Expose ability to get current token (handles refresh)
       }}
     >
       {children}
