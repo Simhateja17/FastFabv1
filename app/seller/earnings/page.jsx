@@ -47,44 +47,36 @@ function EarningsContent() {
         // Construct the backend URL using environment variable or default
         const backendUrl = process.env.NEXT_PUBLIC_SELLER_SERVICE_URL || 'http://localhost:8000/api';
 
-        // Fetch both earnings transactions and stats in parallel
-        const [earningsResponse, statsResponse] = await Promise.all([
-             fetch(`${backendUrl}/seller/earnings?period=${dateRange}`, { // Use 'period' query param
-                 headers: { 'Authorization': `Bearer ${token}` }
-             }),
-             fetch(`${backendUrl}/seller/earnings/stats?period=${dateRange}`, { // Use 'period' query param
-                 headers: { 'Authorization': `Bearer ${token}` }
-             })
-         ]);
+        // Fetch all earnings data from a single endpoint
+         const response = await fetch(`${backendUrl}/seller/earnings?period=${dateRange}`, {
+             headers: { 'Authorization': `Bearer ${token}` }
+         });
 
-        if (!earningsResponse.ok) {
-          throw new Error(`Failed to fetch earnings transactions: ${earningsResponse.status} ${earningsResponse.statusText}`);
-        }
-         if (!statsResponse.ok) {
-          throw new Error(`Failed to fetch earnings stats: ${statsResponse.status} ${statsResponse.statusText}`);
-        }
+        if (!response.ok) {
+           throw new Error(`Failed to fetch earnings data: ${response.status} ${response.statusText}`);
+         }
 
-        const earningsData = await earningsResponse.json();
-        const statsData = await statsResponse.json();
+        const data = await response.json();
 
-        if (!earningsData || typeof earningsData !== 'object' || !statsData || typeof statsData !== 'object') {
-            throw new Error('Invalid response format from API');
-        }
+        if (!data || typeof data !== 'object' || !data.earnings || !data.stats) {
+             throw new Error('Invalid response format from API. Expected { earnings: [], stats: {} }');
+         }
 
-        setEarnings(earningsData.transactions || []); // Assuming transactions are under 'transactions' key
+        setEarnings(data.earnings || []); // Use the 'earnings' key directly
 
         // Safely access stats with fallback
-        if (statsData.stats && typeof statsData.stats === 'object') {
+        const periodStats = data.stats[dateRange]; // Get stats for the correct period
+        if (periodStats && typeof periodStats === 'object') {
           setStats({
-              totalSales: statsData.stats.totalSales || 0,
-              platformFees: statsData.stats.totalCommission || 0, // Map commission to platformFees
-              totalRefunds: statsData.stats.totalRefunds || 0,
-              netEarnings: statsData.stats.netEarnings || 0,
-              availableBalance: statsData.stats.availableBalance || 0,
-              totalPayouts: statsData.stats.totalPayouts || 0
+              totalSales: periodStats.totalSales || 0,
+              platformFees: periodStats.totalCommission || 0, // Map commission to platformFees
+              totalRefunds: periodStats.totalRefunds || 0,
+              netEarnings: periodStats.netEarnings || 0,
+              availableBalance: periodStats.availableBalance || 0,
+              totalPayouts: periodStats.totalPayouts || 0
           });
         } else {
-          // Default stats if not available
+          // Default stats if not available or structure is wrong
           setStats({
             totalSales: 0,
             platformFees: 0,
