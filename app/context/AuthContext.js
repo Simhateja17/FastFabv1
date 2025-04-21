@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, useContext, useState, useEffect } from "react";
+import { createContext, useContext, useState, useEffect, useCallback } from "react";
 
 
 const AuthContext = createContext();
@@ -223,141 +223,132 @@ export function AuthProvider({ children }) {
     }
   };
 
-  // Create an authenticated fetch function that handles token refresh
-  const authFetch = async (url, options = {}) => {
-    console.log(`Starting authFetch for: ${url}`);
-    const initialTokens = getTokens(); // Get tokens at the start
-    let { accessToken, refreshToken } = initialTokens;
+  // Wrap authFetch in useCallback
+  const authFetch = useCallback(async (url, options = {}) => {
+    let accessToken = localStorage.getItem("accessToken");
     
-    console.log(`Auth tokens available: access=${!!accessToken}, refresh=${!!refreshToken}`);
+    console.log(`[AuthFetch] Requesting: ${url}, Method: ${options.method || 'GET'}`);
+    console.log(`[AuthFetch] Initial Access Token available: ${!!accessToken}`);
 
-    // Set up headers
-    const headers = {
-      ...options.headers,
-    };
-    // Only add Content-Type: application/json if we're not sending FormData
-    if (!(options.body instanceof FormData)) {
-      headers["Content-Type"] = "application/json";
-    }
-    // Authorization header will be added within makeRequest
-
-    // Add timeout logic
-    const controller = new AbortController();
-    const timeoutMs = url.includes('localhost') ? 15000 : 30000; // Use different timeouts
-    let timeoutId; // Define timeoutId here
-
-    const makeRequest = async (currentAccessToken, retryCount = 0) => {
-      // Clear previous timeout if retrying
-      if (timeoutId) clearTimeout(timeoutId);
-      // Set new timeout
-      timeoutId = setTimeout(() => {
-          console.warn(`Request to ${url} timed out after ${timeoutMs}ms (Retry: ${retryCount})`);
-          controller.abort();
-      }, timeoutMs);
+    // Helper function to attempt refresh
+    const attemptRefresh = async () => {
+      console.log("[AuthFetch] Attempting token refresh...");
+      const refreshToken = localStorage.getItem("refreshToken");
+      if (!refreshToken) {
+        console.log("[AuthFetch] No refresh token found.");
+        logout();
+        throw new Error("Authentication required. Please login again.");
+      }
 
       try {
-        const requestHeaders = { ...headers };
-        if (currentAccessToken) {
-          requestHeaders.Authorization = `Bearer ${currentAccessToken}`;
-        }
-        
-        console.log(`Making request to ${url} (Retry: ${retryCount})`);
-        
-        const response = await fetch(url, {
-          ...options, // Spread original options first
-          headers: requestHeaders, // Override headers
-          signal: controller.signal, // Use the abort controller signal
-          credentials: 'include', // Always include cookies
-          mode: 'cors' // Explicitly set CORS mode
+        // Use a direct fetch for refresh to avoid circular dependency
+        const refreshResponse = await fetch("/api/auth/refresh", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ refreshToken }),
         });
-
-        console.log(`Response: ${response.status} ${response.statusText}`);
         
-        // Check for 401 Unauthorized
-        if (response.status === 401) {
-          console.log("Received 401 Unauthorized.");
-          
-          // Only attempt refresh if we haven't already tried (retryCount === 0) and have a refresh token
-          if (retryCount === 0 && refreshToken) {
-            console.log("Attempting token refresh...");
-            try {
-              const newToken = await refreshAccessToken();
-              if (newToken) {
-                console.log("Successfully refreshed token, retrying request.");
-                // Update accessToken for the retry
-                accessToken = newToken; 
-                // Don't clear timeout here, makeRequest will handle it on retry
-                return makeRequest(newToken, retryCount + 1); // Retry with new token
-              } else {
-                // If refreshAccessToken returned null (e.g., due to network error during refresh)
-                console.warn("Refresh attempt returned no new token. Returning original 401 response.");
-                // Fall through to return the original 401 response
-              }
-            } catch (refreshError) {
-              console.error("Failed to refresh token during authFetch:", refreshError);
-              // If refresh failed (e.g., invalid refresh token), the error handler in refreshAccessToken
-              // should have already cleared tokens/seller if necessary.
-              // We should not retry the original request. Fall through to return the 401.
-              console.log("Returning original 401 response after refresh failure.");
-            }
-          } else {
-             console.log("Not attempting refresh (already retried or no refresh token). Returning 401 response.");
-          }
+        const refreshData = await refreshResponse.json();
+        
+        if (!refreshResponse.ok) {
+          console.error("[AuthFetch] Refresh failed:", refreshData);
+          logout(); 
+          throw new Error(refreshData.message || "Session expired. Please login again.");
         }
         
-        // For any response (including 401 if refresh wasn't attempted/failed), clear the timeout
-        clearTimeout(timeoutId);
-        return response; // Return the response (could be 401, 200, etc.)
-
+        console.log("[AuthFetch] Token refresh successful.");
+        localStorage.setItem("accessToken", refreshData.accessToken);
+        localStorage.setItem("refreshToken", refreshData.refreshToken); // Update refresh token too
+        return refreshData.accessToken;
       } catch (error) {
-        clearTimeout(timeoutId); // Clear timeout on error too
-
-        // Handle network errors specifically
-        if (error.name === 'AbortError') {
-          console.warn(`Request aborted/timed out: ${url} (Retry: ${retryCount})`);
-          // Don't automatically retry timeouts, let the caller handle it if needed.
-        } else if (error instanceof TypeError && error.message.includes('Failed to fetch')) {
-          console.warn(`Network error fetching ${url}: ${error.message} (Retry: ${retryCount})`);
-           // Log potential CORS issues
-          if (error.message.includes('0') || error.message.toLowerCase().includes('network error')) {
-            console.error("Hint: This might be a CORS issue or the server might be unreachable.");
-          }
-          // Don't clear auth state for network errors.
-        } else {
-           // Log other types of errors
-           console.error(`Unexpected error during fetch to ${url}:`, error);
-        }
-        
-        // Re-throw the error so the calling code knows the fetch failed
-        throw error; 
+        console.error("[AuthFetch] Error during token refresh:", error);
+        logout();
+        throw new Error("Failed to refresh session. Please login again.");
       }
     };
 
-    try {
-      // Make the initial request using the accessToken obtained at the start
-      const response = await makeRequest(accessToken, 0);
-      return response; // Return the final response (could be success, 401, etc.)
-    } catch (error) {
-      // Catch errors from makeRequest (network errors, aborts, etc.)
-      console.error("Auth fetch failed:", url, error.message);
-      // Do not clear tokens on fetch errors.
+    // Initial request function
+    const makeRequest = async (token, attempt = 1) => {
+        console.log(`[AuthFetch] Making request (Attempt ${attempt}) with token: ${token ? 'Yes' : 'No'}`);
+      const headers = {
+        ...options.headers,
+        'Authorization': `Bearer ${token}`,
+      };
       
-      // Return a response-like object for network errors to prevent crashes in callers expecting a response
-      if (error.name === 'AbortError' || error instanceof TypeError) {
-          return {
-              ok: false,
-              status: 0, // Indicate network error
-              statusText: `Network Error: ${error.message}`,
-              json: async () => ({ message: `Network error: ${error.message}`, networkError: true }),
-              text: async () => `Network error: ${error.message}`,
-              headers: new Headers(), // Provide empty headers
-          };
+      // Ensure Content-Type is set for relevant methods, but not for FormData
+      if (!options.body || !(options.body instanceof FormData)) {
+        headers['Content-Type'] = headers['Content-Type'] || 'application/json';
+      } else {
+        // If body is FormData, delete Content-Type so browser can set it with boundary
+        delete headers['Content-Type'];
       }
       
-      // For other unexpected errors caught here, re-throw them
-      throw error;
+      console.log(`[AuthFetch] Headers being sent:`, Object.keys(headers));
+      
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 30000); // 30 second timeout
+      
+      try {
+        const response = await fetch(url, {
+          ...options,
+          headers,
+          signal: controller.signal
+        });
+        clearTimeout(timeoutId);
+        console.log(`[AuthFetch] Response status for ${url}: ${response.status}`);
+        return response;
+      } catch (error) {
+        clearTimeout(timeoutId);
+        // Only log as error if it's not an AbortError (timeout)
+        if (error.name !== 'AbortError') {
+            console.error(`[AuthFetch] Fetch error for ${url}:`, error);
+        } else {
+            console.warn(`[AuthFetch] Request timed out for ${url}`);
+        }
+        throw error; // Re-throw the error
+      }
+    };
+
+    // Try initial request
+    let response = await makeRequest(accessToken);
+
+    // If unauthorized (401) or forbidden (403), try refreshing the token
+    if (response.status === 401 || response.status === 403) {
+      console.log(`[AuthFetch] Received ${response.status}, attempting token refresh.`);
+      try {
+        accessToken = await attemptRefresh();
+        // Retry the request with the new token
+        console.log("[AuthFetch] Retrying request with new token.");
+        response = await makeRequest(accessToken, 2); 
+        
+        // Check status of retry
+        if (!response.ok) {
+             console.warn(`[AuthFetch] Retry request failed with status: ${response.status}`);
+             // Handle potential errors after retry (e.g., still 401/403 or other errors)
+             if (response.status === 401 || response.status === 403) {
+                 logout();
+                 throw new Error("Authentication failed after refresh. Please login again.");
+             }
+             // You might want to throw a more specific error based on the retry status
+        }
+        
+      } catch (refreshError) {
+        // If refresh fails, logout() is called within attemptRefresh
+        console.error("[AuthFetch] Refresh attempt failed, propagating error.");
+        throw refreshError; // Re-throw the error from refresh attempt
+      }
     }
-  };
+
+    return response;
+  }, [logout]);
+
+  useEffect(() => {
+    // Add listener or any side effects related to authFetch if needed
+    // Example: maybe log when authFetch function reference changes (though useCallback prevents this)
+    console.log("[AuthContext] AuthFetch function (re)created/referenced."); 
+  }, [authFetch]); // Add authFetch dependency
 
   // Initialize auth state on mount
   useEffect(() => {

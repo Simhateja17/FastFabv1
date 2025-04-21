@@ -203,7 +203,7 @@ export function UserAuthProvider({ children }) {
 
     initializeAuth();
     // Dependencies: fetchUserProfile and updateUserState ensure this runs correctly on change
-  }, [fetchUserProfile, updateUserState]); 
+  }, [user]);
 
   // Login user (simplified - relies on backend setting cookies)
   const login = async (email, password) => {

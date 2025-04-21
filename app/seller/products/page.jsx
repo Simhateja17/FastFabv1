@@ -23,18 +23,18 @@ function ProductsListContent() {
   const router = useRouter();
   const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(true);
-  const { authFetch } = useAuth();
+  const { authFetch, user: seller, isLoading: authLoading } = useAuth();
   // Add timestamp state to force refetch on navigation
   const [refreshTimestamp, setRefreshTimestamp] = useState(Date.now());
 
-  const fetchProducts = useCallback(async () => {
+  const fetchProducts = useCallback(async (page = 1, initial = false) => {
     try {
       setLoading(true);
       // Add cache-busting timestamp to prevent stale data
       const timestamp = Date.now();
       
       // Construct the correct RELATIVE API endpoint URL
-      const productsApiEndpoint = `/api/seller/products?_=${timestamp}`; // Use the correct relative path
+      const productsApiEndpoint = `/api/seller/products?_=${timestamp}&page=${page}`; // Use the correct relative path
       console.log(`Fetching products from: ${productsApiEndpoint}`); // Update log
       
       // Add timeout handling for fetch
@@ -146,45 +146,39 @@ function ProductsListContent() {
   }, [authFetch]);
 
   useEffect(() => {
-    fetchProducts();
-    
-    // Set up an event listener for when focus returns to the window
-    // This will refresh the data when a user comes back from editing a product
-    const handleFocus = () => {
-      // Check if a fetch is already loading before triggering another
-      if (loading) {
-          console.log("Window focused, but fetch already in progress. Skipping refresh.");
-          return;
-      }
-      
-      // Check if there's a flag indicating the product list was updated
-      const productListUpdated = localStorage.getItem('product_list_updated');
-      if (productListUpdated) {
-        console.log("Product list update detected, refreshing products list");
-        // Clear the flag
-        localStorage.removeItem('product_list_updated');
-        // Refresh the products
-        setRefreshTimestamp(Date.now());
-      } else {
-        console.log("Window focused, but no update flag found. Skipping refresh.");
-        // Maybe add a time check here too if still too frequent?
-      }
-    };
-    
-    window.addEventListener('focus', handleFocus);
-    
-    // Clean up the event listener
-    return () => {
-      window.removeEventListener('focus', handleFocus);
-    };
-  }, [fetchProducts]);
-  
-  // Add another useEffect to refetch when timestamp changes
-  useEffect(() => {
-    if (refreshTimestamp) {
-      fetchProducts();
+    if (!authLoading && seller?.id) {
+      // Fetch initial products if not loading and seller exists
+      fetchProducts(1, true); 
     }
-  }, [refreshTimestamp, fetchProducts]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [authLoading, seller?.id]); // Dependencies are authLoading and seller.id
+
+  // Effect to handle polling or refreshing based on localStorage flag
+  useEffect(() => {
+    const handleStorageChange = () => {
+      const lastUpdate = localStorage.getItem('product_list_updated');
+      if (lastUpdate) {
+        console.log('Product list updated flag detected, refreshing...');
+        fetchProducts(1, true); // Refresh from page 1
+        localStorage.removeItem('product_list_updated'); // Clear the flag
+      }
+    };
+
+    window.addEventListener('storage', handleStorageChange);
+
+    // Initial check when component mounts
+    handleStorageChange();
+
+    // Check if loading is complete and then fetch if needed
+    if (!loading && seller?.id) { 
+      // Potentially refetch if needed based on other conditions
+      // fetchProducts(currentPage, true); // Example, adjust logic as needed
+    }
+
+    return () => {
+      window.removeEventListener('storage', handleStorageChange);
+    };
+  }, [loading, fetchProducts, seller?.id]); // Add loading, fetchProducts, and seller.id dependencies
 
   const handleDelete = async (productId) => {
     if (!window.confirm("Are you sure you want to delete this product?")) {

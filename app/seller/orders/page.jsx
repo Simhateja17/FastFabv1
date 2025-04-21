@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
 import { useAuth } from "@/app/context/AuthContext";
 import ProtectedRoute from "@/app/components/ProtectedRoute";
@@ -27,21 +27,8 @@ function OrdersContent() {
   
   const { getAccessToken, user, isLoading: authLoading } = useAuth();
 
-  useEffect(() => {
-    if (authLoading) return;
-    
-    if (!user?.id) {
-      setLoading(false);
-      return;
-    }
-    
-    // Reset pagination when tab changes
-    setPage(1);
-    setOrders([]);
-    fetchOrders(1);
-  }, [user?.id, activeTab, authLoading, fetchOrders]);
-
-  const fetchOrders = async (pageToFetch = page) => {
+  // Wrap fetchOrders in useCallback
+  const fetchOrders = useCallback(async (pageToFetch = page) => {
     try {
       setLoading(true);
       setError(null);
@@ -115,7 +102,7 @@ function OrdersContent() {
       console.error('Error fetching orders:', err);
       setError(err.message);
       // Don't reset orders on error, especially on pagination
-      if (page === 1) {
+      if (pageToFetch === 1) {
         setOrders([]);
         setStats({
           totalOrders: 0,
@@ -130,7 +117,21 @@ function OrdersContent() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [getAccessToken, limit, activeTab, page]);
+
+  useEffect(() => {
+    if (authLoading) return;
+    
+    if (!user?.id) {
+      setLoading(false);
+      return;
+    }
+    
+    // Reset pagination when tab changes
+    setPage(1);
+    setOrders([]);
+    fetchOrders(1);
+  }, [user?.id, activeTab, authLoading, fetchOrders]);
 
   // Load more orders
   const loadMoreOrders = () => {
