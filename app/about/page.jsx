@@ -181,6 +181,8 @@ function AboutUsContent() {
 }
 
 export default function AboutUs() {
+  "use client";
+
   return (
     <Suspense fallback={
       <div className="flex justify-center items-center min-h-screen">

@@ -298,8 +298,8 @@ export async function POST(request) {
       });
       console.log('New refresh token created for user:', userId);
 
-      // Set cookies in response
-      // Create the response first
+      // Set cookies on the response object directly
+      console.log('[Verify OTP] Preparing to set accessToken cookie...');
       const response = NextResponse.json({
         success: true,
         message: 'Login successful',
@@ -308,7 +308,7 @@ export async function POST(request) {
         userId: userId,
       }, { status: 200 });
       
-      // Set cookies on the response object directly
+      console.log('[Verify OTP] accessToken cookie set on response object.');
       response.cookies.set('accessToken', accessToken, {
         httpOnly: true,
         secure: process.env.NODE_ENV !== 'development',
@@ -317,6 +317,7 @@ export async function POST(request) {
         maxAge: require('ms')(ACCESS_TOKEN_EXPIRY) / 1000, // maxAge is in seconds
       });
 
+      console.log('[Verify OTP] Preparing to set refreshToken cookie...');
       response.cookies.set('refreshToken', refreshToken, {
         httpOnly: true,
         secure: process.env.NODE_ENV !== 'development',
@@ -324,9 +325,11 @@ export async function POST(request) {
         path: '/',
         maxAge: require('ms')(REFRESH_TOKEN_EXPIRY) / 1000, // maxAge is in seconds
       });
+      console.log('[Verify OTP] refreshToken cookie set on response object.');
 
       console.log('Access and Refresh tokens set as HttpOnly cookies on response object.');
       
+      console.log('[Verify OTP] Returning response with Set-Cookie headers...');
       return response;
 
     } else {

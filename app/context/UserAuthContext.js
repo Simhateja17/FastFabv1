@@ -8,13 +8,12 @@ const UserAuthContext = createContext();
 export function UserAuthProvider({ children }) {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [authStateChange, setAuthStateChange] = useState(0);
+  // Removed authStateChange as direct state update should trigger re-renders
 
-  // Helper to update both user state and trigger state change
+  // Helper to update user state and persist non-sensitive data
   const updateUserState = useCallback((userData) => {
     console.log("Updating user state to:", userData);
     setUser(userData);
-    setAuthStateChange((prev) => prev + 1); // Increment to force context consumers to re-render
     // Persist user data to localStorage for non-sensitive UI state
     if (userData) {
       localStorage.setItem("userData", JSON.stringify(userData));
@@ -27,7 +26,7 @@ export function UserAuthProvider({ children }) {
   const refreshAccessToken = useCallback(async () => {
     try {
       // No need to get refresh token from localStorage anymore
-      console.log("Attempting token refresh via API (using httpOnly cookie)");
+      console.log("Attempting user token refresh via API (using httpOnly cookie)");
 
       const response = await fetch(USER_ENDPOINTS.REFRESH_TOKEN, {
         method: "POST",
@@ -37,94 +36,87 @@ export function UserAuthProvider({ children }) {
         },
         // IMPORTANT: credentials must be 'include' for cookies to be sent
         credentials: "include", 
+        mode: 'cors'
       });
 
       if (!response.ok) {
          const errorData = await response.json().catch(() => ({})); // Try to parse error
+        const errorMessage = errorData.message || `Token refresh failed: ${response.status}`;
         console.error(
-          "Token refresh failed:",
+          "User token refresh failed:",
           response.status,
-          response.statusText,
-          errorData
+          errorMessage
         );
-        throw new Error(errorData.message || "Failed to refresh token");
+        // Don't clear state here, let authFetch handle it
+        throw new Error(errorMessage);
       }
 
       // Successful refresh implies the backend set a new accessToken cookie
-      console.log("Token refresh API call successful. New access token cookie should be set by backend.");
-      
-      // Optionally, the refresh endpoint *could* return the new expiry or user data if needed
-      // const result = await response.json(); 
-      // console.log("Token refresh response:", result); 
-
+      console.log("User token refresh API call successful. New access token cookie should be set by backend.");
       return true; // Indicate success
 
     } catch (error) {
-      console.error("Token refresh error:", error);
-      // Don't necessarily clear user state here immediately,
-      // let the next authFetch handle the persistent failure.
-      // updateUserState(null); // Avoid immediate logout on refresh failure
+      console.error("User token refresh error:", error);
       throw error; // Re-throw for authFetch to handle
     }
-  }, []); // Removed updateUserState dependency as it's not clearing state here
+  }, []); 
 
   // Create an authenticated fetch function that handles token refresh via cookies
   const userAuthFetch = useCallback(async (url, options = {}) => {
-    // Set up headers (Content-Type is common, others as needed)
-    const headers = {
-      ...options.headers,
-      "Content-Type": "application/json", // Keep for POST/PUT etc.
-    };
-    
-    // REMOVE manual Authorization header - rely on browser sending cookies
-    // if (accessToken) { headers.Authorization = `Bearer ${accessToken}`; }
+     const makeRequest = async (attempt = 1) => {
+        console.log(`UserAuthFetch: Attempt ${attempt} to ${url}`);
+        const response = await fetch(url, {
+          ...options,
+          headers: {
+            ...options.headers,
+             ...(options.body && !(options.body instanceof FormData) && {'Content-Type': 'application/json'}),
+          },
+          credentials: "include", // Crucial: Sends HttpOnly cookies
+          mode: 'cors'
+        });
 
-    try {
-      // First attempt - browser automatically sends cookies
-      console.log(`AuthFetch: Attempting fetch to ${url} (credentials: include)`);
-      const response = await fetch(url, {
-        ...options,
-        headers,
-        // IMPORTANT: credentials must be 'include' for cookies to be sent
-        credentials: "include", 
-      });
-
-      // If unauthorized, try to refresh
-      if (response.status === 401) {
-         console.log(`AuthFetch: Received 401 from ${url}. Attempting token refresh.`);
-        try {
-          // Try to refresh the token via API call
-          await refreshAccessToken();
-          console.log(`AuthFetch: Token refresh successful. Retrying fetch to ${url}.`);
-
-          // Retry the request - browser should now send the new accessToken cookie
-          return fetch(url, {
-            ...options,
-            headers, // Headers remain the same (no manual Bearer token)
-            credentials: "include",
-          });
-        } catch (refreshError) {
-          // If refresh fails, this likely means the refresh token is also invalid/expired
-          console.error(
-            "AuthFetch: Token refresh failed during retry, logging out:",
-            refreshError
-          );
-          // Clear user state ONLY if refresh fails definitively
-          updateUserState(null); 
-          // Optionally, trigger a redirect to login here or let the calling component handle it
-          throw refreshError; // Re-throw the refresh error
+        if (!response.ok) {
+          if (response.status === 401 && attempt === 1) {
+            console.log("UserAuthFetch: Received 401, attempting token refresh...");
+            try {
+              const refreshSuccess = await refreshAccessToken();
+              if (refreshSuccess) {
+                console.log("UserAuthFetch: Token refresh successful, retrying original request...");
+                return await makeRequest(2); // Retry
+              } else {
+                 console.log("UserAuthFetch: Token refresh failed, cannot retry request.");
+                 updateUserState(null); // Clear user state as auth is lost
+                 throw new Error(`Unauthorized (401) - Refresh failed`);
+              }
+            } catch (refreshError) {
+              console.error("UserAuthFetch: Error during token refresh:", refreshError);
+              updateUserState(null); // Clear user state as refresh failed
+              throw new Error(`Unauthorized (401) - Refresh error: ${refreshError.message}`);
+            }
+          } else {
+            // Handle other non-OK responses or 401 on second attempt
+            let errorMessage = `Request failed: ${response.status}`;
+            try {
+               const errorBody = await response.json();
+               errorMessage = errorBody.message || errorMessage;
+            } catch (e) { /* ignore if not json */ }
+            console.error(`UserAuthFetch failed on attempt ${attempt}:`, errorMessage);
+            // Don't clear user state on general server/network errors, only on definitive auth failure (handled above)
+            throw new Error(errorMessage);
+          }
         }
-      }
 
-      // If not 401, return the original response
-      return response;
-
-    } catch (error) {
-       // Catch network errors or other fetch issues
-      console.error(`AuthFetch: Error during fetch to ${url}:`, error);
-      // Don't clear auth state on general network errors
-      throw error;
-    }
+       // Handle successful response
+       const contentType = response.headers.get("content-type");
+       if (contentType && contentType.includes("application/json")) {
+         return await response.json();
+       } else {
+         console.log(`UserAuthFetch: Received non-JSON response (${response.status})`);
+         return { success: true, status: response.status }; // Or return text if needed
+       }
+     };
+     
+     return await makeRequest();
   }, [refreshAccessToken, updateUserState]);
 
   // Function to fetch the user profile (using userAuthFetch)
@@ -132,19 +124,12 @@ export function UserAuthProvider({ children }) {
     try {
       console.log("Fetching user profile using userAuthFetch...");
       // Use userAuthFetch which handles auth and refresh automatically
-      const response = await userAuthFetch(USER_ENDPOINTS.PROFILE, { 
+      const result = await userAuthFetch(USER_ENDPOINTS.PROFILE, { 
         method: "GET" 
       });
 
-      if (!response.ok) {
-        // userAuthFetch handles 401, so other errors are more critical
-        const errorData = await response.json().catch(() => ({}));
-        console.error("Profile fetch failed:", response.status, errorData);
-        throw new Error(errorData.message || `Profile fetch failed: ${response.status}`);
-      }
-
-      const result = await response.json();
-      console.log("User profile fetched successfully:", result);
+      // UserAuthFetch throws on failure, so if we get here, it was successful
+      console.log("User profile fetched successfully (raw result):", result);
       
       // Handle potential nested user object in response
       const userData = result.user || result.data?.user || result.data;
@@ -155,22 +140,22 @@ export function UserAuthProvider({ children }) {
       return userData;
 
     } catch (error) {
-      console.error("Error fetching user profile:", error);
-      // Don't clear state here, let authFetch handle auth errors
-      // updateUserState(null); 
+      console.error("Error fetching user profile (likely auth failure or network issue):", error);
+      // updateUserState(null); // Don't clear state here, authFetch handles auth errors
       throw error; // Re-throw for initializeAuth or component to handle
     }
   }, [userAuthFetch]);
 
   // Initialize auth state on mount
   useEffect(() => {
+    let isMounted = true; // Flag to prevent state updates after unmount
     const initializeAuth = async () => {
-      console.log("Initializing auth state...");
+      console.log("Initializing User Auth State...");
       setLoading(true); // Start loading
       try {
         // Check for persisted non-sensitive user data for quick UI update
         const savedUserData = localStorage.getItem("userData");
-        if (savedUserData) {
+        if (savedUserData && isMounted) {
           try {
             const parsedUserData = JSON.parse(savedUserData);
             console.log("Using saved user data temporarily:", parsedUserData);
@@ -182,47 +167,53 @@ export function UserAuthProvider({ children }) {
         }
 
         // Verify auth status by fetching user profile
-        console.log("Verifying auth by fetching profile...");
-        const userData = await fetchUserProfile();
-        console.log("Auth verified, user profile:", userData);
-        updateUserState(userData); // Update with fresh data
+        console.log("Verifying user auth by fetching profile...");
+        const freshUserData = await fetchUserProfile();
+        console.log("User auth verified, user profile:", freshUserData);
+        if (isMounted) {
+          updateUserState(freshUserData); // Update with fresh data
+        }
 
       } catch (error) {
         // If fetchUserProfile fails (e.g., due to invalid/expired refresh token after retry),
         // userAuthFetch or refreshAccessToken should have already cleared the user state.
-        console.log("Auth initialization failed or user not logged in:", error.message);
-        // Ensure state is cleared if fetchUserProfile failed after potential local storage load
-        if (user !== null) { 
-          updateUserState(null);
+        console.log("User Auth initialization failed or user not logged in:", error.message);
+        if (isMounted) {
+          updateUserState(null); // Ensure state is cleared if fetch failed
         }
       } finally {
-        setLoading(false); // Stop loading
-        console.log("Auth initialization complete.");
+        if (isMounted) {
+           setLoading(false); // Stop loading
+           console.log("User Auth initialization complete.");
+        }
       }
     };
 
     initializeAuth();
+
+    return () => { isMounted = false; }; // Cleanup function
     // Dependencies: fetchUserProfile and updateUserState ensure this runs correctly on change
-  }, [user]);
+  }, [fetchUserProfile, updateUserState]); // Run when these stable functions change (should be only once)
 
   // Login user (simplified - relies on backend setting cookies)
   const login = async (email, password) => {
     try {
       setLoading(true);
-      console.log("Login attempt for:", email);
+      console.log("User login attempt for:", email);
       // Use standard fetch, backend needs to set httpOnly cookies on success
       const response = await fetch(USER_ENDPOINTS.LOGIN, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email, password }),
         credentials: "include", // Send potential existing cookies, backend will overwrite/set new ones
+        mode: 'cors'
       });
 
       const data = await response.json();
-      console.log("Login API response received");
+      console.log("User login API response received");
 
       if (!response.ok) {
-        console.error("Login API call failed:", data);
+        console.error("User login API call failed:", data);
         throw new Error(data.message || "Login failed");
       }
       
@@ -235,18 +226,16 @@ export function UserAuthProvider({ children }) {
         throw new Error("Invalid response format");
       }
 
-      // No need to call setUserTokens - cookies are httpOnly
-      // setUserTokens(accessToken, refreshToken); 
-      
+      // No need to handle tokens client-side
       updateUserState(userData); // Update frontend state
-      console.log("Login successful, user state updated.");
+      console.log("User login successful, user state updated.");
 
       // Set flag for location modal (optional)
       localStorage.setItem("justLoggedIn", "true");
 
       return { success: true, user: userData };
     } catch (error) {
-      console.error("Login error:", error);
+      console.error("User login error:", error);
       // Ensure user state is null on login failure
       updateUserState(null); 
       return { success: false, error: error.message };
@@ -263,11 +252,12 @@ export function UserAuthProvider({ children }) {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(userData),
-        credentials: "include", 
+        credentials: "include", // Important for receiving cookies if backend auto-logins
+        mode: 'cors'
       });
 
       const result = await response.json();
-      console.log("Registration API response received");
+      console.log("User registration API response received");
 
       if (!response.ok) {
         throw new Error(result.message || "Registration failed");
@@ -279,20 +269,18 @@ export function UserAuthProvider({ children }) {
       const loggedIn = result.accessToken || result.tokens?.accessToken || result.data?.tokens?.accessToken; // Check if tokens were returned (indicating auto-login)
 
       if (loggedIn && user) {
-        console.log("Registration successful, user auto-logged in.");
+        console.log("User registration successful, user auto-logged in.");
         updateUserState(user);
         // Set flag for location modal (optional)
         localStorage.setItem("justLoggedIn", "true");
       } else {
-         console.log("Registration successful, user needs to log in separately or backend didn't auto-login.");
+         console.log("User registration successful, user needs to log in separately or backend didn't auto-login.");
          // Don't set user state if not logged in
       }
-      
-      // No need to call setUserTokens
-      
+            
       return { success: true, user: user }; // Return user data if available
     } catch (error) {
-      console.error("Registration error:", error);
+      console.error("User registration error:", error);
       updateUserState(null); // Ensure user state is null on registration failure
       return { success: false, error: error.message };
     } finally {
@@ -300,148 +288,152 @@ export function UserAuthProvider({ children }) {
     }
   };
 
-  // Logout user (relies on backend clearing cookies)
+  // Logout user
   const logout = async () => {
+    setLoading(true);
+    console.log("Logging out user...");
     try {
-      console.log("Logging out user via API call...");
-      // Call backend logout endpoint to invalidate session and clear cookies
+      // Call backend logout endpoint to clear HttpOnly cookies
       await fetch(USER_ENDPOINTS.LOGOUT, {
         method: "POST",
-        credentials: "include", // Send cookies to be cleared
-      }).catch((error) => console.error("Logout API call error (ignoring):", error)); // Log error but proceed
-      
-    } catch (error) {
-      // Should not happen with the catch above, but just in case
-      console.error("Unexpected logout error:", error);
-    } finally {
-      // Clear frontend state regardless of API success
-      updateUserState(null); 
-      console.log("Frontend user state cleared after logout attempt.");
-      
-      // Redirect to home page after logout attempt
-      window.location.href = "/"; 
-    }
-  };
-
-  // Update user profile (using userAuthFetch)
-  const updateUserProfile = async (userData) => {
-     try {
-      // Use userAuthFetch for authenticated request
-      const response = await userAuthFetch(USER_ENDPOINTS.UPDATE_PROFILE, {
-        method: "PUT", // Or PATCH depending on your API design
-        body: JSON.stringify(userData),
+        credentials: "include", // Send existing cookies so backend can identify session
+        mode: 'cors'
       });
-
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.message || "Failed to update profile");
-      }
-
-      const result = await response.json();
-      console.log("Profile update response:", result);
-
-      // Extract updated user data
-      const updatedUserData = result.user || result.data?.user || result.data;
-      if (!updatedUserData) {
-          throw new Error("Invalid profile update response structure");
-      }
-
-      updateUserState(updatedUserData); // Update context state
-
-      return { success: true, user: updatedUserData };
+      console.log("User logout API called.");
     } catch (error) {
-       console.error("Update profile error:", error);
-      return { success: false, error: error.message };
+      console.error("User logout API call error:", error);
+      // Continue with client-side cleanup even if API fails
+    } finally {
+       // Clear local state regardless of API call success
+      updateUserState(null);
+      setLoading(false);
+      console.log("User state cleared.");
+      // Optional: redirect or clear other sensitive frontend state
+      // window.location.href = '/login'; // Example redirect
     }
   };
 
-  // --- WhatsApp OTP Functions (Need Review based on Cookie Auth) ---
-  // These likely need adjustment if the backend OTP endpoints also rely on cookies vs. tokens in body
-
-  const sendWhatsAppOTP = async (phoneNumber) => {
-    console.log("Sending OTP for phone (Auth Context):", phoneNumber);
+  // Update user profile
+  const updateUserProfile = async (profileData) => {
     try {
       setLoading(true);
-      const response = await fetch(USER_ENDPOINTS.PHONE_AUTH_START, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ phone: phoneNumber }),
-         // Check if this endpoint requires credentials (cookies)
-        // credentials: "include", 
+      console.log("Updating user profile with:", profileData);
+      // Use userAuthFetch to handle auth
+      const result = await userAuthFetch(USER_ENDPOINTS.UPDATE_PROFILE, { 
+        method: "PUT",
+        body: JSON.stringify(profileData)
       });
-      const result = await response.json();
-      if (!response.ok) throw new Error(result.message || 'Failed to send OTP');
-      return { success: true, ...result };
+      
+      // userAuthFetch throws on error, so we assume success here
+      console.log("User profile update successful (raw result):", result);
+      const updatedUserData = result.user || result.data?.user || result.data;
+       if (!updatedUserData || typeof updatedUserData !== 'object') {
+         console.error("Invalid user data structure in update profile response:", result);
+         throw new Error("Invalid profile update response structure");
+      }
+      
+      updateUserState(updatedUserData); // Update state with new data
+      return { success: true, user: updatedUserData };
     } catch (error) {
+      console.error("Error updating user profile:", error);
+      // State is likely already cleared if it was an auth error
       return { success: false, error: error.message };
     } finally {
       setLoading(false);
     }
   };
 
+  // Send WhatsApp OTP for user verification/login
+  const sendWhatsAppOTP = async (phoneNumber) => {
+     console.log("Sending User WhatsApp OTP to:", phoneNumber);
+     try {
+      const response = await fetch(USER_ENDPOINTS.PHONE_AUTH_START, { // Use correct user endpoint: PHONE_AUTH_START
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ phone: phoneNumber }),
+        mode: 'cors'
+      });
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.message || 'Failed to send OTP');
+      console.log("Send User OTP result:", result);
+      return { success: true, ...result }; // Pass along expiry etc.
+    } catch (error) {
+      console.error("Send User OTP error:", error);
+      return { success: false, error: error.message };
+    }
+  };
+
+  // Verify WhatsApp OTP for user
   const verifyWhatsAppOTP = async (phoneNumber, otpCode) => {
-    console.log("Verifying OTP for phone (Auth Context):", phoneNumber);
+    console.log("Verifying User OTP for phone:", phoneNumber);
     try {
-      setLoading(true);
-      const response = await fetch(USER_ENDPOINTS.PHONE_AUTH_VERIFY, {
+      const response = await fetch(USER_ENDPOINTS.PHONE_AUTH_VERIFY, { // Use correct user endpoint
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ phone: phoneNumber, code: otpCode }),
         credentials: "include", // Important: To receive set-cookie headers
+        mode: 'cors'
       });
       const result = await response.json();
-      if (!response.ok) throw new Error(result.message || 'Failed to verify OTP');
+      console.log("Verify User OTP response status:", response.status);
+      console.log("Verify User OTP result:", result);
 
-       // If verification is successful and backend logs in user, cookies are set.
-       // Update frontend state based on response.
+      if (!response.ok) {
+        throw new Error(result.message || 'Failed to verify OTP');
+      }
+
+      // If verification is successful and backend logs in user, cookies are set.
       if (result.success && result.verified && !result.isNewUser) {
-         // Attempt to fetch profile to confirm login and get user data
+         // Existing user: Login successful, cookies set by backend.
+         // Fetch profile to update frontend state.
+         console.log("OTP verified for existing user. Fetching profile...");
          try {
-             const userData = await fetchUserProfile();
-             updateUserState(userData);
-             localStorage.setItem("justLoggedIn", "true"); // Set flag if needed
-             console.log("OTP verified, user logged in, profile fetched.");
-             return { success: true, verified: true, isNewUser: false, user: userData };
+           const userData = await fetchUserProfile();
+           updateUserState(userData); // Update user state
+           localStorage.setItem("justLoggedIn", "true"); // Set flag if needed
+           console.log("User OTP verified, logged in, profile fetched.");
+           return { success: true, verified: true, isNewUser: false, user: userData };
          } catch (profileError) {
-             console.error("OTP verified, but failed to fetch profile:", profileError);
-              // User might be logged in (cookies set), but profile fetch failed.
-              // Return success but indicate potential issue.
+             console.error("User OTP verified, but failed to fetch profile:", profileError);
               return { success: true, verified: true, isNewUser: false, user: null, error: 'Failed to fetch profile post-verification' };
          }
       } else if (result.success && result.verified && result.isNewUser) {
-         // Handle new user case - no login, no cookies set yet.
-         console.log("OTP verified, new user detected.");
-         updateUserState(null); // Ensure no stale user state
-         return { success: true, verified: true, isNewUser: true };
+         // New user: Verification successful, not logged in yet.
+         console.log("OTP verified for new user.");
+         return { success: true, verified: true, isNewUser: true, user: null };
       } else {
-          // Handle other verification failure cases
-          updateUserState(null); // Ensure no stale user state
-          return { success: result.success !== undefined ? result.success : false, verified: false, isNewUser: false, message: result.message };
+        // Should not happen if response.ok, but as a fallback
+        throw new Error(result.message || "OTP Verification failed unexpectedly");
       }
     } catch (error) {
-      updateUserState(null); // Ensure no stale user state
-      return { success: false, verified: false, error: error.message };
-    } finally {
-      setLoading(false);
+      console.error("Verify User OTP error:", error);
+      updateUserState(null); // Clear user state on verification failure
+      return { success: false, error: error.message };
     }
   };
 
-  const registerWithPhone = async (userData) => {
-    // ... (Existing implementation - review if USER_ENDPOINTS.REGISTER needs cookies)
-    // This endpoint likely SETS auth cookies on success if auto-login happens
+  // Register user specifically after phone verification
+  const registerWithPhone = async (newUserData) => {
+    // This function assumes OTP was already verified and isNewUser was true
     try {
       setLoading(true);
-      const response = await fetch(USER_ENDPOINTS.REGISTER, { // Assuming REGISTER endpoint is used
+      console.log("Registering user with verified phone:", newUserData.phone);
+      const response = await fetch(USER_ENDPOINTS.REGISTER, { // Use the main register endpoint
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(userData),
+        body: JSON.stringify({
+          ...newUserData, 
+          isPhoneVerified: true // Explicitly set based on flow
+        }),
         credentials: "include", // Important: To receive set-cookie headers if auto-login occurs
+        mode: 'cors'
       });
       const result = await response.json();
+      console.log("Register with phone API response:", result);
+
       if (!response.ok) throw new Error(result.message || 'Registration failed');
 
        // If registration results in login, cookies are set by backend
-       // Update frontend state based on response
       const user = result.user || result.data?.user || result.data;
        const loggedIn = result.accessToken || result.tokens?.accessToken || result.data?.tokens?.accessToken; 
 
@@ -464,24 +456,23 @@ export function UserAuthProvider({ children }) {
     }
   };
 
-  // Value provided to the context consumers
-  const value = {
-    user,
-    loading,
-    authStateChange, // Provide this if components need to react to auth changes explicitly
-    userAuthFetch,
-    login,
-    register,
-    logout,
-    updateUserProfile,
-    sendWhatsAppOTP,
-    verifyWhatsAppOTP,
-    registerWithPhone,
-    // fetchUserProfile, // Expose if needed directly by components
-  };
-
   return (
-    <UserAuthContext.Provider value={value}>{children}</UserAuthContext.Provider>
+    <UserAuthContext.Provider
+      value={{
+        user,
+        loading,
+        login,
+        register,
+        logout,
+        updateUserProfile,
+        sendWhatsAppOTP,
+        verifyWhatsAppOTP,
+        registerWithPhone,
+        userAuthFetch // Expose authFetch if needed by components
+      }}
+    >
+      {children}
+    </UserAuthContext.Provider>
   );
 }
 

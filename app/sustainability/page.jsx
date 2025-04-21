@@ -5,6 +5,7 @@ import { FiChevronRight } from "react-icons/fi";
 import { IoLeafOutline } from "react-icons/io5";
 
 export default function SustainabilityPage() {
+  "use client";
   return (
     <div className="bg-background min-h-screen">
       {/* Hero Section */}

@@ -86,7 +86,11 @@ const ProtectedRoute = ({ children, requireOnboarding = false }) => {
     );
   }
 
-  return isAuthorized ? children : null;
+  // Render children only if authorized, passing the confirmed seller object
+  // Allow children to be a function that receives the seller
+  return isAuthorized ? 
+    (typeof children === 'function' ? children(seller) : children) 
+    : null;
 };
 
 export default ProtectedRoute;

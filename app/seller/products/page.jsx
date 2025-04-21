@@ -14,212 +14,96 @@ import {
   FiTrash2,
   FiImage,
   FiBox,
-  FiChevronRight,
+  FiChevronRight
 } from "react-icons/fi";
 import { PRODUCT_ENDPOINTS } from "@/app/config";
 
 // The actual products list content
-function ProductsListContent() {
+function ProductsListContent({ seller }) {
   const router = useRouter();
   const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(true);
-  const { authFetch, user: seller, isLoading: authLoading } = useAuth();
-  // Add timestamp state to force refetch on navigation
-  const [refreshTimestamp, setRefreshTimestamp] = useState(Date.now());
+  const { authFetch } = useAuth();
 
-  const fetchProducts = useCallback(async (page = 1, initial = false) => {
+  const fetchProducts = useCallback(async (page = 1) => {
+    if (!seller?.id) {
+      console.warn('[ProductsPage:fetchProducts] Called without seller ID. Aborting.');
+      setLoading(false);
+      return;
+    }
+    
+    console.log(`[ProductsPage:fetchProducts] Called for seller ${seller.id}, page ${page}`);
+    setLoading(true);
     try {
-      setLoading(true);
-      // Add cache-busting timestamp to prevent stale data
       const timestamp = Date.now();
+      const productsApiEndpoint = `/api/seller/products?_=${timestamp}&page=${page}`;
+      console.log(`Fetching products from: ${productsApiEndpoint}`);
+
+      const data = await authFetch(productsApiEndpoint);
       
-      // Construct the correct RELATIVE API endpoint URL
-      const productsApiEndpoint = `/api/seller/products?_=${timestamp}&page=${page}`; // Use the correct relative path
-      console.log(`Fetching products from: ${productsApiEndpoint}`); // Update log
-      
-      // Add timeout handling for fetch
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 15000); // 15 second timeout
-      
-      try {
-        // Log additional information for debugging
-        console.log("Origin:", window.location.origin);
-        console.log("Request URL:", productsApiEndpoint);
-        console.log("Request headers:", JSON.stringify({
-          Authorization: "Bearer [token-hidden]",
-          Origin: window.location.origin
-        }));
-        
-        const response = await authFetch(
-          productsApiEndpoint, // Use the correctly constructed endpoint
-          { 
-            signal: controller.signal,
-            headers: {
-              // Explicitly set Origin header
-              "Origin": window.location.origin
-            }
-          }
-        );
-
-        clearTimeout(timeoutId);
-
-        // Check if response is not OK OR if response is undefined/null
-        if (!response || !response.ok) {
-          // Check for HTML responses only if response and headers exist
-          if (response && response.headers) {
-            const contentType = response.headers.get('content-type') || '';
-            if (contentType.includes('text/html')) {
-              throw new Error("Server error occurred. Please try again later.");
-            }
-          }
-          // Provide a more generic error if response is falsy or status details are unavailable
-          const statusText = response ? ` ${response.status} ${response.statusText}` : '';
-          throw new Error(`Failed to fetch products:${statusText}`);
-        }
-
-        const data = await response.json();
-        
-        // Check if the response contains the products array
-        const productsArray = data.products || [];
-        console.log(`Received ${productsArray.length} products`); // Add log
-
-        // Fetch color inventories for each product
-        const productsWithColors = await Promise.all(
-          productsArray.map(async (product) => {
-            try {
-              // Use correct RELATIVE backend URL for fetching colors
-              const colorsApiEndpoint = `/api/seller/products/${product.id}/colors`; // Use the correct relative path
-              console.log(`Fetching colors for product ${product.id} from: ${colorsApiEndpoint}`); // Update log
-              const colorResponse = await authFetch(
-                colorsApiEndpoint // Use the correctly constructed endpoint
-              );
-
-              if (colorResponse.ok) {
-                const colorData = await colorResponse.json();
-                return {
-                  ...product,
-                  colorInventories: colorData.colorInventories || [],
-                };
-              }
-              console.warn(`Failed to fetch colors for product ${product.id}: ${colorResponse.status}`); // Add log
-              return product; // Return product even if colors fail
-            } catch (error) {
-              console.error(
-                `Error fetching colors for product ${product.id}:`,
-                error
-              );
-              return product; // Return product even if colors fail
-            }
-          })
-        );
-
-        setProducts(productsWithColors);
-      } catch (fetchError) {
-        clearTimeout(timeoutId);
-        if (fetchError.name === 'AbortError') {
-          console.error('Request timed out');
-          throw new Error('Request timed out. Please check your network connection and try again.');
-        }
-        throw fetchError;
+      if (!data || !Array.isArray(data.products)) {
+          console.error("Invalid product data received:", data);
+          throw new Error("Received invalid product data from server.");
       }
+
+      console.log(`Received ${data.products.length} products`);
+
+      setProducts(data.products);
 
     } catch (error) {
       console.error("Product fetch error:", error);
-      // Add more detailed error reporting
-      let errorMessage = 'Error fetching products';
-      
-      if (error.message && error.message.includes('Network Error')) {
-        errorMessage = 'Network error occurred. Please check your internet connection or try again later.';
-        console.error("CORS or Network Error Details:", {
-          timestamp: new Date().toISOString(),
-          origin: window.location.origin,
-          targetUrl: process.env.NEXT_PUBLIC_SELLER_SERVICE_URL || 'http://localhost:8000'
-        });
-      } else if (error.message) {
-        errorMessage = error.message;
-      }
-      
-      toast.error(errorMessage);
+      toast.error(`Error fetching products: ${error.message}`);
     } finally {
       setLoading(false);
     }
-  }, [authFetch]);
+  }, [authFetch, seller?.id]);
 
   useEffect(() => {
-    if (!authLoading && seller?.id) {
-      // Fetch initial products if not loading and seller exists
-      fetchProducts(1, true); 
+    console.log(`[ProductsPage Effect] Running. Seller prop ID: ${seller?.id}`);
+    if (seller?.id) {
+      console.log(`[ProductsPage Effect] Valid seller ID (${seller.id}) found, calling fetchProducts.`);
+      fetchProducts(1);
+    } else {
+      console.warn('[ProductsPage Effect] Running but seller prop is missing or invalid.');
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [authLoading, seller?.id]); // Dependencies are authLoading and seller.id
+  }, [seller?.id]);
 
-  // Effect to handle polling or refreshing based on localStorage flag
   useEffect(() => {
     const handleStorageChange = () => {
       const lastUpdate = localStorage.getItem('product_list_updated');
-      if (lastUpdate) {
+      if (lastUpdate && seller?.id) {
         console.log('Product list updated flag detected, refreshing...');
-        fetchProducts(1, true); // Refresh from page 1
-        localStorage.removeItem('product_list_updated'); // Clear the flag
+        fetchProducts(1);
+        localStorage.removeItem('product_list_updated');
       }
     };
-
     window.addEventListener('storage', handleStorageChange);
-
-    // Initial check when component mounts
     handleStorageChange();
-
-    // Check if loading is complete and then fetch if needed
-    if (!loading && seller?.id) { 
-      // Potentially refetch if needed based on other conditions
-      // fetchProducts(currentPage, true); // Example, adjust logic as needed
-    }
-
-    return () => {
-      window.removeEventListener('storage', handleStorageChange);
-    };
-  }, [loading, fetchProducts, seller?.id]); // Add loading, fetchProducts, and seller.id dependencies
+    return () => window.removeEventListener('storage', handleStorageChange);
+  }, [fetchProducts, seller?.id]);
 
   const handleDelete = async (productId) => {
-    if (!window.confirm("Are you sure you want to delete this product?")) {
-      return;
-    }
+     if (!seller?.id) {
+         toast.error("Cannot delete product: Seller information missing.");
+         return;
+     }
+     if (!window.confirm("Are you sure?")) return;
 
-    try {
-      // Use correct RELATIVE backend URL for deleting product
-      const deleteApiEndpoint = `/api/seller/products/${productId}`; // Use the correct relative path
-      console.log(`Deleting product ${productId} at: ${deleteApiEndpoint}`); // Update log
-      const response = await authFetch(
-        deleteApiEndpoint, // Corrected endpoint
-        {
-          method: "DELETE",
+     console.log(`Deleting product ${productId} for seller ${seller.id}`);
+     try {
+        const deleteApiEndpoint = `/api/seller/products/${productId}`;
+        const response = await authFetch(deleteApiEndpoint, { method: "DELETE" });
+        
+        if (response.deactivated) {
+            toast.success("Product deactivated (referenced in orders).");
+        } else {
+            toast.success("Product deleted successfully.");
         }
-      );
-
-      if (!response.ok) {
-        // Try parsing error response
-        let errorMsg = "Failed to delete product";
-        try {
-          const errorData = await response.json();
-          errorMsg = errorData.message || errorMsg;
-        } catch (e) { /* Ignore parsing error */ }
-        throw new Error(errorMsg);
-      }
-
-      // Parse the response to check if it was actually deleted or just deactivated
-      const result = await response.json();
-      
-      if (result.deactivated) {
-        toast.success("Product has been deactivated because it is referenced in orders");
-      } else {
-        toast.success("Product deleted successfully");
-      }
-      
-      fetchProducts(); // Refresh the list
-    } catch (error) {
-      console.error("Error deleting product:", error); // Add log
-      toast.error(`Error deleting product: ${error.message}`);
-    }
+        fetchProducts();
+     } catch (error) {
+         console.error("Error deleting product:", error);
+         toast.error(`Error deleting product: ${error.message}`);
+     }
   };
 
   if (loading) {
@@ -588,7 +472,10 @@ function ProductsListContent() {
 export default function ProductsList() {
   return (
     <ProtectedRoute requireOnboarding={true}>
-      <ProductsListContent />
+      {(sellerFromProtectedRoute) => {
+        console.log(`[ProductsList] Rendering content. Received seller ID from ProtectedRoute: ${sellerFromProtectedRoute?.id}`);
+        return <ProductsListContent seller={sellerFromProtectedRoute} />;
+      }}
     </ProtectedRoute>
   );
 }
