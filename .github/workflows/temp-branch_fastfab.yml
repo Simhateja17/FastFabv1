@@ -2,7 +2,7 @@
 # More GitHub Actions for Azure: https://github.com/Azure/actions
 
 name: Build and deploy Node.js app to Azure Web App - FastFab
-# hi
+
 on:
   push:
     branches:
@@ -28,11 +28,6 @@ jobs:
           npm install
           npm run build --if-present
           npm run test --if-present
-        env:
-          DATABASE_URL: ${{ secrets.DATABASE_URL }}
-          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
-          # Add other environment variables required by the build process here if needed
 
       - name: Zip artifact for deployment
         run: zip release.zip ./* -r
@@ -65,9 +60,9 @@ jobs:
       - name: Login to Azure
         uses: azure/login@v2
         with:
-          client-id: ${{ secrets.AZUREAPPSERVICE_CLIENTID_1C4D5A799600495C869186809F3AFF07 }}
-          tenant-id: ${{ secrets.AZUREAPPSERVICE_TENANTID_FECBEBEAD9AE4FB3BD162282974056C0 }}
-          subscription-id: ${{ secrets.AZUREAPPSERVICE_SUBSCRIPTIONID_4B961131BA7E46E08F237678D7E4DF17 }}
+          client-id: ${{ secrets.AZUREAPPSERVICE_CLIENTID_1CB4B240704142B7A7C916C2AE4EA8E4 }}
+          tenant-id: ${{ secrets.AZUREAPPSERVICE_TENANTID_0DB935680C1B4DADA27432107834D1CB }}
+          subscription-id: ${{ secrets.AZUREAPPSERVICE_SUBSCRIPTIONID_B042033526AA458CA96D06E4B6ABE0A5 }}
 
       - name: 'Deploy to Azure Web App'
         id: deploy-to-webapp
