@@ -17,7 +17,7 @@ if (!JWT_SECRET || !JWT_REFRESH_SECRET) { // Check the correct names
     console.error("Missing required JWT secret environment variables! Check JWT_SECRET and JWT_REFRESH_SECRET.");
     // Optionally throw an error during startup in a real application
 }
-
+// hi
 export async function POST(request) {
     console.log("Received request at /api/seller/auth/refresh");
     try {

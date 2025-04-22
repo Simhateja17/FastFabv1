@@ -12,7 +12,7 @@ function createErrorResponse(message, status = 500) {
 function createSuccessResponse(data, status = 200) {
   return NextResponse.json({ error: false, ...data }, { status });
 }
-
+//hi
 // Remove the HOC wrapper function or just don't use it for GET
 // function withErrorHandler(handler) { ... }
 

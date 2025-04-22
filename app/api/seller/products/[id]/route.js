@@ -7,7 +7,7 @@ import { auth } from "@/app/lib/auth";
 const globalForPrisma = global;
 
 const prisma = globalForPrisma.prisma || new PrismaClient();
-
+//hi
 if (process.env.NODE_ENV !== 'production') globalForPrisma.prisma = prisma;
 
 // Reuse error/success helpers (or define them here if not shared)

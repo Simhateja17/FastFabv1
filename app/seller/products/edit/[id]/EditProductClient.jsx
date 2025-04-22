@@ -14,7 +14,7 @@ import {
   FiCheck,
 } from "react-icons/fi";
 import { PRODUCT_ENDPOINTS, API_URL } from "@/app/config";
-
+//hi
 const SIZES = [
   "XS",
   "S",

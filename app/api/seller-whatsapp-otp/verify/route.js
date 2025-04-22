@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { PrismaClient } from '@prisma/client';
 import jwt from 'jsonwebtoken'; // Import jsonwebtoken
-
+//hi
 // Create a more reliable Prisma client with reconnection
 let prisma;
 let connectionAttempts = 0;
