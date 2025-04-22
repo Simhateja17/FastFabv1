@@ -308,4 +308,4 @@ export const PUT = withErrorHandler(async (request, context) => {
     } finally {
          await prisma.$disconnect().catch(e => console.error("Error disconnecting Prisma:", e));
     }
-});
+}); 

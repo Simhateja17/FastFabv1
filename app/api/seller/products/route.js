@@ -181,4 +181,4 @@ export async function DELETE(request) {
 }
 
 // Remove the old handleProductRequest function if it's no longer needed
-// async function handleProductRequest(request, method) { ... }
+// async function handleProductRequest(request, method) { ... } 

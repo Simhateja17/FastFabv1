@@ -1,3 +1,6 @@
+app/seller/products/variant-groups/[id]/add-variant/page.jsx
+
+
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
@@ -645,4 +648,4 @@ export default function AddVariant({ params }) {
       </div>
     </div>
   );
-}
+} 
