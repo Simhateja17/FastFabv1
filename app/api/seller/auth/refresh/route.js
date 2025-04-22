@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import jwt from 'jsonwebtoken';
 import { PrismaClient } from '@prisma/client';
+import { cookies } from 'next/headers'; // Import cookies helper
 
 const prisma = new PrismaClient();
 
@@ -20,13 +21,16 @@ if (!JWT_SECRET || !JWT_REFRESH_SECRET) { // Check the correct names
 export async function POST(request) {
     console.log("Received request at /api/seller/auth/refresh");
     try {
-        const body = await request.json();
-        const { refreshToken } = body;
+        // Read refresh token from HttpOnly cookie
+        const cookieStore = cookies();
+        const refreshTokenCookie = cookieStore.get('refreshToken'); // Adjust 'refreshToken' if your cookie name is different
 
-        if (!refreshToken) {
-            console.log("Refresh token missing in request");
-            return NextResponse.json({ message: 'Refresh token required' }, { status: 400 });
+        if (!refreshTokenCookie) {
+            console.log("Refresh token cookie missing");
+            return NextResponse.json({ message: 'Refresh token required' }, { status: 401 }); // Use 401 for missing credentials
         }
+
+        const refreshToken = refreshTokenCookie.value;
 
         // if (!REFRESH_TOKEN_SECRET) {
         if (!JWT_REFRESH_SECRET) { // Check the correct name
@@ -79,10 +83,25 @@ export async function POST(request) {
 
         console.log("Generated new access token for sellerId:", seller.id);
 
-        // Optional: Implement refresh token rotation (generate and send a new refresh token)
-        // For simplicity, we are not rotating refresh tokens here.
+        // Create the response first to set cookies
+        const response = NextResponse.json({ success: true }); // Send minimal success payload, or new user details if needed
 
-        return NextResponse.json({ accessToken: newAccessToken });
+        // Set the new access token as an HttpOnly cookie
+        response.cookies.set('accessToken', newAccessToken, {
+            httpOnly: true,
+            secure: process.env.NODE_ENV !== 'development', // Use secure cookies in production
+            path: '/',
+            maxAge: 60 * 15, // 15 minutes (matches token expiry)
+            sameSite: 'lax'
+        });
+
+        // Optional: Implement refresh token rotation (generate and send a new refresh token)
+        // If rotating, generate a new refresh token and set it here as well
+        // const newRefreshToken = jwt.sign({ sellerId: seller.id }, JWT_REFRESH_SECRET, { expiresIn: '7d' });
+        // response.cookies.set('refreshToken', newRefreshToken, { ... same options as accessToken but longer maxAge ... });
+
+        console.log("New access token cookie set.");
+        return response;
 
     } catch (error) {
         console.error('Error during token refresh:', error);

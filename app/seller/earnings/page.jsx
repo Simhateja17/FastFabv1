@@ -8,7 +8,7 @@ import WithdrawModal from "@/components/modals/WithdrawModal";
 
 // The actual earnings content
 function EarningsContent() {
-  const { seller, getAccessToken } = useAuth();
+  const { seller, authFetch } = useAuth();
   const [activeTab, setActiveTab] = useState("all");
   const [dateRange, setDateRange] = useState("30days");
   const [earnings, setEarnings] = useState([]);
@@ -32,31 +32,11 @@ function EarningsContent() {
       try {
         setLoading(true);
         
-        // Get the authentication token
-        console.log("[EarningsContent] Attempting to get access token..."); // Log token fetch attempt
-        const token = await getAccessToken();
-        console.log("[EarningsContent] Access token received:", token ? `Token found (length: ${token.length})` : "No token found"); // Log token result
-        
-        if (!token) {
-          console.error('[EarningsContent] No authentication token available after getAccessToken()'); // Log if token is missing
-          setError('Authentication required. Token missing.'); // More specific error
-          setLoading(false);
-          return;
-        }
-        
         // Construct the backend URL using environment variable or default
-        const backendUrl = process.env.NEXT_PUBLIC_SELLER_SERVICE_URL || 'http://localhost:8000/api';
+        const backendUrl = process.env.NEXT_PUBLIC_SELLER_SERVICE_URL || 'http://localhost:8000';
 
-        // Fetch all earnings data from a single endpoint
-         const response = await fetch(`${backendUrl}/seller/earnings?period=${dateRange}`, {
-             headers: { 'Authorization': `Bearer ${token}` }
-         });
-
-        if (!response.ok) {
-           throw new Error(`Failed to fetch earnings data: ${response.status} ${response.statusText}`);
-         }
-
-        const data = await response.json();
+        // Use authFetch and ensure the path includes /api
+         const data = await authFetch(`${backendUrl}/api/seller/earnings?period=${dateRange}`);
 
         if (!data || typeof data !== 'object' || !data.earnings || !data.stats) {
              throw new Error('Invalid response format from API. Expected { earnings: [], stats: {} }');
@@ -118,7 +98,7 @@ function EarningsContent() {
       setLoading(false);
     }
     // Use seller.id in dependencies
-  }, [seller?.id, dateRange, getAccessToken]);
+  }, [seller?.id, dateRange]);
 
   // Filter transactions based on active tab
   const filteredTransactions = earnings.filter((transaction) => {

@@ -384,11 +384,10 @@ export function AuthProvider({ children }) {
     login,
     register,
     logout,
-    authFetch, // Provide authFetch for making authenticated requests
+    authFetch,
     updateSellerDetails,
     sendSellerOTP,
-    verifySellerOTP,
-    // Removed getAccessToken as it's no longer needed externally
+    verifySellerOTP
   }), [seller, loading, isInitialized, login, register, logout, authFetch, updateSellerDetails, sendSellerOTP, verifySellerOTP]);
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
