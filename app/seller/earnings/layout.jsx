@@ -1,3 +1,4 @@
+
 "use client";
 
 import { Suspense } from "react";
@@ -12,4 +13,4 @@ export default function SellerEarningsLayout({ children }) {
       {children}
     </Suspense>
   );
-}
+} 
