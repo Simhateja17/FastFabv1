@@ -119,4 +119,4 @@ function calculateStats(earnings, startDate) {
     availableBalance,
     totalPayouts
   };
-} 
+}
