@@ -14,11 +14,6 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read #This is required for actions/checkout
-    env:
-      DATABASE_URL: ${{ secrets.DATABASE_URL }}
-      SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-      SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
-
 
     steps:
       - uses: actions/checkout@v4
@@ -28,22 +23,15 @@ jobs:
         with:
           node-version: '20.x'
 
-      - name: Clean previous build cache
-        run: rm -rf .next
-
       - name: npm install, build, and test
         run: |
           npm install
           npm run build --if-present
           npm run test --if-present
 
-          - name: Zip artifact for deployment
-          run: |
-            mkdir deploy
-            cp -r .next public node_modules package.json next.config.js deploy/
-            cd deploy
-            zip -r ../release.zip .
-        
+      - name: Zip artifact for deployment
+        run: zip release.zip ./* -r
+
       - name: Upload artifact for deployment job
         uses: actions/upload-artifact@v4
         with:
@@ -72,9 +60,9 @@ jobs:
       - name: Login to Azure
         uses: azure/login@v2
         with:
-          client-id: ${{ secrets.AZUREAPPSERVICE_CLIENTID_11D625362DF64D23A469A172A56720A4 }}
-          tenant-id: ${{ secrets.AZUREAPPSERVICE_TENANTID_29D667CDA5F84409838070742CEF1139 }}
-          subscription-id: ${{ secrets.AZUREAPPSERVICE_SUBSCRIPTIONID_032E7D82CC9B4F10BBEE4E727EFE6881 }}
+          client-id: ${{ secrets.AZUREAPPSERVICE_CLIENTID_493E9CE627484FCAAE35D93A2917FB6E }}
+          tenant-id: ${{ secrets.AZUREAPPSERVICE_TENANTID_3374D3D4DDA345D191DF5077EBC591A4 }}
+          subscription-id: ${{ secrets.AZUREAPPSERVICE_SUBSCRIPTIONID_2F362CC1D5954D2AB843912130A30AE4 }}
 
       - name: 'Deploy to Azure Web App'
         id: deploy-to-webapp
