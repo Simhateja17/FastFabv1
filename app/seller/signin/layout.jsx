@@ -12,4 +12,4 @@ export default function SellerSigninLayout({ children }) {
       {children}
     </Suspense>
   );
-} 
+}

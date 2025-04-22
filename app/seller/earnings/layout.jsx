@@ -12,4 +12,4 @@ export default function SellerEarningsLayout({ children }) {
       {children}
     </Suspense>
   );
-} 
+}
