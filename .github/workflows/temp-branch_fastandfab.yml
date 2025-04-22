@@ -28,6 +28,9 @@ jobs:
         with:
           node-version: '20.x'
 
+      - name: Clean previous build cache
+        run: rm -rf .next
+
       - name: npm install, build, and test
         run: |
           npm install
