@@ -14,12 +14,6 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read #This is required for actions/checkout
-    env:
-      DATABASE_URL: ${{ secrets.DATABASE_URL }}
-      SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-      SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
-
-
 
     steps:
       - uses: actions/checkout@v4
@@ -30,14 +24,8 @@ jobs:
           node-version: '20.x'
 
       - name: npm install, build, and test
-         run: |
-          echo "Checking Environment Variables..."
-          echo "DATABASE_URL Length: ${#DATABASE_URL}"
-          echo "SUPABASE_URL Length: ${#SUPABASE_URL}"
-          echo "SUPABASE_SERVICE_KEY Length: ${#SUPABASE_SERVICE_KEY}"
-          echo "Running install..."
+        run: |
           npm install
-          echo "Running build..."
           npm run build --if-present
           npm run test --if-present
 
@@ -72,10 +60,9 @@ jobs:
       - name: Login to Azure
         uses: azure/login@v2
         with:
-         with:
-  client-id: ${{ secrets.AZUREAPPSERVICE_CLIENTID_1B054971B7C4316BE4CD943FE293858 }}
-  tenant-id: ${{ secrets.AZUREAPPSERVICE_TENANTID_5C490C20B4FB4DB897A884504B8A3CC }}
-  subscription-id: ${{ secrets.AZUREAPPSERVICE_SUBSCRIPTIONID_1DC8B31596E14BEAB86CBD05DD6A2D28 }}
+          client-id: ${{ secrets.AZUREAPPSERVICE_CLIENTID_11D625362DF64D23A469A172A56720A4 }}
+          tenant-id: ${{ secrets.AZUREAPPSERVICE_TENANTID_29D667CDA5F84409838070742CEF1139 }}
+          subscription-id: ${{ secrets.AZUREAPPSERVICE_SUBSCRIPTIONID_032E7D82CC9B4F10BBEE4E727EFE6881 }}
 
       - name: 'Deploy to Azure Web App'
         id: deploy-to-webapp
