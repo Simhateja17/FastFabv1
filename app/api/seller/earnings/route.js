@@ -1,3 +1,4 @@
+
 import { NextResponse } from "next/server";
 import { PrismaClient } from "@prisma/client";
 import { auth } from "@/app/lib/auth";
@@ -119,4 +120,7 @@ function calculateStats(earnings, startDate) {
     availableBalance,
     totalPayouts
   };
-}
+} 
+
+
+
