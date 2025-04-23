@@ -238,7 +238,7 @@ export default function SellerOnboarding() {
         throw new Error("Authentication required. Please sign in again.");
       }
 
-      const result = await updateSellerDetails(seller.id, formData);
+      const result = await updateSellerDetails(formData);
       console.log("Update profile response:", result);
 
       if (result.success) {

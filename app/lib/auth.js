@@ -30,16 +30,16 @@ export async function auth(request) {
     console.log('[AuthLib] Verifying token from cookie...');
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
     
-    // Check token type and extract ID
-    if (decoded.sellerId && decoded.type === 'seller') {
+    // Check token type and extract ID - REMOVED type CHECK
+    if (decoded.sellerId) { // Check only for sellerId presence
       console.log('[AuthLib] Token verified successfully for seller:', decoded.sellerId);
       return { success: true, sellerId: decoded.sellerId };
-    } else if (decoded.userId && decoded.type === 'user') {
+    } else if (decoded.userId) { // Check only for userId presence
       console.log('[AuthLib] Token verified successfully for user:', decoded.userId);
       return { success: true, userId: decoded.userId };
     } else {
-      console.error('[AuthLib] Token invalid: Missing ID or incorrect type.', decoded);
-      return { success: false, message: 'Invalid token format or type.' };
+      console.error('[AuthLib] Token invalid: Missing sellerId or userId.', decoded);
+      return { success: false, message: 'Invalid token format.' };
     }
 
   } catch (error) {
@@ -64,7 +64,7 @@ export async function auth(request) {
         let id = null;
         let type = null;
 
-        if (decodedRefresh.sellerId && decodedRefresh.type === 'seller') {
+        if (decodedRefresh.sellerId) { 
             type = 'seller';
             id = decodedRefresh.sellerId;
             if (!prisma) throw new Error("Database connection failed during refresh check");
@@ -74,7 +74,7 @@ export async function auth(request) {
             isValidInDb = tokenRecord && new Date(tokenRecord.expiresAt) > new Date();
             console.log(`[AuthLib] Seller refresh token DB check: Record found=${!!tokenRecord}, Valid=${isValidInDb}`);
         
-        } else if (decodedRefresh.userId && decodedRefresh.type === 'user') {
+        } else if (decodedRefresh.userId) { 
             type = 'user';
             id = decodedRefresh.userId;
             if (!prisma) throw new Error("Database connection failed during refresh check");
