@@ -44,15 +44,9 @@ jobs:
           ls -la node_modules/.prisma/client/
 
       - name: Zip artifact for deployment
-        run: zip release.zip ./* -r -x './node_modules/*' -x './.git/*' -x './.next/cache/*'
-        
-      - name: Include important runtime dependencies
         run: |
-          mkdir -p node_modules/.prisma/
-          mkdir -p node_modules/@prisma/
-          cp -r node_modules/.prisma/client node_modules/.prisma/ || echo "No .prisma/client directory"
-          cp -r node_modules/@prisma/client node_modules/@prisma/ || echo "No @prisma/client directory" 
-          zip -r release.zip node_modules/.prisma/ node_modules/@prisma/ .prisma/
+          zip release.zip ./* -r -x './node_modules/*' -x './.git/*' -x './.next/cache/*'
+          zip -ur release.zip ./node_modules/@prisma/client ./node_modules/prisma ./node_modules/next ./prisma/schema.prisma
 
       - name: Upload artifact for deployment job
         uses: actions/upload-artifact@v4
