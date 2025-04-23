@@ -184,7 +184,7 @@ export default function AddProduct() {
       selectedColor: selectedColor,
       selectedSizes: selectedSizes,
       files: selectedFiles,
-      previewImages: previewImages,
+      images: previewImages,
     };
     
     setProductPages(allPageData);
@@ -204,6 +204,14 @@ export default function AddProduct() {
 
     // Remove the current page
     const updatedPages = [...productPages];
+    const pageToRemove = updatedPages[currentPage - 1];
+    if (pageToRemove && pageToRemove.images) {
+      pageToRemove.images.forEach(url => {
+        if (typeof url === 'string' && url.startsWith('blob:')) {
+          URL.revokeObjectURL(url);
+        }
+      });
+    }
     updatedPages.splice(currentPage - 1, 1);
     
     // Update the pages
@@ -250,17 +258,8 @@ export default function AddProduct() {
     setSelectedSizes(pageData.selectedSizes || []);
     
     // Handle images
-    if (pageData.files && pageData.files.length > 0) {
-      setSelectedFiles(pageData.files);
-    } else {
-      setSelectedFiles([]);
-    }
-    
-    if (pageData.images && pageData.images.length > 0) {
-      setPreviewImages(pageData.images);
-    } else {
-      setPreviewImages([]);
-    }
+    setSelectedFiles(pageData.files || []);
+    setPreviewImages(pageData.images || []);
   };
 
   // Create a new page for adding another color variant
@@ -297,9 +296,6 @@ export default function AddProduct() {
     setSelectedColor("");
     setSelectedSizes([]);
     setSelectedFiles([]);
-    
-    // Clear preview images (make sure to release URLs to prevent memory leaks)
-    previewImages.forEach(url => URL.revokeObjectURL(url));
     setPreviewImages([]);
     
     toast.success("New variant page created");
@@ -547,38 +543,25 @@ export default function AddProduct() {
     // Create preview URLs for new valid files
     const newPreviewUrls = validFiles.map((file) => URL.createObjectURL(file));
     
-    // Clear previous preview URLs to prevent memory leaks
-    previewImages.forEach(url => {
-      if (typeof url === 'string' && url.startsWith('blob:')) {
-        URL.revokeObjectURL(url);
-      }
-    });
+    // Clear *only the current page's* previous preview URLs to prevent memory leaks
+    const currentPageData = productPages[currentPage - 1];
+    if (currentPageData && currentPageData.images) {
+        currentPageData.images.forEach(url => {
+            if (typeof url === 'string' && url.startsWith('blob:')) {
+                URL.revokeObjectURL(url);
+            }
+        });
+    }
     
-    // Set the new files and previews
+    // Set the new files and previews in the component's state
     setSelectedFiles(validFiles);
     setPreviewImages(newPreviewUrls);
     
     // Reset the file input to allow selecting the same file again
     e.target.value = "";
     
-    // Save these files to current page data
-    const updatedProductPages = [...productPages];
-    if (updatedProductPages[currentPage - 1]) {
-      updatedProductPages[currentPage - 1] = {
-        ...updatedProductPages[currentPage - 1],
-        files: validFiles,
-        images: newPreviewUrls
-      };
-      setProductPages(updatedProductPages);
-      
-      // Auto-save the changes
-      saveCurrentPageData();
-    }
-    
-    console.log(`Updated variant ${currentPage} with ${validFiles.length} images`);
-    
-    // Show confirmation that specific variant's images have been updated
-    toast.success(`Updated images for variant ${currentPage}`);
+    // Auto-save the changes
+    saveCurrentPageData();
   };
 
   const uploadVariantImages = async (variantFiles) => {
@@ -592,57 +575,41 @@ export default function AddProduct() {
       // Create FormData
       const formData = new FormData();
       
-      // Log the number of files being uploaded for debugging
       console.log(`Uploading ${variantFiles.length} files`);
       
-      // Append files with unique names to prevent overwrites
-      variantFiles.forEach((file, index) => {
-        // Add timestamp and index to make each file name unique
-        const fileName = `${Date.now()}_${index}_${file.name.replace(/\s+/g, '_')}`;
-        formData.append("images", new File([file], fileName, { type: file.type }));
+      // Append files directly
+      variantFiles.forEach((file) => {
+        formData.append("images", file);
       });
 
-      // Use the correct endpoint from PRODUCT_ENDPOINTS
+      // Upload to seller service and get the processed response directly
       const response = await authFetch(
         PRODUCT_ENDPOINTS.UPLOAD_IMAGES,
         {
           method: "POST",
           body: formData,
-          // Don't set Content-Type header - let the browser set it for FormData
         }
       );
 
-      // First check if the response is ok
-      if (!response.ok) {
-        let errorMessage;
-        try {
-          const errorData = await response.json();
-          errorMessage = errorData.message || 'Failed to upload images';
-        } catch (e) {
-          errorMessage = `Upload failed with status ${response.status}`;
-        }
-        throw new Error(errorMessage);
+      // Check for success in the processed response
+      if (!response.success) {
+        console.error("Upload failed:", response);
+        throw new Error(response.message || 'Failed to upload images');
       }
 
-      // Try to parse the response
-      let data;
-      try {
-        data = await response.json();
-      } catch (e) {
-        console.error("Error parsing response:", e);
-        throw new Error("Invalid response from server");
+      // Validate response data structure
+      if (!response.imageUrls || !Array.isArray(response.imageUrls)) {
+        console.error("Invalid response format:", response);
+        throw new Error("Server returned invalid response format");
       }
 
-      // Validate the response data
-      if (!data.imageUrls || !Array.isArray(data.imageUrls)) {
-        console.error("Invalid response format:", data);
-        throw new Error("Invalid response format from server");
-      }
+      console.log(`Successfully uploaded ${response.imageUrls.length} images`);
+      toast.success(`Successfully uploaded ${response.imageUrls.length} images for variant`);
+      return response.imageUrls;
 
-      console.log(`Successfully uploaded ${data.imageUrls.length} images`);
-      return data.imageUrls;
     } catch (error) {
       console.error("Error uploading images:", error);
+      toast.error(`Upload failed: ${error.message}`);
       throw error;
     } finally {
       setUploading(false);
@@ -827,6 +794,17 @@ export default function AddProduct() {
     const newSelectedFiles = [...selectedFiles];
     newSelectedFiles.splice(index, 1);
     setSelectedFiles(newSelectedFiles);
+
+    // Also update the productPages state immediately
+    const updatedProductPages = [...productPages];
+    if (updatedProductPages[currentPage - 1]) {
+      updatedProductPages[currentPage - 1] = {
+        ...updatedProductPages[currentPage - 1],
+        files: newSelectedFiles,
+        images: newPreviews
+      };
+      setProductPages(updatedProductPages);
+    }
   };
 
   const handleCategoryChange = (e) => {
@@ -851,6 +829,23 @@ export default function AddProduct() {
       return () => clearTimeout(saveTimeout);
     }
   }, [formData, selectedColor, selectedSizes, previewImages, selectedFiles, currentPage, saveCurrentPageData]);
+
+  // Add cleanup effect for object URLs on unmount
+  useEffect(() => {
+    // This function will run when the component unmounts
+    return () => {
+      console.log("Cleaning up object URLs on unmount...");
+      productPages.forEach(page => {
+        if (page.images) {
+          page.images.forEach(url => {
+            if (typeof url === 'string' && url.startsWith('blob:')) {
+              URL.revokeObjectURL(url);
+            }
+          });
+        }
+      });
+    };
+  }, [productPages]); // Depend on productPages so it has the latest URLs
 
   return (
     <div className="max-w-4xl mx-auto p-4 md:p-6 bg-background min-h-screen">
