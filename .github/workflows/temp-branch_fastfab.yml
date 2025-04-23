@@ -35,12 +35,24 @@ jobs:
           echo "SUPABASE_SERVICE_KEY Length: ${#SUPABASE_SERVICE_KEY}"
           echo "Running install..."
           npm install
+          echo "Explicitly generating Prisma client..."
+          npx prisma generate
           echo "Running build..."
           npm run build --if-present
           npm run test --if-present
+          echo "Listing generated Prisma files:"
+          ls -la node_modules/.prisma/client/
 
       - name: Zip artifact for deployment
-        run: zip release.zip ./* -r -x './node_modules/*' -x './.git/*'
+        run: zip release.zip ./* -r -x './node_modules/*' -x './.git/*' -x './.next/cache/*'
+        
+      - name: Include important runtime dependencies
+        run: |
+          mkdir -p node_modules/.prisma/
+          mkdir -p node_modules/@prisma/
+          cp -r node_modules/.prisma/client node_modules/.prisma/ || echo "No .prisma/client directory"
+          cp -r node_modules/@prisma/client node_modules/@prisma/ || echo "No @prisma/client directory" 
+          zip -r release.zip node_modules/.prisma/ node_modules/@prisma/ .prisma/
 
       - name: Upload artifact for deployment job
         uses: actions/upload-artifact@v4
