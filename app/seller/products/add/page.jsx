@@ -257,14 +257,38 @@ export default function AddProduct() {
     setSelectedColor(pageData.selectedColor || "");
     setSelectedSizes(pageData.selectedSizes || []);
     
-    // Handle images
-    setSelectedFiles(pageData.files || []);
-    setPreviewImages(pageData.images || []);
+    // Handle images with care - don't overwrite with empty arrays
+    if (pageData.files && pageData.files.length > 0) {
+      setSelectedFiles(pageData.files);
+    } else {
+      setSelectedFiles([]);
+    }
+    
+    if (pageData.images && pageData.images.length > 0) {
+      setPreviewImages(pageData.images);
+    } else {
+      setPreviewImages([]);
+    }
+    
+    console.log(`Loaded ${pageData.files?.length || 0} files and ${pageData.images?.length || 0} image previews for page ${page}`);
+  };
+
+  // Go to a specific page
+  const goToPage = (page) => {
+    if (page < 1 || page > totalPages) {
+      return;
+    }
+    
+    // Save current page data before switching
+    saveCurrentPageData();
+    
+    setCurrentPage(page);
+    loadPageData(page);
   };
 
   // Create a new page for adding another color variant
   const createNewPage = () => {
-    // Save current page data first
+    // Save current page data first - ensuring current page images are captured
     saveCurrentPageData();
     
     // Create a new page with some defaults
@@ -289,29 +313,34 @@ export default function AddProduct() {
     // Update total pages count
     setTotalPages(updatedPages.length);
     
+    // Save current files and images for safety - we'll restore them if they navigate back
+    const previousPageIndex = currentPage - 1;
+    if (previousPageIndex >= 0 && previousPageIndex < productPages.length) {
+      const previousPage = {...productPages[previousPageIndex]};
+      
+      // Ensure files and images are saved securely for the previous page
+      previousPage.files = selectedFiles;
+      previousPage.images = previewImages;
+      
+      // Update the stored page data
+      const updatedWithSavedPreviousPage = [...updatedPages];
+      updatedWithSavedPreviousPage[previousPageIndex] = previousPage;
+      setProductPages(updatedWithSavedPreviousPage);
+      
+      console.log(`Securely saved image data for page ${currentPage} before creating new variant`);
+    }
+    
     // Navigate to the new page
     setCurrentPage(updatedPages.length);
     
     // Clear certain fields for the new variant
+    // Do this AFTER updating productPages to ensure we don't lose references
     setSelectedColor("");
     setSelectedSizes([]);
     setSelectedFiles([]);
     setPreviewImages([]);
     
     toast.success("New variant page created");
-  };
-
-  // Go to a specific page
-  const goToPage = (page) => {
-    if (page < 1 || page > totalPages) {
-      return;
-    }
-    
-    // Save current page data before switching
-    saveCurrentPageData();
-    
-    setCurrentPage(page);
-    loadPageData(page);
   };
 
   const handleInputChange = (e) => {
@@ -591,7 +620,7 @@ export default function AddProduct() {
         }
       );
 
-      // Check for success in the processed response
+      // Response is already JSON processed by authFetch
       if (!response.success) {
         console.error("Upload failed:", response);
         throw new Error(response.message || 'Failed to upload images');
@@ -628,45 +657,58 @@ export default function AddProduct() {
     
     // Validate required fields on all pages
     for (let i = 0; i < productPages.length; i++) {
-      const page = productPages[i];
+      const page = productPages[i]; // Data saved from previous interactions/saves
+      const isCurrentPage = (i + 1 === currentPage);
+
+      // Use live state for the current page, otherwise use saved page data
+      const nameToCheck = isCurrentPage ? formData.name : page.name;
+      const categoryToCheck = isCurrentPage ? formData.category : page.category;
+      const subcategoryToCheck = isCurrentPage ? formData.subcategory : page.subcategory;
+      const mrpPriceToCheck = isCurrentPage ? formData.mrpPrice : page.mrpPrice;
+      const sellingPriceToCheck = isCurrentPage ? formData.sellingPrice : page.sellingPrice;
+      const colorToCheck = isCurrentPage ? selectedColor : page.selectedColor;
+      const sizesToCheck = isCurrentPage ? selectedSizes : page.selectedSizes;
+      const filesToCheck = isCurrentPage ? selectedFiles : page.files;
+      const imagesToCheck = isCurrentPage ? previewImages : page.images;
       
-      // Page 1: Basic product information
+      // Page 1: Basic product information (Checked only on the first iteration)
       if (i === 0) {
-        if (!page.name || !page.category || !page.subcategory || !page.mrpPrice || !page.sellingPrice) {
+        // Use the potentially live data for validation if page 1 is the current page
+        if (!nameToCheck || !categoryToCheck || !subcategoryToCheck || !mrpPriceToCheck || !sellingPriceToCheck) {
           isValid = false;
           errorPage = 1;
-          console.error("Missing required fields on page 1:", page);
+          console.error("Missing required fields on page 1:", isCurrentPage ? {name: nameToCheck, category: categoryToCheck, subcategory: subcategoryToCheck, mrpPrice: mrpPriceToCheck, sellingPrice: sellingPriceToCheck } : page);
           break;
         }
       }
       
-      // All variant pages should have color and at least one image
-      if (!page.selectedColor) {
+      // All variant pages should have color
+      if (!colorToCheck) {
         isValid = false;
         errorPage = i + 1;
-        console.error(`Missing color selection on page ${i + 1}:`, page);
+        console.error(`Missing color selection on page ${i + 1}:`, isCurrentPage ? { selectedColor: colorToCheck } : page);
         break;
       }
       
-      // Check for images - consider both images array and files array for validation
+      // Check for images - consider both live state files/previews and saved page files/images
       const hasImages = 
-        (page.files && page.files.length > 0) || 
-        (page.images && page.images.length > 0 && 
-         typeof page.images[0] === 'string' && 
-         page.images[0].startsWith('http'));
+        (filesToCheck && filesToCheck.length > 0) || 
+        (imagesToCheck && imagesToCheck.length > 0 && 
+         typeof imagesToCheck[0] === 'string' && 
+         (imagesToCheck[0].startsWith('http') || imagesToCheck[0].startsWith('blob:'))); // Check for uploaded URLs or local blob previews
          
       if (!hasImages) {
         isValid = false;
         errorPage = i + 1;
-        console.error(`Missing product images on page ${i + 1}:`, page);
+        console.error(`Missing product images on page ${i + 1}:`, isCurrentPage ? { files: filesToCheck, images: imagesToCheck } : page);
         break;
       }
       
       // Ensure at least one size is selected with quantity
-      if (!page.selectedSizes || page.selectedSizes.length === 0) {
+      if (!sizesToCheck || sizesToCheck.length === 0) {
         isValid = false;
         errorPage = i + 1;
-        console.error(`Missing size selection on page ${i + 1}:`, page);
+        console.error(`Missing size selection on page ${i + 1}:`, isCurrentPage ? { selectedSizes: sizesToCheck } : page);
         break;
       }
     }
@@ -684,31 +726,39 @@ export default function AddProduct() {
     
     // Proceed with form submission
     setLoading(true);
+    setError("");
     
     try {
-      const backendApiUrl = process.env.NEXT_PUBLIC_SELLER_SERVICE_URL || 'http://localhost:8000/api'; // Define backend URL
-      
       // Process each page as a separate product
       for (let i = 0; i < productPages.length; i++) {
         const page = productPages[i];
         setCurrentPage(i + 1);
         
-        // Get image URLs for this variant
+        // Get image URLs for this variant - USE LIVE STATE FOR CURRENT PAGE
         let variantImageUrls = [];
-        
-        // If the page has files to upload, upload them
-        if (page.files && page.files.length > 0) {
-          console.log(`Uploading ${page.files.length} images for variant ${i + 1}`);
-          variantImageUrls = await uploadVariantImages(page.files);
+        const isCurrentPageForProcessing = (i + 1 === currentPage);
+        const filesToUse = isCurrentPageForProcessing ? selectedFiles : page.files;
+        const imagesToUse = isCurrentPageForProcessing ? previewImages : page.images; // These could be blob URLs or http URLs
+
+        // If files exist (live or saved), upload them
+        if (filesToUse && filesToUse.length > 0) {
+          console.log(`Uploading ${filesToUse.length} images for variant ${i + 1}`);
+          variantImageUrls = await uploadVariantImages(filesToUse);
         } 
-        // If the page already has image URLs, use those
-        else if (page.images && page.images.length > 0 && 
-                typeof page.images[0] === 'string' && 
-                page.images[0].startsWith('http')) {
-          console.log(`Using existing ${page.images.length} image URLs for variant ${i + 1}`);
-          variantImageUrls = page.images;
+        // If no files, check if existing images are valid HTTP URLs
+        else if (imagesToUse && imagesToUse.length > 0) {
+          const httpUrls = imagesToUse.filter(url => typeof url === 'string' && url.startsWith('http'));
+          if (httpUrls.length > 0) {
+             console.log(`Using existing ${httpUrls.length} image URLs for variant ${i + 1}`);
+             variantImageUrls = httpUrls;
+          } else {
+             // This case implies imagesToUse contained only blob URLs or was unexpectedly empty.
+             // Validation should ideally prevent reaching here with only blob URLs if no files were present.
+             console.warn(`Variant ${i+1}: No files to upload and no existing http image URLs found in imagesToUse state/data.`);
+          }
         }
         
+        // Final check if we obtained valid URLs either via upload or existing ones
         if (!variantImageUrls || variantImageUrls.length === 0) {
           throw new Error(`No valid images available for variant on page ${i + 1}`);
         }
@@ -744,9 +794,9 @@ export default function AddProduct() {
           colorInventories: [colorInventory]
         };
         
-        console.log(`Creating product for page ${i + 1}`);
+        console.log(`Creating product for page ${i + 1}`, productPayload);
         
-        // Use the correct endpoint from PRODUCT_ENDPOINTS with proper error handling
+        // Use authFetch for product creation
         const response = await authFetch(
           PRODUCT_ENDPOINTS.CREATE,
           {
@@ -758,27 +808,25 @@ export default function AddProduct() {
           }
         );
 
-        // Get the response data first
-        const responseData = await response.json();
-
-        // Check if the response was not ok
-        if (!response.ok) {
-          // Log the error details for debugging
-          console.error('Product creation failed:', responseData);
-          
-          // Throw error with the server's error message if available
-          throw new Error(responseData.message || `Failed to add product on page ${i + 1}: Server returned ${response.status}`);
+        // Check for success based on the success message from the backend
+        // Adjust this string if the backend message changes
+        if (response.message !== "Product created successfully") { 
+          console.error(`Failed to create product for page ${i + 1}:`, response);
+          // Use response.message if available, otherwise provide a default error
+          throw new Error(response.message || `Failed to create product for variant ${i + 1}. Unexpected response from server.`);
         }
 
-        // Log success
-        console.log(`Successfully created product for page ${i + 1}:`, responseData);
+        // Log success based on the successful message check
+        console.log(`Successfully created product for page ${i + 1}:`, response);
       }
 
       toast.success(`Successfully added ${productPages.length} products!`);
       router.push("/seller/products");
     } catch (error) {
       console.error("Error creating product:", error);
-      setError("Failed to create product. Please try again.");
+      toast.error(error.message || "Failed to create product. Please try again.");
+      setError(error.message || "Failed to create product");
+    } finally {
       setLoading(false);
     }
   };
@@ -816,19 +864,6 @@ export default function AddProduct() {
     const categoryObj = CATEGORIES.find((c) => c.name === category);
     setAvailableSubcategories(categoryObj ? categoryObj.subcategories : []);
   };
-
-  // Auto-save form data when it changes
-  useEffect(() => {
-    if (currentPage > 0) {
-      // Use debounce to prevent excessive saves
-      const saveTimeout = setTimeout(() => {
-        console.log("Auto-saving form data...");
-        saveCurrentPageData();
-      }, 1000); // 1-second delay
-      
-      return () => clearTimeout(saveTimeout);
-    }
-  }, [formData, selectedColor, selectedSizes, previewImages, selectedFiles, currentPage, saveCurrentPageData]);
 
   // Add cleanup effect for object URLs on unmount
   useEffect(() => {
