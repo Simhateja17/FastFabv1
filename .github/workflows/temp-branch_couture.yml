@@ -46,9 +46,14 @@ jobs:
             echo "Error: .next directory not found!"
             exit 1
           fi
-          echo "Found .next directory:"
+          # Check for a critical file like BUILD_ID
+          if [ ! -f ".next/BUILD_ID" ]; then
+            echo "Error: .next/BUILD_ID file not found!"
+            exit 1
+          fi
+          echo "Found .next directory and BUILD_ID:"
           ls -la .next
-          echo "Contents of .next directory:"
+          echo "Contents of .next directory (first 10 items):"
           ls -la .next/ | head -10
 
       - name: Zip artifact for deployment
@@ -92,5 +97,5 @@ jobs:
         with:
           app-name: 'couture'
           slot-name: 'Production'
-          package: .
+          package: release.zip
           
