@@ -44,9 +44,7 @@ jobs:
           ls -la node_modules/.prisma/client/
 
       - name: Zip artifact for deployment
-        run: |
-          zip release.zip ./* -r -x './node_modules/*' -x './.git/*' -x './.next/cache/*'
-          zip -ur release.zip ./node_modules/@prisma/client ./node_modules/prisma ./node_modules/next ./prisma/schema.prisma
+        run: zip release.zip ./* -r -x './.git/*' # Zip everything including node_modules, exclude .git
 
       - name: Upload artifact for deployment job
         uses: actions/upload-artifact@v4
