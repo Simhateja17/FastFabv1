@@ -457,22 +457,58 @@ async function sendAdminNotification(order, sellerIds) {
     // Get formatted shipping address
     const shippingAddress = order.address ? formatAddress(order.address) : 'Address not available';
     
-    // Send notification to admin
+    // Get seller information with fallbacks for required template parameters
+    const sellerName = primarySeller?.shopName || 'Not assigned';
+    const sellerPhone = primarySeller?.phone || 'Not available';
+    const sellerAddress = primarySeller ? formatAddress({
+      line1: primarySeller.address,
+      city: primarySeller.city,
+      state: primarySeller.state,
+      pincode: primarySeller.pincode
+    }) : 'Address not available';
+
+    // Attempt to get the primary product image if available
+    let primaryProduct = null;
+    let productImageUrl = null;
+    
+    try {
+      if (order.items && order.items.length > 0) {
+        // Get the first item's product details
+        const firstItem = order.items[0];
+        
+        // Check if we already have the product details
+        if (firstItem.product && firstItem.product.images && firstItem.product.images.length > 0) {
+          productImageUrl = firstItem.product.images[0];
+        } else {
+          // If not, try to fetch the product details
+          primaryProduct = await prisma.product.findUnique({
+            where: { id: firstItem.productId },
+            select: { images: true }
+          });
+          
+          if (primaryProduct && primaryProduct.images && primaryProduct.images.length > 0) {
+            productImageUrl = primaryProduct.images[0];
+          }
+        }
+      }
+      
+      console.log(`Product image URL for notification: ${productImageUrl || 'None available'}`);
+    } catch (imageError) {
+      console.error(`Error fetching product image: ${imageError.message}`);
+      // Continue without image if there's an error
+    }
+    
+    // Send notification to admin - all 8 parameters are required by the template
     await sendAdminOrderPendingSeller(adminPhone, {
       orderId: order.orderNumber,
       amount: order.totalAmount,
       customerName: order.user?.name || 'Customer',
       customerPhone: order.user?.phone || 'N/A',
       shippingAddress: shippingAddress,
-      // Add seller information if available
-      sellerPhone: primarySeller?.phone || 'N/A',
-      sellerName: primarySeller?.shopName || 'N/A',
-      sellerAddress: primarySeller ? formatAddress({
-        line1: primarySeller.address,
-        city: primarySeller.city,
-        state: primarySeller.state,
-        pincode: primarySeller.pincode
-      }) : 'Address not available'
+      sellerName: sellerName,
+      sellerPhone: sellerPhone,
+      sellerAddress: sellerAddress,
+      productImageUrl: productImageUrl  // Pass the image URL to the notification service
     });
 
     // Update the order to mark admin as notified
@@ -484,6 +520,26 @@ async function sendAdminNotification(order, sellerIds) {
     console.log(`Successfully notified admin about order ${order.id}`);
   } catch (error) {
     console.error(`Error sending admin notification: ${error.message}`);
+    console.error(error.stack); // Log the full error stack for debugging
+    
+    // If possible, try a simplified notification as fallback
+    try {
+      if (adminPhone) {
+        await sendAdminOrderPendingSeller(adminPhone, {
+          orderId: order.orderNumber || 'Unknown',
+          amount: order.totalAmount || 0,
+          customerName: 'Customer',
+          customerPhone: 'N/A',
+          shippingAddress: 'Not available',
+          sellerName: 'Not assigned',
+          sellerPhone: 'Not available',
+          sellerAddress: 'Not available'
+        });
+        console.log(`Sent simplified fallback notification for order ${order.id}`);
+      }
+    } catch (fallbackError) {
+      console.error(`Even fallback notification failed: ${fallbackError.message}`);
+    }
   }
 }
 

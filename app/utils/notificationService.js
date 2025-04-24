@@ -152,12 +152,101 @@ export async function sendCustomerOrderConfirmed(customerPhone, orderData) {
 /**
  * Send admin notification for an order pending seller action
  * @param {string} adminPhone - Admin phone number
- * @param {Object} orderData - Order data with orderId, amount, customerName, phone, shippingAddress
+ * @param {Object} orderData - Order data with orderId, amount, customerName, phone, shippingAddress, sellerName, sellerPhone, sellerAddress
  * @returns {Promise<Object>} Response from notification service
  */
 export async function sendAdminOrderPendingSeller(adminPhone, orderData) {
-  const { orderId, amount, customerName, customerPhone, shippingAddress } = orderData;
+  const { 
+    orderId, 
+    amount, 
+    customerName, 
+    customerPhone, 
+    shippingAddress,
+    sellerName,
+    sellerPhone,
+    sellerAddress,
+    productImageUrl
+  } = orderData;
   
+  // Check if we have a product image
+  if (productImageUrl) {
+    console.log(`Sending admin notification with product image: ${productImageUrl}`);
+    
+    // Format the request for a media template
+    try {
+      const requestBody = new URLSearchParams();
+      requestBody.append('source', process.env.GUPSHUP_SOURCE_NUMBER);
+      if (process.env.GUPSHUP_SRC_NAME) {
+        requestBody.append('source.name', process.env.GUPSHUP_SRC_NAME);
+      }
+      requestBody.append('destination', adminPhone);
+      
+      // Format with proper header and body components for media template
+      const templateData = JSON.stringify({
+        id: TEMPLATES.ADMIN_ORDER_PENDING_SELLER,
+        components: [
+          {
+            type: "header",
+            parameters: [
+              {
+                type: "image",
+                image: {
+                  link: productImageUrl
+                }
+              }
+            ]
+          },
+          {
+            type: "body",
+            parameters: [
+              { type: "text", text: orderId },         // {{1}} Order ID
+              { type: "text", text: amount.toString() },    // {{2}} Amount
+              { type: "text", text: customerName },    // {{3}} Customer name
+              { type: "text", text: customerPhone },   // {{4}} Customer phone
+              { type: "text", text: shippingAddress }, // {{5}} Shipping address
+              { type: "text", text: sellerName },      // {{6}} Seller name
+              { type: "text", text: sellerPhone },     // {{7}} Seller phone
+              { type: "text", text: sellerAddress }    // {{8}} Seller address
+            ]
+          }
+        ]
+      });
+      
+      requestBody.append('template', templateData);
+      
+      console.log('Sending template notification with image:', {
+        template: TEMPLATES.ADMIN_ORDER_PENDING_SELLER,
+        destination: adminPhone,
+        image: productImageUrl,
+        params: [orderId, amount, customerName, customerPhone, shippingAddress, sellerName, sellerPhone, sellerAddress]
+      });
+      
+      // Call the Gupshup API using the media template format
+      const API_KEY = process.env.GUPSHUP_API_KEY;
+      const GUPSHUP_API_URL = process.env.GUPSHUP_API_URL;
+      
+      const response = await axios.post(
+        GUPSHUP_API_URL,
+        requestBody,
+        {
+          headers: {
+            'Cache-Control': 'no-cache',
+            'Content-Type': 'application/x-www-form-urlencoded',
+            'Apikey': API_KEY
+          }
+        }
+      );
+      
+      console.log('Gupshup API response status:', response.status);
+      return response.data;
+    } catch (error) {
+      console.error('Error sending notification with image:', error.message);
+      // Fall back to text-only notification if media template fails
+      console.log('Falling back to text-only notification');
+    }
+  }
+  
+  // Standard text-only notification (fallback or if no image)
   return sendTemplateNotification(
     TEMPLATES.ADMIN_ORDER_PENDING_SELLER,
     adminPhone,
@@ -166,7 +255,10 @@ export async function sendAdminOrderPendingSeller(adminPhone, orderData) {
       amount,          // {{2}}
       customerName,    // {{3}}
       customerPhone,   // {{4}}
-      shippingAddress  // {{5}}
+      shippingAddress, // {{5}}
+      sellerName,      // {{6}}
+      sellerPhone,     // {{7}}
+      sellerAddress    // {{8}}
     }
   );
 }
