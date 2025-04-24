@@ -277,11 +277,11 @@ async function processSuccessfulPayment(order, webhookData, transactionId) {
   console.log(`Creating/Verifying payment transaction record for order ${order.id} with transaction ID ${finalTransactionId}`);
   await prisma.paymentTransaction.upsert({
       where: {
-          // Attempt to find based on orderId and SUCCESSFUL status first
-          orderId_status: { 
-            orderId: order.id,
-            status: 'SUCCESSFUL'
-          }
+          // Use AND condition to find a record where both orderId and status match
+          AND: [
+            { orderId: order.id },
+            { status: 'SUCCESSFUL' }
+          ]
       },
       update: {
           // If found, maybe update timestamp or gateway response
