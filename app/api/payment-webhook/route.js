@@ -275,30 +275,53 @@ async function processSuccessfulPayment(order, webhookData, transactionId) {
   // Ensure transactionId is a string or null
   const finalTransactionId = typeof transactionId === 'string' ? transactionId : `webhook-${Date.now()}`;
   console.log(`Creating/Verifying payment transaction record for order ${order.id} with transaction ID ${finalTransactionId}`);
-  await prisma.paymentTransaction.upsert({
+  
+  try {
+    // Step 1: First try to find an existing transaction
+    const existingTransaction = await prisma.paymentTransaction.findFirst({
       where: {
-          // Use AND condition to find a record where both orderId and status match
-          AND: [
-            { orderId: order.id },
-            { status: 'SUCCESSFUL' }
-          ]
-      },
-      update: {
-          // If found, maybe update timestamp or gateway response
+        orderId: order.id,
+        status: 'SUCCESSFUL'
+      }
+    });
+
+    // Step 2: Either update existing or create new
+    if (existingTransaction) {
+      console.log(`Found existing transaction record with ID ${existingTransaction.id}, updating...`);
+      await prisma.paymentTransaction.update({
+        where: { id: existingTransaction.id }, // Using the unique ID field
+        data: {
           gatewayResponse: webhookData,
           updatedAt: new Date()
-      },
-      create: {
+        }
+      });
+    } else {
+      console.log(`No existing transaction record found, creating new...`);
+      // Generate a unique ID for the new transaction record - using same format as other IDs
+      const newTransactionId = order.id.includes('-') ? 
+        `pt-${order.id}` : // Using order ID as base for transaction ID with pt- prefix
+        `pt-${Date.now()}-${Math.random().toString(36).substring(2, 10)}`; // Fallback random ID
+      
+      await prisma.paymentTransaction.create({
+        data: {
+          id: newTransactionId,
           userId: order.userId,
           orderId: order.id,
           amount: order.totalAmount,
           currency: 'INR',
           status: 'SUCCESSFUL',
           paymentMethod: order.paymentMethod,
-          transactionId: finalTransactionId, // Use extracted or generated ID
-          gatewayResponse: webhookData // Store raw webhook data for reference
-      }
-  });
+          transactionId: finalTransactionId,
+          gatewayResponse: webhookData,
+          updatedAt: new Date()
+        }
+      });
+    }
+    console.log(`Successfully processed payment transaction record for order ${order.id}`);
+  } catch (error) {
+    console.error(`Error processing payment transaction record: ${error.message}`);
+    // Continue execution to still attempt admin notification even if transaction record fails
+  }
 
   // --- Send Admin Notification ---
   await sendAdminNotification(order, sellerIds);
