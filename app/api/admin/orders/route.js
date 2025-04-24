@@ -16,29 +16,76 @@ export async function GET(request) {
         { status: authResult.status || 401 }
       );
     }
+    
+    // Get URL parameters
+    const { searchParams } = new URL(request.url);
+    const page = parseInt(searchParams.get('page')) || 1;
+    const limit = parseInt(searchParams.get('limit')) || 10;
+    const status = searchParams.get('status');
+    const sort = searchParams.get('sort') || 'createdAt';
+    const order = searchParams.get('order') || 'desc';
+    const search = searchParams.get('search');
+    
+    // Calculate pagination values
+    const skip = (page - 1) * limit;
+    
+    // Build where clause for filtering
+    const where = {};
+    
+    if (status) {
+      where.status = status;
+    }
+    
+    if (search) {
+      where.OR = [
+        { orderNumber: { contains: search, mode: 'insensitive' } },
+        { user: { name: { contains: search, mode: 'insensitive' } } },
+        { user: { email: { contains: search, mode: 'insensitive' } } }
+      ];
+    }
+    
+    // Build order by object
+    const orderBy = {};
+    orderBy[sort] = order;
 
-    // Get all orders with user details
+    // Get orders with pagination
     const orders = await prisma.order.findMany({
+      where,
+      skip,
+      take: limit,
+      orderBy,
       include: {
         user: {
           select: {
             id: true,
             name: true,
             email: true,
+            phone: true,
           },
         },
-        orderItems: {
+        items: {
           include: {
             product: true,
           },
         },
       },
-      orderBy: {
-        createdAt: 'desc'
+    });
+    
+    // Get total count for pagination
+    const total = await prisma.order.count({ where });
+    
+    // Calculate total pages
+    const pages = Math.ceil(total / limit);
+
+    return NextResponse.json({
+      orders,
+      pagination: {
+        total,
+        page,
+        limit,
+        pages,
       }
     });
-
-    return NextResponse.json(orders);
   } catch (error) {
     console.error("Error fetching orders:", error);
     return NextResponse.json(

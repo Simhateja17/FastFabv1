@@ -14,21 +14,20 @@ const ORDER_STATUSES = [
     color: "bg-yellow-100 text-yellow-800",
   },
   {
-    value: "PROCESSING",
-    label: "Processing",
+    value: "ACCEPTED",
+    label: "Accepted",
     color: "bg-blue-100 text-blue-800",
-  },
-  {
-    value: "SHIPPED",
-    label: "Shipped",
-    color: "bg-purple-100 text-purple-800",
   },
   {
     value: "DELIVERED",
     label: "Delivered",
     color: "bg-green-100 text-green-800",
   },
-  { value: "CANCELLED", label: "Cancelled", color: "bg-red-100 text-red-800" },
+  {
+    value: "REJECTED",
+    label: "Rejected",
+    color: "bg-red-100 text-red-800",
+  },
   {
     value: "RETURNED",
     label: "Returned",
@@ -44,7 +43,9 @@ export default function OrdersPage() {
   const [filterStatus, setFilterStatus] = useState("all");
   const [sortBy, setSortBy] = useState("newest");
   const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
   const [totalPages, setTotalPages] = useState(1);
+  const [totalItems, setTotalItems] = useState(0);
   const router = useRouter();
 
   // Fetch orders
@@ -56,7 +57,7 @@ export default function OrdersPage() {
 
         const params = new URLSearchParams();
         params.append("page", currentPage);
-        params.append("limit", 10);
+        params.append("limit", pageSize);
 
         if (filterStatus !== "all") {
           params.append("status", filterStatus);
@@ -86,9 +87,13 @@ export default function OrdersPage() {
           // Check if response data is an array or has a orders property
           if (Array.isArray(response.data)) {
             ordersData = response.data;
+            setTotalPages(Math.ceil(ordersData.length / pageSize));
+            setTotalItems(ordersData.length);
           } else if (Array.isArray(response.data.orders)) {
             ordersData = response.data.orders;
             paginationData = response.data.pagination;
+            setTotalPages(paginationData?.pages || 1);
+            setTotalItems(paginationData?.total || 0);
           } else {
             console.error("Invalid response format:", response.data);
             setError("Invalid response format from API");
@@ -97,7 +102,6 @@ export default function OrdersPage() {
           }
 
           setOrders(ordersData);
-          setTotalPages(paginationData?.totalPages || 1);
         } else {
           console.error("Empty response data");
           setError("Empty response from API");
@@ -111,7 +115,7 @@ export default function OrdersPage() {
     };
 
     fetchOrders();
-  }, [currentPage, filterStatus, sortBy, searchQuery]);
+  }, [currentPage, pageSize, filterStatus, sortBy, searchQuery]);
 
   // Handle search
   const handleSearch = (e) => {
@@ -380,29 +384,96 @@ export default function OrdersPage() {
       </div>
 
       {/* Pagination */}
-      {totalPages > 1 && (
-        <div className="flex justify-between items-center mt-6">
+      <div className="flex flex-col md:flex-row justify-between items-center mt-6 gap-4">
+        <div className="flex items-center">
+          <span className="text-sm text-text-muted mr-2">Rows per page:</span>
+          <select
+            value={pageSize}
+            onChange={(e) => {
+              setPageSize(Number(e.target.value));
+              setCurrentPage(1); // Reset to first page when changing page size
+            }}
+            className="bg-background border border-ui-border text-text rounded-md px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+          >
+            <option value={10}>10</option>
+            <option value={25}>25</option>
+            <option value={50}>50</option>
+            <option value={100}>100</option>
+          </select>
+          
+          <span className="ml-4 text-sm text-text-muted">
+            Showing {orders.length ? (currentPage - 1) * pageSize + 1 : 0} to {Math.min(currentPage * pageSize, totalItems)} of {totalItems} entries
+          </span>
+        </div>
+        
+        <div className="flex items-center">
+          <button
+            onClick={() => setCurrentPage(1)}
+            disabled={currentPage === 1}
+            className="px-3 py-1 border border-ui-border rounded-md text-text hover:bg-background-alt disabled:opacity-50 disabled:cursor-not-allowed mr-2"
+          >
+            First
+          </button>
+          
           <button
             onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
             disabled={currentPage === 1}
-            className="px-4 py-2 border border-ui-border rounded-md text-text hover:bg-background-alt disabled:opacity-50 disabled:cursor-not-allowed"
+            className="px-3 py-1 border border-ui-border rounded-md text-text hover:bg-background-alt disabled:opacity-50 disabled:cursor-not-allowed"
           >
             Previous
           </button>
-          <div className="text-text">
-            Page {currentPage} of {totalPages}
+          
+          <div className="flex items-center mx-4">
+            {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+              // Display page numbers around current page
+              let pageNum;
+              if (totalPages <= 5) {
+                // If 5 or fewer pages, show all
+                pageNum = i + 1;
+              } else if (currentPage <= 3) {
+                // If near start, show first 5
+                pageNum = i + 1;
+              } else if (currentPage >= totalPages - 2) {
+                // If near end, show last 5
+                pageNum = totalPages - 4 + i;
+              } else {
+                // Otherwise show current and 2 on each side
+                pageNum = currentPage - 2 + i;
+              }
+              
+              return (
+                <button
+                  key={pageNum}
+                  onClick={() => setCurrentPage(pageNum)}
+                  className={`w-8 h-8 flex items-center justify-center rounded-md mx-1 ${
+                    currentPage === pageNum
+                      ? 'bg-primary text-white'
+                      : 'border border-ui-border hover:bg-background-alt'
+                  }`}
+                >
+                  {pageNum}
+                </button>
+              );
+            })}
           </div>
+          
           <button
-            onClick={() =>
-              setCurrentPage(Math.min(totalPages, currentPage + 1))
-            }
+            onClick={() => setCurrentPage(Math.min(totalPages, currentPage + 1))}
             disabled={currentPage === totalPages}
-            className="px-4 py-2 border border-ui-border rounded-md text-text hover:bg-background-alt disabled:opacity-50 disabled:cursor-not-allowed"
+            className="px-3 py-1 border border-ui-border rounded-md text-text hover:bg-background-alt disabled:opacity-50 disabled:cursor-not-allowed"
           >
             Next
           </button>
+          
+          <button
+            onClick={() => setCurrentPage(totalPages)}
+            disabled={currentPage === totalPages}
+            className="px-3 py-1 border border-ui-border rounded-md text-text hover:bg-background-alt disabled:opacity-50 disabled:cursor-not-allowed ml-2"
+          >
+            Last
+          </button>
         </div>
-      )}
+      </div>
     </div>
   );
 }

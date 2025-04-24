@@ -345,10 +345,12 @@ model SiteSettings {
 
 enum OrderStatus {
   PENDING
+  ACCEPTED
   CONFIRMED
   SHIPPED
   DELIVERED
   CANCELLED
+  REJECTED
   RETURNED
 }
 
