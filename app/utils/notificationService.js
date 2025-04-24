@@ -26,13 +26,8 @@ async function sendTemplateNotification(templateName, phoneNumber, params) {
       throw new Error('Missing required parameters');
     }
 
-    // Format destination phone number (remove + if present and strip 91 prefix if it exists)
-    let destination = phoneNumber.startsWith('+') ? phoneNumber.substring(1) : phoneNumber;
-    // Remove country code '91' prefix if it exists
-    if (destination.startsWith('91') && destination.length > 10) {
-      destination = destination.substring(2);
-      console.log(`Removed country code from phone number, using: ${destination}`);
-    }
+    // Format destination phone number (remove + if present)
+    const destination = phoneNumber.startsWith('+') ? phoneNumber.substring(1) : phoneNumber;
 
     // Get Gupshup API details from environment variables
     const API_KEY = process.env.GUPSHUP_API_KEY;
@@ -173,14 +168,6 @@ export async function sendAdminOrderPendingSeller(adminPhone, orderData) {
     productImageUrl
   } = orderData;
   
-  // Format destination phone number (remove + if present and strip 91 prefix if it exists)
-  let destination = adminPhone.startsWith('+') ? adminPhone.substring(1) : adminPhone;
-  // Remove country code '91' prefix if it exists
-  if (destination.startsWith('91') && destination.length > 10) {
-    destination = destination.substring(2);
-    console.log(`Removed country code from admin phone number, using: ${destination}`);
-  }
-  
   // Check if we have a product image
   if (productImageUrl) {
     console.log(`Sending admin notification with product image: ${productImageUrl}`);
@@ -192,7 +179,7 @@ export async function sendAdminOrderPendingSeller(adminPhone, orderData) {
       if (process.env.GUPSHUP_SRC_NAME) {
         requestBody.append('source.name', process.env.GUPSHUP_SRC_NAME);
       }
-      requestBody.append('destination', destination);
+      requestBody.append('destination', adminPhone);
       
       // Format with proper header and body components for media template
       const templateData = JSON.stringify({
@@ -229,7 +216,7 @@ export async function sendAdminOrderPendingSeller(adminPhone, orderData) {
       
       console.log('Sending template notification with image:', {
         template: TEMPLATES.ADMIN_ORDER_PENDING_SELLER,
-        destination: destination,
+        destination: adminPhone,
         image: productImageUrl,
         params: [orderId, amount, customerName, customerPhone, shippingAddress, sellerName, sellerPhone, sellerAddress]
       });
