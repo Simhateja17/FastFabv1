@@ -22,19 +22,90 @@ export default function LocationPermissionHandler({ children }) {
         (position) => {
           const { latitude, longitude } = position.coords;
           
-          // Successfully got user's location
-          const locationData = {
-            latitude,
-            longitude,
-            label: "Current Location",
-            source: "browser",
-            timestamp: new Date().toISOString()
-          };
-          
-          // Update location in store
-          setUserLocation(locationData);
-          localStorage.setItem("locationSet", "true");
-          setLocationStatus("allowed");
+          // Use Google Maps Geocoding API to get detailed address (if available)
+          if (window.google && window.google.maps) {
+            const geocoder = new window.google.maps.Geocoder();
+            const latlng = { lat: latitude, lng: longitude };
+            
+            geocoder.geocode({ location: latlng }, (results, status) => {
+              if (status === "OK" && results[0]) {
+                // Get detailed address information
+                const formattedAddress = results[0].formatted_address;
+                const addressComponents = results[0].address_components;
+                
+                // Extract specific address components like street, city, etc.
+                let street = '', city = '', state = '', country = '', postalCode = '';
+                
+                addressComponents.forEach(component => {
+                  const types = component.types;
+                  
+                  if (types.includes('route')) {
+                    street = component.long_name;
+                  } else if (types.includes('locality')) {
+                    city = component.long_name;
+                  } else if (types.includes('administrative_area_level_1')) {
+                    state = component.long_name;
+                  } else if (types.includes('country')) {
+                    country = component.long_name;
+                  } else if (types.includes('postal_code')) {
+                    postalCode = component.long_name;
+                  }
+                });
+                
+                // Create display address for navbar
+                const displayAddress = street || (city ? `${city}` : formattedAddress.split(',')[0]);
+                
+                // Create full location object with detailed address
+                const locationData = {
+                  latitude,
+                  longitude,
+                  label: displayAddress, // Use detailed street/area name instead of "Current Location"
+                  fullAddress: formattedAddress, // Store full address for checkout page
+                  addressComponents: {
+                    street,
+                    city,
+                    state,
+                    country,
+                    postalCode
+                  },
+                  source: "browser",
+                  timestamp: new Date().toISOString()
+                };
+                
+                // Update location in store
+                setUserLocation(locationData);
+                localStorage.setItem("locationSet", "true");
+                setLocationStatus("allowed");
+              } else {
+                // Fallback to basic location if geocoding fails
+                const locationData = {
+                  latitude,
+                  longitude,
+                  label: "Current Location",
+                  source: "browser",
+                  timestamp: new Date().toISOString()
+                };
+                
+                setUserLocation(locationData);
+                localStorage.setItem("locationSet", "true");
+                setLocationStatus("allowed");
+              }
+            });
+          } else {
+            // Fallback if Google Maps API isn't available
+            const locationData = {
+              latitude,
+              longitude,
+              label: "Current Location",
+              source: "browser",
+              timestamp: new Date().toISOString()
+            };
+            
+            // Update location in store
+            setUserLocation(locationData);
+            localStorage.setItem("locationSet", "true");
+            setLocationStatus("allowed");
+          }
         },
         // Error callback
         (error) => {

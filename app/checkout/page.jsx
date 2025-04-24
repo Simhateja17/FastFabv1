@@ -447,22 +447,24 @@ function CheckoutContent() {
                   <h2 className="text-xl font-semibold text-gray-800">Delivery Location</h2>
               </div>
               
-              {userLocation?.label ? (
-                <div className="border rounded-lg p-4 bg-gray-50 border-gray-200">
+              <div className="p-5 rounded-lg shadow-sm border border-gray-200 bg-white mb-4">
+                <h3 className="text-lg font-semibold text-gray-800 mb-3">Delivery Location</h3>
+                {userLocation?.label ? (
                   <div className="flex items-start">
-                    <FiMapPin className="mr-3 mt-1 h-5 w-5 text-primary flex-shrink-0" />
+                    <FiMapPin className="text-primary mt-1 mr-3 flex-shrink-0" />
                     <div>
-                      <p className="font-medium text-gray-800">Deliver to:</p>
                       <p className="text-gray-700 text-lg font-semibold mt-1">{userLocation.label}</p>
+                      {userLocation.fullAddress && (
+                        <p className="text-gray-600 text-sm mt-1">{userLocation.fullAddress}</p>
+                      )}
                     </div>
                   </div>
-                </div>
-              ) : (
-                <div className="text-center py-6 border border-dashed border-red-300 rounded-md bg-red-50">
-                   <p className="text-red-700 mb-3 font-medium">Delivery location not set.</p>
-                    <p className="text-red-600 text-sm">Please select your location from the top navigation bar.</p>
-                </div>
-              )}
+                ) : (
+                  <div className="text-red-500">
+                    Please set your delivery location to continue
+                  </div>
+                )}
+              </div>
             </div>
           </div>
           

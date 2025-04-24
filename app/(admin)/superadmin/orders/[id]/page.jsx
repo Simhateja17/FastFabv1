@@ -3,12 +3,13 @@
 import { useState, useEffect } from "react";
 import axios from "axios";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useParams } from "next/navigation";
 import Image from 'next/image';
 import { toast } from "react-hot-toast";
+import { getAdminApiClient } from "@/app/utils/apiClient";
 
 // API endpoint
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000";
+const API_BASE_URL = process.env.NEXT_PUBLIC_SELLER_SERVICE_URL || "http://localhost:8000";
 
 // Order statuses
 const ORDER_STATUSES = [
@@ -40,7 +41,8 @@ const ORDER_STATUSES = [
   },
 ];
 
-export default function OrderDetailPage({ params }) {
+export default function OrderDetailPage() {
+  const params = useParams();
   const orderId = params.id;
   const [order, setOrder] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -54,8 +56,11 @@ export default function OrderDetailPage({ params }) {
   useEffect(() => {
     const fetchOrderDetails = async () => {
       try {
-        const response = await axios.get(
-          `${API_BASE_URL}/admin/orders/${orderId}`
+        // Get API client with admin authorization
+        const apiClient = getAdminApiClient();
+        
+        const response = await apiClient.get(
+          `/api/admin/orders/${orderId}`
         );
         setOrder(response.data);
         setAdminNotes(response.data.adminNotes || "");
@@ -63,8 +68,8 @@ export default function OrderDetailPage({ params }) {
         // Fetch seller info if primarySellerId is available
         if (response.data.primarySellerId) {
           try {
-            const sellerResponse = await axios.get(
-              `${API_BASE_URL}/admin/sellers/${response.data.primarySellerId}`
+            const sellerResponse = await apiClient.get(
+              `/api/admin/sellers/${response.data.primarySellerId}`
             );
             setSellerInfo(sellerResponse.data);
           } catch (sellerError) {
@@ -88,14 +93,19 @@ export default function OrderDetailPage({ params }) {
   const updateOrderStatus = async (newStatus) => {
     try {
       setStatusUpdateLoading(true);
-      await axios.patch(`${API_BASE_URL}/admin/orders/${orderId}/status`, {
+      // Get API client with admin authorization
+      const apiClient = getAdminApiClient();
+      
+      await apiClient.patch(`/api/admin/orders/${orderId}/status`, {
         status: newStatus,
       });
       setOrder({ ...order, status: newStatus });
       toast.success(`Order status updated to ${newStatus}`);
     } catch (error) {
       console.error("Error updating order status:", error);
-      toast.error(error.response?.data?.message || "Failed to update order status");
+      toast.error(
+        error.response?.data?.message || "Failed to update order status"
+      );
     } finally {
       setStatusUpdateLoading(false);
     }
@@ -105,7 +115,10 @@ export default function OrderDetailPage({ params }) {
   const acceptOrder = async () => {
     try {
       setStatusUpdateLoading(true);
-      await axios.patch(`${API_BASE_URL}/admin/orders/${orderId}/accept`, {
+      // Get API client with admin authorization
+      const apiClient = getAdminApiClient();
+      
+      await apiClient.patch(`/api/admin/orders/${orderId}/accept`, {
         adminNotes,
       });
       setOrder({
@@ -133,7 +146,10 @@ export default function OrderDetailPage({ params }) {
 
     try {
       setStatusUpdateLoading(true);
-      await axios.patch(`${API_BASE_URL}/admin/orders/${orderId}/reject`, {
+      // Get API client with admin authorization
+      const apiClient = getAdminApiClient();
+      
+      await apiClient.patch(`/api/admin/orders/${orderId}/reject`, {
         adminNotes,
       });
       setOrder({
@@ -155,7 +171,10 @@ export default function OrderDetailPage({ params }) {
   // Save admin notes
   const saveAdminNotes = async () => {
     try {
-      await axios.patch(`${API_BASE_URL}/admin/orders/${orderId}/notes`, {
+      // Get API client with admin authorization
+      const apiClient = getAdminApiClient();
+      
+      await apiClient.patch(`/api/admin/orders/${orderId}/notes`, {
         adminNotes,
       });
       toast.success("Notes saved successfully");
@@ -506,6 +525,81 @@ export default function OrderDetailPage({ params }) {
               </table>
             </div>
           </div>
+
+          {/* Large Product Image Section */}
+          {order.items && order.items.length > 0 && (
+            <div className="bg-background-card rounded-lg shadow p-6 mb-6">
+              <h2 className="text-lg font-medium text-text mb-4">
+                Product Details
+              </h2>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {order.items.map((item, index) => (
+                  <div key={index} className="flex flex-col">
+                    <div className="relative w-full h-80 bg-background-alt rounded-lg overflow-hidden mb-4">
+                      {item.product?.images && item.product.images.length > 0 ? (
+                        <Image
+                          src={item.product.images[0]}
+                          alt={item.product.name || item.productName || 'Product image'}
+                          fill
+                          className="object-contain"
+                          onError={(e) => {
+                            e.target.onerror = null;
+                            e.target.src =
+                              "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='100%' height='100%' viewBox='0 0 300 300' fill='%23eee'%3E%3Ctext x='50%' y='50%' dominant-baseline='middle' text-anchor='middle' font-size='24' fill='%23aaa'%3ENo Image Available%3C/text%3E%3C/svg%3E";
+                          }}
+                          sizes="(max-width: 768px) 100vw, 50vw"
+                        />
+                      ) : (
+                        <div className="w-full h-full flex items-center justify-center text-text-muted">
+                          No image available
+                        </div>
+                      )}
+                    </div>
+                    <h3 className="text-lg font-semibold text-text">
+                      {item.productName || item.product?.name || "Unknown Product"}
+                    </h3>
+                    <div className="mt-2 grid grid-cols-2 gap-2">
+                      <div>
+                        <p className="text-sm text-text-muted">Price</p>
+                        <p className="font-medium">{formatCurrency(item.price)}</p>
+                      </div>
+                      <div>
+                        <p className="text-sm text-text-muted">Quantity</p>
+                        <p className="font-medium">{item.quantity}</p>
+                      </div>
+                      {item.size && (
+                        <div>
+                          <p className="text-sm text-text-muted">Size</p>
+                          <p className="font-medium">{item.size}</p>
+                        </div>
+                      )}
+                      {item.color && (
+                        <div>
+                          <p className="text-sm text-text-muted">Color</p>
+                          <p className="font-medium">{item.color}</p>
+                        </div>
+                      )}
+                    </div>
+                    <div className="mt-3">
+                      <p className="text-sm text-text-muted">Seller</p>
+                      <p className="font-medium">{item.seller?.shopName || "Unknown Seller"}</p>
+                    </div>
+                    {item.product && (
+                      <Link
+                        href={`/superadmin/products/${item.product.id}`}
+                        className="mt-3 text-primary hover:text-primary-dark text-sm inline-flex items-center"
+                      >
+                        <span>View Product Details</span>
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 ml-1" viewBox="0 0 20 20" fill="currentColor">
+                          <path fillRule="evenodd" d="M10.293 5.293a1 1 0 011.414 0l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414-1.414L12.586 11H5a1 1 0 110-2h7.586l-2.293-2.293a1 1 0 010-1.414z" clipRule="evenodd" />
+                        </svg>
+                      </Link>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
 
           {/* Timeline and Activity */}
           {order.statusHistory && order.statusHistory.length > 0 && (

@@ -188,16 +188,46 @@ function LocationModalContent({ onClose }) {
             setLoading(false); // Set loading false here regardless of outcome
             if (status === "OK" && results[0]) {
               // Get the readable address
-              const address = results[0].formatted_address;
-              const locationName = address.split(",")[0];
+              const formattedAddress = results[0].formatted_address;
               
-              console.log(`Current location: ${address}`);
+              // Extract specific address components
+              const addressComponents = results[0].address_components;
+              let street = '', city = '', state = '', country = '', postalCode = '';
               
-              // Update location store directly
+              addressComponents.forEach(component => {
+                const types = component.types;
+                
+                if (types.includes('route')) {
+                  street = component.long_name;
+                } else if (types.includes('locality')) {
+                  city = component.long_name;
+                } else if (types.includes('administrative_area_level_1')) {
+                  state = component.long_name;
+                } else if (types.includes('country')) {
+                  country = component.long_name;
+                } else if (types.includes('postal_code')) {
+                  postalCode = component.long_name;
+                }
+              });
+              
+              // Create display address for navbar (prefer street name or city)
+              const displayAddress = street || (city ? `${city}` : formattedAddress.split(',')[0]);
+              
+              console.log(`Current location: ${formattedAddress}`);
+              
+              // Update location store with detailed information
               const locationData = {
                 latitude,
                 longitude,
-                label: locationName,
+                label: displayAddress, // Use street name or city instead of generic "Current Location"
+                fullAddress: formattedAddress, // Store full address for checkout page
+                addressComponents: {
+                  street,
+                  city,
+                  state,
+                  country,
+                  postalCode
+                },
                 source: "geolocation",
                 timestamp: new Date().toISOString()
               };
