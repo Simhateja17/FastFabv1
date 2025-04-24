@@ -64,7 +64,7 @@ export function UserAuthProvider({ children }) {
   // Create an authenticated fetch function that handles token refresh via cookies
   const userAuthFetch = useCallback(async (url, options = {}) => {
      const makeRequest = async (attempt = 1) => {
-        console.log(`UserAuthFetch: Attempt ${attempt} to ${url}`);
+        console.log(`UserAuthFetch: Attempt ${attempt} to ${url}`, { isCORS: url.includes('http'), origin: window.location.origin });
         const response = await fetch(url, {
           ...options,
           headers: {
@@ -72,7 +72,13 @@ export function UserAuthProvider({ children }) {
              ...(options.body && !(options.body instanceof FormData) && {'Content-Type': 'application/json'}),
           },
           credentials: "include", // Crucial: Sends HttpOnly cookies
-          mode: 'cors'
+          mode: 'cors',
+          cache: 'no-cache' // Avoid caching issues with authentication
+        });
+
+        console.log(`UserAuthFetch: Response status for ${url}: ${response.status}`, {
+          hasCookies: document.cookie.length > 0,
+          cookieCount: document.cookie.split(';').filter(c => c.trim().length > 0).length
         });
 
         if (!response.ok) {

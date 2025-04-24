@@ -102,7 +102,7 @@ export function AuthProvider({ children }) {
   // Authenticated fetch utility
   const authFetch = useCallback(async (url, options = {}) => {
     const makeRequest = async (attempt = 1) => {
-      console.log(`AuthFetch: Attempt ${attempt} to ${url}`);
+      console.log(`AuthFetch: Attempt ${attempt} to ${url}`, { isCORS: url.includes('http'), origin: window.location.origin });
       const response = await fetch(url, {
         ...options,
         headers: {
@@ -112,7 +112,13 @@ export function AuthProvider({ children }) {
           // REMOVE manual Authorization header
         },
         credentials: "include", // Crucial: Sends HttpOnly cookies
-        mode: 'cors'
+        mode: 'cors',
+        cache: 'no-cache' // Avoid caching issues with authentication
+      });
+
+      console.log(`AuthFetch: Response status for ${url}: ${response.status}`, {
+        hasCookies: document.cookie.length > 0,
+        cookieCount: document.cookie.split(';').filter(c => c.trim().length > 0).length
       });
 
       if (!response.ok) {

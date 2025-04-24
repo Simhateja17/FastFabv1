@@ -92,7 +92,8 @@ export async function POST(request) {
             secure: process.env.NODE_ENV !== 'development', // Use secure cookies in production
             path: '/',
             maxAge: 60 * 15, // 15 minutes (matches token expiry)
-            sameSite: 'lax'
+            sameSite: process.env.NODE_ENV !== 'development' ? 'none' : 'lax',
+            domain: process.env.NODE_ENV !== 'development' ? '.fastandfab.in' : undefined
         });
 
         // Optional: Implement refresh token rotation (generate and send a new refresh token)

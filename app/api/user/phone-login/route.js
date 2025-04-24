@@ -69,21 +69,26 @@ const generateTokens = (userId) => {
  */
 const setAuthCookies = (accessToken, refreshToken) => {
   const cookieStore = cookies();
+  const isProduction = process.env.NODE_ENV === "production";
   
   // Set the access token cookie
   cookieStore.set("accessToken", accessToken, {
     httpOnly: true,
-    secure: process.env.NODE_ENV === "production",
+    secure: isProduction,
+    sameSite: isProduction ? 'none' : 'lax',
     maxAge: 15 * 60, // 15 minutes in seconds
     path: "/",
+    domain: isProduction ? '.fastandfab.in' : undefined
   });
   
   // Set the refresh token cookie
   cookieStore.set("refreshToken", refreshToken, {
     httpOnly: true,
-    secure: process.env.NODE_ENV === "production",
+    secure: isProduction,
+    sameSite: isProduction ? 'none' : 'lax',
     maxAge: 7 * 24 * 60 * 60, // 7 days in seconds
     path: "/",
+    domain: isProduction ? '.fastandfab.in' : undefined
   });
   
   console.log('Auth cookies set successfully');

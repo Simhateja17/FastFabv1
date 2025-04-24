@@ -129,9 +129,10 @@ export async function POST(request) {
       await cookieStore.set('accessToken', data.accessToken, {
         httpOnly: true,
         secure: isProduction,
-        sameSite: 'lax',
+        sameSite: isProduction ? 'none' : 'lax',
         maxAge: 60 * 120, // 2 hours in seconds to match backend
         path: '/',
+        domain: isProduction ? '.fastandfab.in' : undefined
       });
     }
     
@@ -140,9 +141,10 @@ export async function POST(request) {
       await cookieStore.set('refreshToken', data.refreshToken, {
         httpOnly: true,
         secure: isProduction,
-        sameSite: 'lax',
+        sameSite: isProduction ? 'none' : 'lax',
         maxAge: 60 * 60 * 24 * 30, // 30 days in seconds
         path: '/',
+        domain: isProduction ? '.fastandfab.in' : undefined
       });
     }
     

@@ -6,9 +6,21 @@ export async function POST() {
     // Get the cookie store
     const cookieStore = cookies();
     
-    // Clear authentication cookies - updated to use await
-    await cookieStore.delete('accessToken');
-    await cookieStore.delete('refreshToken');
+    // Clear authentication cookies - updated to include domain settings
+    const isProduction = process.env.NODE_ENV === 'production';
+    await cookieStore.delete('accessToken', { 
+      path: '/',
+      domain: isProduction ? '.fastandfab.in' : undefined,
+      secure: isProduction,
+      sameSite: isProduction ? 'none' : 'lax'
+    });
+    
+    await cookieStore.delete('refreshToken', {
+      path: '/',
+      domain: isProduction ? '.fastandfab.in' : undefined,
+      secure: isProduction,
+      sameSite: isProduction ? 'none' : 'lax'
+    });
     
     // Also forward logout to seller service if needed
     const cookieToken = cookieStore.get('refreshToken')?.value;
