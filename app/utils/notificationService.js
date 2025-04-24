@@ -34,7 +34,7 @@ async function sendTemplateNotification(templateName, phoneNumber, params) {
     const SOURCE_NUMBER = process.env.GUPSHUP_SOURCE_NUMBER;
     const SRC_NAME = process.env.GUPSHUP_SRC_NAME;
     const GUPSHUP_API_URL = process.env.GUPSHUP_API_URL;
-
+    const GUPSHUP_TEMPLATE_ADMIN_ORDER_CONFIRMED = process.env.GUPSHUP_TEMPLATE_ADMIN_ORDER_CONFIRMED;
     // Check if Gupshup credentials are present
     if (!API_KEY || !SOURCE_NUMBER || !GUPSHUP_API_URL) {
       console.log('Gupshup credentials missing, cannot send notification');
