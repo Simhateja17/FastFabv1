@@ -226,8 +226,18 @@ const generateSellerTokens = (sellerId) => {
     console.error('[Seller Verify] JWT secrets are not configured');
     throw new Error('Authentication configuration error.');
   }
-  const accessToken = jwt.sign({ sellerId, type: 'seller' }, JWT_SECRET, { expiresIn: ACCESS_TOKEN_EXPIRY });
-  const refreshToken = jwt.sign({ sellerId, type: 'seller' }, JWT_REFRESH_SECRET, { expiresIn: REFRESH_TOKEN_EXPIRY });
+  
+  // Create token payload with consistent field names
+  const tokenPayload = { 
+    sellerId,            // Primary field for seller ID
+    sub: sellerId,       // JWT standard subject field
+    type: 'seller',      // Explicit type for role-based checks
+    role: 'seller'       // Alternative role field for compatibility
+  };
+  
+  const accessToken = jwt.sign(tokenPayload, JWT_SECRET, { expiresIn: ACCESS_TOKEN_EXPIRY });
+  const refreshToken = jwt.sign(tokenPayload, JWT_REFRESH_SECRET, { expiresIn: REFRESH_TOKEN_EXPIRY });
+  
   return { accessToken, refreshToken };
 };
 

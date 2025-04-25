@@ -15,13 +15,21 @@ const JWT_REFRESH_EXPIRES_IN = process.env.JWT_REFRESH_EXPIRES_IN || '7d';
 
 // Generate JWT tokens for Seller
 const generateSellerTokens = (sellerId) => {
+  // Create token payload with consistent field names
+  const tokenPayload = { 
+    sellerId,            // Primary field for seller ID
+    sub: sellerId,       // JWT standard subject field
+    type: 'seller',      // Explicit type for role-based checks
+    role: 'seller'       // Alternative role field for compatibility
+  };
+
   // Create access token
-  const accessToken = jwt.sign({ sellerId, type: 'seller' }, JWT_SECRET, {
+  const accessToken = jwt.sign(tokenPayload, JWT_SECRET, {
     expiresIn: JWT_EXPIRES_IN,
   });
 
   // Create refresh token
-  const refreshToken = jwt.sign({ sellerId, type: 'seller' }, JWT_REFRESH_SECRET, {
+  const refreshToken = jwt.sign(tokenPayload, JWT_REFRESH_SECRET, {
     expiresIn: JWT_REFRESH_EXPIRES_IN,
   });
 

@@ -43,7 +43,19 @@ export async function POST(request) {
         try {
             // decoded = jwt.verify(refreshToken, REFRESH_TOKEN_SECRET);
             decoded = jwt.verify(refreshToken, JWT_REFRESH_SECRET); // Use the correct secret variable
-            console.log("Refresh token verified successfully for sellerId:", decoded.sellerId);
+            
+            // Get the sellerId from various possible fields
+            const sellerId = decoded.sellerId || decoded.sub || decoded.userId;
+            
+            if (!sellerId) {
+                console.error("Refresh token missing sellerId:", decoded);
+                return NextResponse.json({ message: 'Invalid refresh token format' }, { status: 401 });
+            }
+            
+            // Store the sellerId in the decoded object for later use
+            decoded.sellerId = sellerId;
+            
+            console.log("Refresh token verified successfully for sellerId:", sellerId);
         } catch (err) {
             console.error("Invalid or expired refresh token:", err.message);
             // Distinguish between expired and invalid tokens if needed

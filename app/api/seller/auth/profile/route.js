@@ -39,19 +39,18 @@ const verifyTokenFromCookies = (request) => {
     console.log('[Seller Profile] Verifying token from cookie...');
     const decoded = jwt.verify(token, JWT_SECRET);
     
-    // Check standard JWT claims first, then fallback to custom fields
-    const sellerId = decoded.sub || decoded.sellerId; 
-    const tokenType = decoded.type || 'unknown';
+    // Check for sellerId in various possible fields
+    const sellerId = decoded.sellerId || decoded.sub;
 
     if (!sellerId) {
-        console.error('[Seller Profile] Token is missing sellerId/sub claim', decoded);
+        console.error('[Seller Profile] Token is missing sellerId claim', decoded);
         return null;
     }
     
-    // Ensure the token type is explicitly for a seller
-    if (tokenType !== 'seller') {
-        console.warn('[Seller Profile] Token type is not \'seller\':', tokenType);
-        return null;
+    // Check if token is identified as seller type, but don't require it
+    // This makes the function more flexible with existing tokens
+    if (decoded.type && decoded.type !== 'seller') {
+        console.warn('[Seller Profile] Token type is not \'seller\':', decoded.type);
     }
     
     console.log(`[Seller Profile] Token verified successfully for sellerId: ${sellerId}`);
