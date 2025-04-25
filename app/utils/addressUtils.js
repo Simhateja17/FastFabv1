@@ -17,18 +17,84 @@ export async function createAddressFromLocation(locationData, userData) {
     }
     
     // Extract address details from location data
+    let fullAddress = '';
+    let cityValue = '';
+    let stateValue = '';
+    let pincodeValue = '';
+    
+    // Check if we have a formatted_address from Google Places API
+    if (locationData.formatted_address) {
+      fullAddress = locationData.formatted_address;
+      
+      // Try to extract components from address_components if available (Google Places format)
+      if (locationData.address_components && Array.isArray(locationData.address_components)) {
+        locationData.address_components.forEach(component => {
+          if (component.types.includes('locality')) {
+            cityValue = component.long_name;
+          } else if (component.types.includes('administrative_area_level_1')) {
+            stateValue = component.long_name;
+          } else if (component.types.includes('postal_code')) {
+            pincodeValue = component.long_name;
+          }
+        });
+      }
+    } else if (locationData.description) {
+      // For autocomplete results
+      fullAddress = locationData.description;
+    } else if (locationData.label) {
+      // Some map providers use label
+      fullAddress = locationData.label;
+    } else if (typeof locationData === 'string') {
+      // If the location is just a string
+      fullAddress = locationData;
+    }
+    
+    // Extract city, state, pincode from the full address if not already extracted
+    if (!cityValue || !stateValue || !pincodeValue) {
+      // Try to extract from other fields if not in address_components
+      cityValue = locationData.city || locationData.locality || '';
+      stateValue = locationData.state || locationData.administrative_area || '';
+      pincodeValue = locationData.pincode || locationData.postal_code || locationData.postcode || '';
+      
+      // Last attempt: try to extract from the full address string
+      if (fullAddress) {
+        // Try to extract pincode (6-digit number pattern common in India)
+        const pincodeMatch = fullAddress.match(/\b\d{6}\b/);
+        if (pincodeMatch && !pincodeValue) {
+          pincodeValue = pincodeMatch[0];
+        }
+        
+        // Common city names in India (add more as needed)
+        const commonCities = ['Hyderabad', 'Mumbai', 'Delhi', 'Bangalore', 'Chennai', 'Kolkata', 'Pune'];
+        for (const city of commonCities) {
+          if (fullAddress.includes(city) && !cityValue) {
+            cityValue = city;
+            break;
+          }
+        }
+        
+        // Common state names in India
+        const commonStates = ['Telangana', 'Maharashtra', 'Karnataka', 'Tamil Nadu', 'Delhi'];
+        for (const state of commonStates) {
+          if (fullAddress.includes(state) && !stateValue) {
+            stateValue = state;
+            break;
+          }
+        }
+      }
+    }
+    
+    // Finalize the address object
     const addressData = {
       name: userData.name || 'Customer',
       phone: userData.phone || '',
-      // Try to extract address components from different possible location formats
-      line1: locationData.label || locationData.address || locationData.formatted_address || 'Address line',
+      line1: fullAddress, // Use the full address for line1
       line2: '',
-      city: locationData.city || locationData.locality || 'City',
-      state: locationData.state || locationData.administrative_area || 'State',
-      pincode: locationData.pincode || locationData.postal_code || locationData.postcode || '000000',
+      city: cityValue || 'City', // Fallback to placeholders if not found
+      state: stateValue || 'State',
+      pincode: pincodeValue || '000000',
       country: 'India',
-      isDefault: false, // Don't set as default unless explicitly requested
-      // Include geo coordinates if available
+      isDefault: false,
       latitude: locationData.latitude || locationData.lat,
       longitude: locationData.longitude || locationData.lng
     };
