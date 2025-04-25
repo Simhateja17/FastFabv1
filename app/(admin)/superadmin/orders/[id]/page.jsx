@@ -710,15 +710,9 @@ export default function OrderDetailPage() {
                   {order.shippingAddress.phone || order.user?.phone || "N/A"}
                 </p>
                 <p className="text-text whitespace-pre-line">
-                  {order.shippingAddress.address || "N/A"}
-                  {order.shippingAddress.address2 &&
-                    `, ${order.shippingAddress.address2}`}
-                  {order.shippingAddress.city &&
-                    `, ${order.shippingAddress.city}`}
-                  {order.shippingAddress.state &&
-                    `, ${order.shippingAddress.state}`}
-                  {order.shippingAddress.pincode &&
-                    ` - ${order.shippingAddress.pincode}`}
+                  {order.shippingAddress.displayAddress || 
+                   order.shippingAddress.line1 || 
+                   order.shippingAddress.address || "N/A"}
                 </p>
               </div>
             ) : (

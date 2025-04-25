@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { PrismaClient } from "@prisma/client";
 import { verifyAdminAuth } from "@/app/utils/adminAuth";
+import { formatAddress } from "@/app/utils/addressUtils";
 
 const prisma = new PrismaClient();
 
@@ -93,12 +94,17 @@ export async function GET(request, { params }) {
       shippingAddress = await prisma.address.findUnique({
         where: { id: order.addressId }
       });
+      
+      // Standardize address fields using the formatAddress utility
+      if (shippingAddress) {
+        shippingAddress = formatAddress(shippingAddress);
+      }
     }
 
     // Add formatted fields for frontend display
     const formattedOrder = {
       ...order,
-      shippingAddress, // Add the shipping address to the response
+      shippingAddress, // Add the standardized shipping address to the response
       formattedTotal: new Intl.NumberFormat('en-IN', { 
         style: 'currency', 
         currency: 'INR' 

@@ -1,6 +1,70 @@
 import { v4 as uuidv4 } from 'uuid';
 
 /**
+ * Formats an address object into a standardized display string
+ * Works with addresses from any part of the system (DB, API, etc.)
+ * @param {Object} address - The address object to format
+ * @param {Object} options - Formatting options
+ * @returns {Object} Formatted address with standardized field names and display string
+ */
+export function formatAddress(address, options = {}) {
+  if (!address) return { displayAddress: 'Address not available', formattedAddress: null };
+  
+  // Extract address components with fallbacks for different field naming patterns
+  const name = address.name || '';
+  const phone = address.phone || '';
+  const line1 = address.line1 || address.address || '';
+  const line2 = address.line2 || address.address2 || '';
+  const city = address.city || '';
+  const state = address.state || '';
+  const pincode = address.pincode || address.zipCode || address.postalCode || '';
+  const country = address.country || 'India';
+  
+  // Create a standardized address object with consistent field names
+  const standardizedAddress = {
+    name,
+    phone,
+    line1,
+    line2,
+    city,
+    state,
+    pincode,
+    country,
+    // Also include aliases for UI components expecting different field names
+    address: line1,
+    address2: line2,
+    zipCode: pincode,
+    postalCode: pincode
+  };
+  
+  // Build formatted address strings
+  const addressParts = [
+    line1,
+    line2,
+    city ? `${city}` : '',
+    state ? `${state}` : '',
+    pincode ? `${pincode}` : '',
+    country !== 'India' ? country : ''
+  ].filter(Boolean);
+  
+  // Create display string with appropriate separators
+  const displayAddress = addressParts.join(', ').replace(/, ,/g, ',');
+  
+  // Create a single line formatted address
+  const oneLine = addressParts.join(', ');
+  
+  // Create a multi-line formatted address
+  const multiLine = addressParts.join('\n');
+  
+  return {
+    ...standardizedAddress,
+    displayAddress,
+    oneLine,
+    multiLine
+  };
+}
+
+/**
  * Creates an address from location data
  * @param {Object} locationData - The location data (from map selection, etc)
  * @param {Object} userData - The current user data 
