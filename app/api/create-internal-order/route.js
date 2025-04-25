@@ -41,6 +41,44 @@ export async function POST(request) {
     }
     console.log(`Validated payment method string: ${paymentMethodString}`);
 
+    // --- Determine Primary Seller ID ---
+    // Count occurrences of each seller in the items
+    const sellerCounts = {};
+    
+    // Count sellers, considering both frequency and item value
+    items.forEach(item => {
+      if (item.sellerId) {
+        // Weight by both quantity and price
+        const itemValue = item.quantity * item.price;
+        sellerCounts[item.sellerId] = (sellerCounts[item.sellerId] || 0) + itemValue;
+      }
+    });
+    
+    // Find the seller with the highest total value
+    let primarySellerId = null;
+    let maxValue = 0;
+    
+    Object.entries(sellerCounts).forEach(([sellerId, value]) => {
+      if (value > maxValue) {
+        maxValue = value;
+        primarySellerId = sellerId;
+      }
+    });
+    
+    // Fallback to first seller if no primary seller could be determined
+    if (!primarySellerId && items.length > 0 && items[0].sellerId) {
+      primarySellerId = items[0].sellerId;
+      console.log(`No primary seller determined by value weighting, using first item's seller: ${primarySellerId}`);
+    }
+    
+    // Log the primary seller determination
+    if (primarySellerId) {
+      console.log(`Determined primary seller for order ${orderId}: ${primarySellerId}`);
+    } else {
+      console.error(`Could not determine primary seller for order ${orderId}. No valid sellerId found in items.`);
+      return NextResponse.json({ error: 'Could not determine primary seller for order' }, { status: 400 });
+    }
+
     console.log(`Creating internal order record with orderNumber: ${orderId}`);
 
     // --- Create Order in DB ---
@@ -57,6 +95,7 @@ export async function POST(request) {
         notes: notes || null,
         status: 'PENDING',
         paymentStatus: 'PENDING',
+        primarySellerId: primarySellerId, // Set the determined primary seller
         items: {
           create: items.map(item => ({
             id: uuidv4(),

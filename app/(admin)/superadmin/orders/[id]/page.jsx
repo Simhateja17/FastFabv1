@@ -118,7 +118,8 @@ export default function OrderDetailPage() {
       // Get API client with admin authorization
       const apiClient = getAdminApiClient();
       
-      await apiClient.patch(`/api/admin/orders/${orderId}/accept`, {
+      await apiClient.put(`/api/admin/orders/${orderId}`, {
+        status: "CONFIRMED",
         adminNotes,
       });
       setOrder({
@@ -149,7 +150,8 @@ export default function OrderDetailPage() {
       // Get API client with admin authorization
       const apiClient = getAdminApiClient();
       
-      await apiClient.patch(`/api/admin/orders/${orderId}/reject`, {
+      await apiClient.put(`/api/admin/orders/${orderId}`, {
+        status: "CANCELLED",
         adminNotes,
       });
       setOrder({
@@ -174,7 +176,7 @@ export default function OrderDetailPage() {
       // Get API client with admin authorization
       const apiClient = getAdminApiClient();
       
-      await apiClient.patch(`/api/admin/orders/${orderId}/notes`, {
+      await apiClient.put(`/api/admin/orders/${orderId}`, {
         adminNotes,
       });
       toast.success("Notes saved successfully");
