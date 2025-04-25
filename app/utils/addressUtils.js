@@ -1,5 +1,4 @@
 import { v4 as uuidv4 } from 'uuid';
-import { userAuthFetch } from './authUtils';
 
 /**
  * Creates an address from location data
@@ -37,11 +36,13 @@ export async function createAddressFromLocation(locationData, userData) {
     console.log('Creating address with data:', addressData);
     
     // Send the request to create the address
-    const response = await userAuthFetch('/api/address', {
+    const response = await fetch('/api/address', {
       method: 'POST',
       headers: {
-        'Content-Type': 'application/json'
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${userData.token}`
       },
+      credentials: 'include', // Include cookies for auth
       body: JSON.stringify(addressData)
     });
     
