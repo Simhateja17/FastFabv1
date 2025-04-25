@@ -107,6 +107,7 @@ model Order {
   adminProcessed    Boolean?             @default(false)
   adminNotes        String?
   sellerConfirmed   Boolean?             @default(false)
+  shippingAddress   Json?
   address           Address?             @relation(fields: [addressId], references: [id])
   user              User                 @relation(fields: [userId], references: [id])
   items             OrderItem[]
@@ -238,6 +239,8 @@ model Seller {
   ifsc                  String?
   gupshupOtpPending     Boolean?                  @default(false)
   cashfreeBeneficiaryId String?                   @unique
+  balance               Float                     @default(0)
+  payoutsEnabled        Boolean                   @default(false)
   products              Product[]
   orderItems            OrderItem[]
   orders                Order[]                   @relation("SellerOrders")
@@ -345,13 +348,13 @@ model SiteSettings {
 
 enum OrderStatus {
   PENDING
-  ACCEPTED
   CONFIRMED
   SHIPPED
   DELIVERED
   CANCELLED
-  REJECTED
   RETURNED
+  ACCEPTED
+  REJECTED
 }
 
 enum PaymentMethod {

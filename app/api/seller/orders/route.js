@@ -109,13 +109,13 @@ export async function GET(request) {
     console.log("Method 2: Fetching orders through orderItems relation");
     const orderItems = await prisma.orderItem.findMany({
       where: {
-        sellerId: sellerId
+        sellerId: sellerId,
+        order: orderWhereClause
       },
       select: {
         id: true,
         orderId: true,
         order: {
-          where: orderWhereClause,  // Apply status filter
           select: {
             id: true,
             orderNumber: true,
@@ -206,8 +206,11 @@ export async function GET(request) {
       const additionalItems = await prisma.orderItem.findMany({
         where: {
           productId: { in: productIds },
-          sellerId: null, // Items where sellerId wasn't set
-          order: orderWhereClause  // Apply status filter
+          sellerId: { not: sellerId }, // Instead of null, find items not belonging to this seller
+          order: {
+            // Apply status filter here as a nested relation filter
+            status: status && status !== "all" ? status.toUpperCase() : undefined
+          }
         },
         select: {
           id: true,

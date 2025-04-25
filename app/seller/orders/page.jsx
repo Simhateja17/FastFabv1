@@ -2,11 +2,12 @@
 
 import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
-import { useAuth } from "@/app/context/AuthContext";
+import { useUserAuth } from "@/app/context/UserAuthContext";
 import ProtectedRoute from "@/app/components/ProtectedRoute";
+import { useAuth } from "@/app/context/AuthContext";
 
 // The actual orders content
-function OrdersContent() {
+function OrdersContent({ seller }) {
   const [orders, setOrders] = useState([]);
   const [stats, setStats] = useState({
     totalOrders: 0,
@@ -25,7 +26,7 @@ function OrdersContent() {
   const [limit, setLimit] = useState(20);
   const [hasMore, setHasMore] = useState(true);
   
-  const { getAccessToken, user, isLoading: authLoading } = useAuth();
+  const { userAuthFetch } = useUserAuth();
 
   // Wrap fetchOrders in useCallback
   const fetchOrders = useCallback(async (pageToFetch = page) => {
@@ -33,11 +34,9 @@ function OrdersContent() {
       setLoading(true);
       setError(null);
       
-      const token = await getAccessToken();
-      
-      if (!token) {
-        console.error('No authentication token available');
-        setError('Authentication required');
+      if (!seller?.id) {
+        console.error('No seller ID available');
+        setError('Seller authentication required');
         setLoading(false);
         return;
       }
@@ -48,21 +47,15 @@ function OrdersContent() {
       // Construct API URL with query parameters
       const status = activeTab !== "all" ? activeTab : "";
       const url = new URL("/api/seller/orders", window.location.origin);
-      if (status) url.searchParams.append("status", status);
+      if (status) url.searchParams.append("status", status.toUpperCase());
       url.searchParams.append("limit", limit.toString());
       url.searchParams.append("offset", offset.toString());
       
-      const response = await fetch(url, {
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
+      console.log(`Fetching orders for seller ${seller.id}, status: ${status || 'all'}`);
+      
+      const data = await userAuthFetch(url.toString(), {
+        method: 'GET'
       });
-      
-      if (!response.ok) {
-        throw new Error(`Failed to fetch orders: ${response.status} ${response.statusText}`);
-      }
-      
-      const data = await response.json();
       
       if (!data || typeof data !== 'object') {
         throw new Error('Invalid response format');
@@ -117,21 +110,16 @@ function OrdersContent() {
     } finally {
       setLoading(false);
     }
-  }, [getAccessToken, limit, activeTab, page]);
+  }, [userAuthFetch, limit, activeTab, page, seller?.id]);
 
   useEffect(() => {
-    if (authLoading) return;
-    
-    if (!user?.id) {
-      setLoading(false);
-      return;
+    if (seller?.id) {
+      // Reset pagination when tab changes
+      setPage(1);
+      setOrders([]);
+      fetchOrders(1);
     }
-    
-    // Reset pagination when tab changes
-    setPage(1);
-    setOrders([]);
-    fetchOrders(1);
-  }, [user?.id, activeTab, authLoading, fetchOrders]);
+  }, [seller?.id, activeTab, fetchOrders]);
 
   // Load more orders
   const loadMoreOrders = () => {
@@ -467,7 +455,10 @@ function OrdersContent() {
 export default function SellerOrders() {
   return (
     <ProtectedRoute requireOnboarding={true}>
-      <OrdersContent />
+      {(seller) => {
+        console.log(`[SellerOrders] Rendering orders. Seller ID: ${seller?.id}`);
+        return <OrdersContent seller={seller} />;
+      }}
     </ProtectedRoute>
   );
 }
