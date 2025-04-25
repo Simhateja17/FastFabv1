@@ -36,7 +36,7 @@ export async function createAddressFromLocation(locationData, userData) {
     console.log('Creating address with data:', addressData);
     
     // Send the request to create the address
-    const response = await fetch('/api/address', {
+    const response = await fetch('/api/user/address', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',

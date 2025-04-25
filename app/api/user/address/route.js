@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { PrismaClient } from '@prisma/client';
 import { auth } from '@/app/lib/auth';
+import { v4 as uuidv4 } from 'uuid'; // Import UUID generator
 
 const prisma = new PrismaClient();
 
@@ -75,9 +76,14 @@ export async function POST(request) {
       });
       console.log('Current address count for user:', addressCount);
       
+      // Generate a UUID for the address if not provided
+      const addressId = addressData.id || uuidv4();
+      console.log('Using address ID:', addressId);
+      
       // Create the new address
       const newAddress = await tx.address.create({
         data: {
+          id: addressId, // Use provided ID or generate a new UUID
           userId,
           name,
           phone: phone || '', // Handle missing phone field
@@ -90,6 +96,7 @@ export async function POST(request) {
           isDefault: isDefault || addressCount === 0, // Set as default if first address
           latitude,
           longitude,
+          updatedAt: new Date(), // Add updatedAt since it's required
         },
       });
       
