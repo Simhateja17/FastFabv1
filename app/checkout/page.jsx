@@ -231,7 +231,24 @@ function CheckoutContent() {
       // --- Ensure order has a valid addressId ---
       try {
         console.log("Creating/obtaining address for order...");
-        internalOrderData = await ensureOrderAddress(internalOrderData, userLocation, user);
+        
+        // Prepare a complete location object to ensure all address components are captured
+        const completeLocationData = {
+          ...userLocation,
+          // Ensure the full address string is included
+          address: userLocation.fullAddress || userLocation.description || userLocation.label,
+          // Make sure we're using consistent property names
+          formatted_address: userLocation.fullAddress || userLocation.description,
+          // Include structured address components if available
+          city: userLocation.addressComponents?.city || userLocation.city,
+          state: userLocation.addressComponents?.state || userLocation.state,
+          pincode: userLocation.addressComponents?.postalCode || userLocation.postcode || userLocation.pincode,
+          // Log to make debugging easier
+          original: userLocation
+        };
+        
+        console.log("Passing complete location data to address creation:", completeLocationData);
+        internalOrderData = await ensureOrderAddress(internalOrderData, completeLocationData, user);
         console.log("Order data with address:", internalOrderData);
       } catch (addressError) {
         console.error("Failed to create address:", addressError);

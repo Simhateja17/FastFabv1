@@ -18,83 +18,103 @@ export async function createAddressFromLocation(locationData, userData) {
     
     // Extract address details from location data
     let fullAddress = '';
-    let cityValue = '';
-    let stateValue = '';
-    let pincodeValue = '';
+    let city = '';
+    let state = '';
+    let pincode = '';
     
-    // Check if we have a formatted_address from Google Places API
-    if (locationData.formatted_address) {
+    // Handle different location data formats
+    if (typeof locationData === 'string') {
+      // Try to parse from a string
+      fullAddress = locationData;
+      
+      // Attempt to extract components from string
+      const parts = locationData.split(',').map(part => part.trim());
+      if (parts.length >= 1) fullAddress = parts.slice(0, parts.length - 2).join(', ');
+      if (parts.length >= 2) city = parts[parts.length - 2].replace(/\d+/g, '').trim();
+      if (parts.length >= 3) state = parts[parts.length - 1].replace(/\d+/g, '').trim();
+      
+      // Try to extract pincode
+      const pincodeMatch = locationData.match(/\b\d{6}\b/);
+      if (pincodeMatch) pincode = pincodeMatch[0];
+    } 
+    else if (locationData.formatted_address) {
+      // Google Places API format
       fullAddress = locationData.formatted_address;
       
-      // Try to extract components from address_components if available (Google Places format)
-      if (locationData.address_components && Array.isArray(locationData.address_components)) {
-        locationData.address_components.forEach(component => {
+      // Extract from address_components if available
+      if (locationData.address_components) {
+        for (const component of locationData.address_components) {
           if (component.types.includes('locality')) {
-            cityValue = component.long_name;
+            city = component.long_name;
           } else if (component.types.includes('administrative_area_level_1')) {
-            stateValue = component.long_name;
+            state = component.long_name;
           } else if (component.types.includes('postal_code')) {
-            pincodeValue = component.long_name;
+            pincode = component.long_name;
           }
-        });
-      }
-    } else if (locationData.description) {
-      // For autocomplete results
-      fullAddress = locationData.description;
-    } else if (locationData.label) {
-      // Some map providers use label
-      fullAddress = locationData.label;
-    } else if (typeof locationData === 'string') {
-      // If the location is just a string
-      fullAddress = locationData;
-    }
-    
-    // Extract city, state, pincode from the full address if not already extracted
-    if (!cityValue || !stateValue || !pincodeValue) {
-      // Try to extract from other fields if not in address_components
-      cityValue = locationData.city || locationData.locality || '';
-      stateValue = locationData.state || locationData.administrative_area || '';
-      pincodeValue = locationData.pincode || locationData.postal_code || locationData.postcode || '';
-      
-      // Last attempt: try to extract from the full address string
-      if (fullAddress) {
-        // Try to extract pincode (6-digit number pattern common in India)
+        }
+      } else {
+        // Fallback extraction from formatted address
+        const parts = fullAddress.split(',').map(part => part.trim());
+        
+        // Extract city, state, pincode from the formatted address
+        if (parts.length >= 2) city = parts[parts.length - 3] || '';
+        if (parts.length >= 1) state = parts[parts.length - 2] || '';
+        
         const pincodeMatch = fullAddress.match(/\b\d{6}\b/);
-        if (pincodeMatch && !pincodeValue) {
-          pincodeValue = pincodeMatch[0];
-        }
-        
-        // Common city names in India (add more as needed)
-        const commonCities = ['Hyderabad', 'Mumbai', 'Delhi', 'Bangalore', 'Chennai', 'Kolkata', 'Pune'];
-        for (const city of commonCities) {
-          if (fullAddress.includes(city) && !cityValue) {
-            cityValue = city;
-            break;
-          }
-        }
-        
-        // Common state names in India
-        const commonStates = ['Telangana', 'Maharashtra', 'Karnataka', 'Tamil Nadu', 'Delhi'];
-        for (const state of commonStates) {
-          if (fullAddress.includes(state) && !stateValue) {
-            stateValue = state;
-            break;
-          }
+        if (pincodeMatch) pincode = pincodeMatch[0];
+      }
+      
+      // Extract street address for line1 (remove city, state, pincode parts)
+      const addressParts = fullAddress.split(',');
+      if (addressParts.length > 2) {
+        fullAddress = addressParts.slice(0, -2).join(',').trim();
+      }
+    } 
+    else {
+      // Handle other location data structures
+      fullAddress = locationData.label || locationData.address || '';
+      city = locationData.city || locationData.locality || '';
+      state = locationData.state || locationData.administrative_area || '';
+      pincode = locationData.pincode || locationData.postal_code || locationData.postcode || '';
+      
+      // If we have a full description but not individual parts, try to extract them
+      if (locationData.description && (!city || !state || !pincode)) {
+        const parts = locationData.description.split(',').map(part => part.trim());
+        if (parts.length >= 3) {
+          if (!city) city = parts[parts.length - 3] || '';
+          if (!state) state = parts[parts.length - 2] || '';
+          
+          const pincodeMatch = locationData.description.match(/\b\d{6}\b/);
+          if (pincodeMatch && !pincode) pincode = pincodeMatch[0];
         }
       }
     }
     
-    // Finalize the address object
+    // Make sure we have values for all fields, use fallbacks if needed
+    if (!fullAddress) fullAddress = 'Address line';
+    if (!city) city = 'City';
+    if (!state) state = 'State';
+    if (!pincode) pincode = '000000';
+    
+    console.log('Parsed address components:', { 
+      fullAddress, 
+      city, 
+      state, 
+      pincode,
+      original: locationData
+    });
+    
     const addressData = {
       name: userData.name || 'Customer',
       phone: userData.phone || '',
-      line1: fullAddress, // Use the full address for line1
+      line1: fullAddress, // Use full detailed address for line1
       line2: '',
-      city: cityValue || 'City', // Fallback to placeholders if not found
-      state: stateValue || 'State',
-      pincode: pincodeValue || '000000',
+      city: city,
+      state: state,
+      pincode: pincode,
       country: 'India',
-      isDefault: false,
+      isDefault: false, // Don't set as default unless explicitly requested
+      // Include geo coordinates if available
       latitude: locationData.latitude || locationData.lat,
       longitude: locationData.longitude || locationData.lng
     };
