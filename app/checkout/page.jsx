@@ -13,6 +13,7 @@ import LoadingSpinner from "@/app/components/LoadingSpinner";
 import { FiMapPin, FiShield } from "react-icons/fi";
 import Script from 'next/script';
 import { v4 as uuidv4 } from 'uuid';
+import { ensureOrderAddress } from "@/app/utils/addressUtils";
 
 function CheckoutContent() {
   console.log('CheckoutContent component rendering...'); // DIAGNOSTIC LOG 1
@@ -209,7 +210,7 @@ function CheckoutContent() {
 
     try {
       // --- Prepare Order Data for Internal DB Save ---
-      const internalOrderData = {
+      let internalOrderData = {
         orderId: orderIdForCashfree, // Use the generated ID
         userId: user.id,
         items: checkoutItems.map(item => ({
@@ -223,10 +224,21 @@ function CheckoutContent() {
           sellerId: item.sellerId // Use the actual sellerId from the item
         })),
         totalAmount: total,
-        addressId: userLocation.id, // Assuming userLocation has the selected address ID
         paymentMethod: 'UPI', // Send 'UPI' instead of 'ONLINE'
         // Include other relevant fields like shippingFee, tax, discount if calculated
       };
+      
+      // --- Ensure order has a valid addressId ---
+      try {
+        console.log("Creating/obtaining address for order...");
+        internalOrderData = await ensureOrderAddress(internalOrderData, userLocation, user);
+        console.log("Order data with address:", internalOrderData);
+      } catch (addressError) {
+        console.error("Failed to create address:", addressError);
+        toast.error("Could not create shipping address. Please try again.");
+        setIsProcessingPayment(false);
+        return;
+      }
       
       // --- 1. Create Order Record Internally ---
       console.log("Creating internal order record...");
