@@ -68,6 +68,13 @@ export async function GET(request) {
             product: true,
           },
         },
+        payment: {
+          select: {
+            status: true,
+            paymentId: true,
+            method: true
+          }
+        }
       },
     });
     

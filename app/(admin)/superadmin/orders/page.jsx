@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { toast } from "react-hot-toast";
 import { getAdminApiClient } from "@/app/utils/apiClient";
 import Link from "next/link";
+import { getPaymentStatusColor, formatPaymentStatus, getPaymentStatusIcon } from "@/app/utils/statusUtils";
 
 // Order statuses
 const ORDER_STATUSES = [
@@ -301,6 +302,9 @@ export default function OrdersPage() {
                   Payment
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-text-muted uppercase tracking-wider">
+                  Payment Status
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-text-muted uppercase tracking-wider">
                   Status
                 </th>
                 <th className="px-6 py-3 text-right text-xs font-medium text-text-muted uppercase tracking-wider">
@@ -333,6 +337,15 @@ export default function OrdersPage() {
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-text">
                       {formatPaymentMethod(order.paymentMethod)}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <span
+                        className={`px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${getPaymentStatusColor(
+                          order.paymentStatus
+                        )}`}
+                      >
+                        {formatPaymentStatus(order.paymentStatus)}
+                      </span>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <span
@@ -369,7 +382,7 @@ export default function OrdersPage() {
               ) : (
                 <tr>
                   <td
-                    colSpan="7"
+                    colSpan="8"
                     className="px-6 py-4 text-center text-sm text-text-muted"
                   >
                     {searchQuery || filterStatus !== "all"
