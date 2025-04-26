@@ -49,7 +49,19 @@ export async function GET(request, { params }) {
             phone: true
           }
         },
-        shippingAddress: true,
+        address: {
+          select: {
+            id: true,
+            name: true,
+            phone: true,
+            line1: true,
+            line2: true,
+            city: true,
+            state: true,
+            pincode: true,
+            country: true
+          }
+        },
         // Order items
         items: {
           where: {
@@ -106,7 +118,10 @@ export async function GET(request, { params }) {
         name: order.user?.name || "Unknown",
         email: order.user?.email || "Not provided",
         phone: order.user?.phone || "Not provided",
-        address: order.shippingAddress || "Not provided"
+        // Format address from the address relation
+        address: order.address 
+          ? `${order.address.line1}${order.address.line2 ? ', ' + order.address.line2 : ''}, ${order.address.city}, ${order.address.state} ${order.address.pincode}`
+          : "Not provided"
       },
       // Format seller details from the first product's seller
       seller: order.items[0]?.product?.seller || null,
@@ -126,7 +141,7 @@ export async function GET(request, { params }) {
     
     // Remove redundant nested data
     delete orderDetails.user;
-    delete orderDetails.shippingAddress;
+    delete orderDetails.address;
     
     return NextResponse.json({ order: orderDetails });
     

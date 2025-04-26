@@ -1,0 +1,49 @@
+[{
+  "tablename": "ProductVariantGroup"
+}, {
+  "tablename": "CartItem"
+}, {
+  "tablename": "Order"
+}, {
+  "tablename": "PaymentTransaction"
+}, {
+  "tablename": "User"
+}, {
+  "tablename": "WhatsAppOTP"
+}, {
+  "tablename": "Product"
+}, {
+  "tablename": "_prisma_migrations"
+}, {
+  "tablename": "ColorInventory"
+}, {
+  "tablename": "RefreshToken"
+}, {
+  "tablename": "spatial_ref_sys"
+}, {
+  "tablename": "SuperAdmin"
+}, {
+  "tablename": "AdminRefreshToken"
+}, {
+  "tablename": "OTP"
+}, {
+  "tablename": "PushSubscription"
+}, {
+  "tablename": "Address"
+}, {
+  "tablename": "Cart"
+}, {
+  "tablename": "UserRefreshToken"
+}, {
+  "tablename": "SiteSettings"
+}, {
+  "tablename": "Payout"
+}, {
+  "tablename": "Seller"
+}, {
+  "tablename": "OrderItem"
+}, {
+  "tablename": "Withdrawal"
+}, {
+  "tablename": "SellerEarning"
+}]

@@ -1,4 +1,3 @@
-
 import { NextResponse } from "next/server";
 import { PrismaClient } from "@prisma/client";
 import { auth } from "@/app/lib/auth";
@@ -47,6 +46,116 @@ export async function GET(request) {
         createdAt: 'desc'
       }
     });
+
+    // Get items in return window with enhanced details
+    const itemsInReturnWindow = await prisma.orderItem.findMany({
+      where: {
+        sellerId: sellerId,
+        returnWindowStatus: 'ACTIVE',
+      },
+      include: {
+        earnings: true,
+        product: {
+          select: {
+            id: true,
+            name: true,
+            images: true,
+            isReturnable: true
+          }
+        },
+        order: {
+          select: {
+            id: true,
+            orderNumber: true,
+            createdAt: true,
+            status: true,
+            user: {
+              select: {
+                id: true,
+                name: true,
+                phone: true
+              }
+            }
+          }
+        }
+      }
+    });
+
+    // Calculate amount in return window and enrich items with time remaining
+    let returnWindowAmount = 0;
+    const now = new Date();
+    
+    const enrichedItems = itemsInReturnWindow.map(item => {
+      const itemAmount = item.price * item.quantity;
+      returnWindowAmount += itemAmount;
+      
+      // Calculate time remaining in return window
+      const endDate = item.returnWindowEnd ? new Date(item.returnWindowEnd) : null;
+      const startDate = item.returnWindowStart ? new Date(item.returnWindowStart) : null;
+      
+      let timeRemaining = null;
+      let progress = 0;
+      
+      if (endDate && startDate) {
+        const totalWindowMs = endDate - startDate;
+        const elapsedMs = now - startDate;
+        const remainingMs = Math.max(0, endDate - now);
+        
+        progress = Math.min(100, Math.max(0, (elapsedMs / totalWindowMs) * 100));
+        timeRemaining = {
+          ms: remainingMs,
+          hours: Math.floor(remainingMs / (1000 * 60 * 60)),
+          minutes: Math.floor((remainingMs % (1000 * 60 * 60)) / (1000 * 60)),
+        };
+      }
+      
+      return {
+        ...item,
+        timeRemaining,
+        progress,
+        amount: itemAmount
+      };
+    });
+
+    // Calculate projected release dates
+    const projectedReleases = enrichedItems.reduce((acc, item) => {
+      if (!item.returnWindowEnd) return acc;
+      
+      const releaseDate = new Date(item.returnWindowEnd);
+      const dateKey = releaseDate.toISOString().split('T')[0];
+      
+      if (!acc[dateKey]) {
+        acc[dateKey] = {
+          date: releaseDate,
+          totalAmount: 0,
+          items: []
+        };
+      }
+      
+      acc[dateKey].totalAmount += item.amount;
+      acc[dateKey].items.push({
+        id: item.id,
+        productName: item.product?.name || 'Unknown Product',
+        amount: item.amount
+      });
+      
+      return acc;
+    }, {});
+
+    // Query earnings by type
+    const immediateEarnings = await prisma.sellerEarning.findMany({
+      where: {
+        sellerId: sellerId,
+        type: 'IMMEDIATE'
+      }
+    });
+
+    const postWindowEarnings = await prisma.sellerEarning.findMany({
+      where: {
+        sellerId: sellerId,
+        type: 'POST_RETURN_WINDOW'
+      }
+    });
     
     // Calculate summary statistics
     const currentDate = new Date();
@@ -65,13 +174,21 @@ export async function GET(request) {
     
     // Calculate stats for different periods
     const stats = {
-      "7days": calculateStats(earnings, sevenDaysAgo),
-      "30days": calculateStats(earnings, thirtyDaysAgo),
-      "90days": calculateStats(earnings, ninetyDaysAgo),
-      "all": calculateStats(earnings, null)
+      "7days": calculateStats(earnings, immediateEarnings, postWindowEarnings, returnWindowAmount, sevenDaysAgo),
+      "30days": calculateStats(earnings, immediateEarnings, postWindowEarnings, returnWindowAmount, thirtyDaysAgo),
+      "90days": calculateStats(earnings, immediateEarnings, postWindowEarnings, returnWindowAmount, ninetyDaysAgo),
+      "all": calculateStats(earnings, immediateEarnings, postWindowEarnings, returnWindowAmount, null)
     };
     
-    return NextResponse.json({ earnings, stats });
+    return NextResponse.json({ 
+      earnings, 
+      immediateEarnings, 
+      postWindowEarnings, 
+      itemsInReturnWindow: enrichedItems,
+      returnWindowAmount,
+      projectedReleases,
+      stats 
+    });
     
   } catch (error) {
     console.error("Error fetching seller earnings:", error);
@@ -85,32 +202,54 @@ export async function GET(request) {
 }
 
 // Helper function to calculate earnings statistics
-function calculateStats(earnings, startDate) {
+function calculateStats(earnings, immediateEarnings, postWindowEarnings, returnWindowAmount, startDate) {
   let totalSales = 0;
   let totalCommission = 0;
   let totalRefunds = 0;
-  let totalPayouts = 0;
   
-  earnings.forEach(earning => {
+  let immediateEarningsTotal = 0;
+  let postWindowEarningsTotal = 0;
+  
+  // Filter by date for all earnings
+  const filteredEarnings = earnings.filter(earning => {
     const earningDate = new Date(earning.createdAt);
-    
-    // Filter by date range if startDate is provided
-    if (startDate && earningDate < startDate) {
-      return;
-    }
-    
+    return !startDate || earningDate >= startDate;
+  });
+  
+  // Filter by date for immediate earnings
+  const filteredImmediateEarnings = immediateEarnings.filter(earning => {
+    const earningDate = new Date(earning.createdAt);
+    return !startDate || earningDate >= startDate;
+  });
+  
+  // Filter by date for post-window earnings
+  const filteredPostWindowEarnings = postWindowEarnings.filter(earning => {
+    const earningDate = new Date(earning.createdAt);
+    return !startDate || earningDate >= startDate;
+  });
+  
+  // Calculate immediate earnings total
+  filteredImmediateEarnings.forEach(earning => {
+    immediateEarningsTotal += earning.amount;
+  });
+  
+  // Calculate post-window earnings total
+  filteredPostWindowEarnings.forEach(earning => {
+    postWindowEarningsTotal += earning.amount;
+  });
+  
+  // Original calculations for backward compatibility
+  filteredEarnings.forEach(earning => {
     if (earning.type === 'SALE') {
       totalSales += earning.amount;
-      totalCommission += earning.commission;
+      totalCommission += earning.commission || 0;
     } else if (earning.type === 'REFUND') {
       totalRefunds += Math.abs(earning.amount);
-    } else if (earning.type === 'PAYOUT') {
-      totalPayouts += Math.abs(earning.amount);
     }
   });
   
   const netEarnings = totalSales - totalRefunds - totalCommission;
-  const availableBalance = netEarnings - totalPayouts;
+  const availableBalance = netEarnings;
   
   return {
     totalSales,
@@ -118,7 +257,9 @@ function calculateStats(earnings, startDate) {
     totalRefunds,
     netEarnings,
     availableBalance,
-    totalPayouts
+    immediateEarningsTotal,
+    postWindowEarningsTotal,
+    returnWindowAmount
   };
 } 
 

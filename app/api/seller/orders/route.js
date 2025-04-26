@@ -73,7 +73,19 @@ export async function GET(request) {
             phone: true
           }
         },
-        shippingAddress: true,
+        address: {
+          select: {
+            id: true,
+            name: true,
+            phone: true,
+            line1: true,
+            line2: true,
+            city: true,
+            state: true,
+            pincode: true,
+            country: true
+          }
+        },
         items: {
           where: {
             sellerId: sellerId
@@ -133,7 +145,19 @@ export async function GET(request) {
                 phone: true
               }
             },
-            shippingAddress: true
+            address: {
+              select: {
+                id: true,
+                name: true,
+                phone: true,
+                line1: true,
+                line2: true,
+                city: true,
+                state: true,
+                pincode: true,
+                country: true
+              }
+            }
           }
         },
         productId: true,
@@ -167,7 +191,7 @@ export async function GET(request) {
           createdAt: item.order.createdAt,
           updatedAt: item.order.updatedAt,
           user: item.order.user,
-          shippingAddress: item.order.shippingAddress,
+          address: item.order.address,
           items: []
         });
       }
@@ -209,7 +233,7 @@ export async function GET(request) {
           sellerId: { not: sellerId }, // Instead of null, find items not belonging to this seller
           order: {
             // Apply status filter here as a nested relation filter
-            status: status && status !== "all" ? status.toUpperCase() : undefined
+            ...(status && status !== "all" ? { status: status.toUpperCase() } : {})
           }
         },
         select: {
@@ -233,7 +257,19 @@ export async function GET(request) {
                   phone: true
                 }
               },
-              shippingAddress: true
+              address: {
+                select: {
+                  id: true,
+                  name: true,
+                  phone: true,
+                  line1: true,
+                  line2: true,
+                  city: true,
+                  state: true,
+                  pincode: true,
+                  country: true
+                }
+              }
             }
           },
           productId: true,
@@ -248,20 +284,14 @@ export async function GET(request) {
       
       console.log(`Found ${additionalItems.length} additional order items with seller's products but missing sellerId`);
       
-      // Process these items to update sellerId and add to orders map
-      const updates = [];
-      for (const item of additionalItems) {
-        if (!item.order) continue;
+      // Process these additional items
+      additionalItems.forEach(item => {
+        if (!item.order) {
+          console.warn(`Order not found for additionalItem ${item.id}, orderId ${item.orderId}`);
+          return; // Skip this item as its order is missing
+        }
         
-        // Schedule update for sellerId
-        updates.push(
-          prisma.orderItem.update({
-            where: { id: item.id },
-            data: { sellerId }
-          })
-        );
-        
-        // Add to our orders map if not already present
+        // Add order to map if not already present
         if (!ordersMap.has(item.orderId)) {
           ordersMap.set(item.orderId, {
             id: item.order.id,
@@ -273,12 +303,12 @@ export async function GET(request) {
             createdAt: item.order.createdAt,
             updatedAt: item.order.updatedAt,
             user: item.order.user,
-            shippingAddress: item.order.shippingAddress,
+            address: item.order.address,
             items: []
           });
         }
         
-        // Add the item to the order's items array
+        // Add item to order's items array
         const itemData = {
           id: item.id,
           productId: item.productId,
@@ -290,89 +320,40 @@ export async function GET(request) {
           discount: item.discount
         };
         
+        // Check if item is already in the array to avoid duplicates
         const existing = ordersMap.get(item.orderId).items.find(i => i.id === item.id);
         if (!existing) {
           ordersMap.get(item.orderId).items.push(itemData);
         }
-      }
-      
-      // Run updates in parallel if there are any
-      if (updates.length > 0) {
-        await Promise.all(updates);
-        console.log(`Updated sellerId for ${updates.length} previously missing seller references`);
-        
-        // Update primarySellerId for newly found orders if needed
-        const orderIdsToUpdate = [...new Set(additionalItems.map(item => item.orderId))];
-        console.log(`Checking ${orderIdsToUpdate.length} orders that need primarySellerId updated`);
-        
-        for (const orderId of orderIdsToUpdate) {
-          // Check if order has primarySellerId set
-          const order = await prisma.order.findUnique({
-            where: { id: orderId },
-            select: { primarySellerId: true }
-          });
-          
-          if (!order.primarySellerId) {
-            // Update the primarySellerId
-            await prisma.order.update({
-              where: { id: orderId },
-              data: { primarySellerId: sellerId }
-            });
-            console.log(`Updated primarySellerId for order ${orderId} to ${sellerId}`);
-          }
-        }
-      }
+      });
     }
     
-    // Convert map to array and sort
-    let orders = Array.from(ordersMap.values());
+    // Convert map to array and apply pagination
+    let allOrders = Array.from(ordersMap.values());
     
-    // Sort by createdAt in descending order
-    orders.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+    // Sort by createdAt in descending order (most recent first)
+    allOrders.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
     
-    // Apply limit/offset for pagination if needed
-    if (limit > 0) {
-      orders = orders.slice(offset, offset + limit);
-    }
-    
-    console.log(`Returning ${orders.length} unique orders for seller ${sellerId}`);
-    
-    // Calculate stats for the response
-    const allOrdersForStats = await prisma.order.findMany({
-      where: {
-        OR: [
-          { primarySellerId: sellerId },
-          {
-            items: {
-              some: {
-                sellerId: sellerId
-              }
-            }
-          }
-        ]
-      },
-      select: {
-        id: true,
-        status: true
-      }
-    });
-    
+    // Count orders by status for stats
     const stats = {
-      totalOrders: allOrdersForStats.length,
-      pendingOrders: allOrdersForStats.filter(o => o.status === 'PENDING').length,
-      processingOrders: allOrdersForStats.filter(o => o.status === 'PROCESSING').length,
-      confirmedOrders: allOrdersForStats.filter(o => o.status === 'CONFIRMED').length,
-      shippedOrders: allOrdersForStats.filter(o => o.status === 'SHIPPED').length,
-      deliveredOrders: allOrdersForStats.filter(o => o.status === 'DELIVERED').length,
-      cancelledOrders: allOrdersForStats.filter(o => o.status === 'CANCELLED').length
+      totalOrders: allOrders.length,
+      pendingOrders: allOrders.filter(order => order.status === 'PENDING').length,
+      deliveredOrders: allOrders.filter(order => order.status === 'DELIVERED').length,
+      cancelledOrders: allOrders.filter(order => order.status === 'CANCELLED').length,
+      confirmedOrders: allOrders.filter(order => order.status === 'CONFIRMED').length,
+      shippedOrders: allOrders.filter(order => order.status === 'SHIPPED').length,
+      processingOrders: allOrders.filter(order => order.status === 'PROCESSING').length
     };
     
-    return NextResponse.json({ orders, stats });
+    return NextResponse.json({ 
+      orders: allOrders, 
+      stats 
+    });
     
   } catch (error) {
     console.error("Error fetching seller orders:", error);
     return NextResponse.json(
-      { error: "Failed to fetch orders", message: error.message },
+      { error: `Failed to fetch orders: ${error.message}` },
       { status: 500 }
     );
   } finally {

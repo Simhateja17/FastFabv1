@@ -3,7 +3,7 @@
 import React, { useState, useContext } from 'react';
 import { useAuth } from '@/app/context/AuthContext';
 
-const WithdrawModal = ({ isOpen, onClose, availableBalance = 0, onWithdrawSuccess }) => {
+const WithdrawModal = ({ isOpen, onClose, maxAmount = 0, onSubmit }) => {
   const [amount, setAmount] = useState('');
   const [remarks, setRemarks] = useState('');
   const [error, setError] = useState('');
@@ -25,7 +25,7 @@ const WithdrawModal = ({ isOpen, onClose, availableBalance = 0, onWithdrawSucces
       setAmount(value);
       setError('');
       setSuccessMessage('');
-      if (value !== '' && parseFloat(value) > availableBalance) {
+      if (value !== '' && parseFloat(value) > maxAmount) {
         setError('Amount cannot exceed available balance.');
       } else if (value !== '' && parseFloat(value) <= 0) {
           setError('Amount must be greater than zero.')
@@ -40,7 +40,7 @@ const WithdrawModal = ({ isOpen, onClose, availableBalance = 0, onWithdrawSucces
       setError('Please enter a valid positive amount to withdraw.');
       return;
     }
-    if (numericAmount > availableBalance) {
+    if (numericAmount > maxAmount) {
       setError('Amount cannot exceed available balance.');
       return;
     }
@@ -65,8 +65,8 @@ const WithdrawModal = ({ isOpen, onClose, availableBalance = 0, onWithdrawSucces
         console.log('Withdrawal successful:', data);
         setSuccessMessage(data.message || 'Withdrawal request submitted successfully!');
 
-        if (onWithdrawSuccess) {
-            onWithdrawSuccess(data.newBalance);
+        if (onSubmit) {
+            onSubmit(numericAmount);
         }
 
         setTimeout(() => {
@@ -112,7 +112,7 @@ const WithdrawModal = ({ isOpen, onClose, availableBalance = 0, onWithdrawSucces
         )}
 
         <div className="mb-4 p-3 bg-gray-100 rounded">
-          <p>💰 Available Balance: <span className="font-medium">₹{availableBalance.toFixed(2)}</span></p>
+          <p>💰 Available Balance: <span className="font-medium">₹{maxAmount.toFixed(2)}</span></p>
         </div>
 
         <div className="mb-4 border-t pt-4">
@@ -139,7 +139,7 @@ const WithdrawModal = ({ isOpen, onClose, availableBalance = 0, onWithdrawSucces
                  inputMode="decimal"
                  disabled={isWithdrawing || !!successMessage}
              />
-             <p className="text-xs text-gray-500 mt-1">Cannot exceed available balance: ₹{availableBalance.toFixed(2)}</p>
+             <p className="text-xs text-gray-500 mt-1">Cannot exceed available balance: ₹{maxAmount.toFixed(2)}</p>
 
 
             <label htmlFor="remarks" className="block text-sm font-medium text-gray-700 mt-3 mb-1">
@@ -166,7 +166,7 @@ const WithdrawModal = ({ isOpen, onClose, availableBalance = 0, onWithdrawSucces
           </button>
           <button
             onClick={handleWithdraw}
-            disabled={!!error || !amount || parseFloat(amount) <= 0 || parseFloat(amount) > availableBalance || isWithdrawing || !!successMessage}
+            disabled={!!error || !amount || parseFloat(amount) <= 0 || parseFloat(amount) > maxAmount || isWithdrawing || !!successMessage}
             className="px-4 py-2 bg-black text-white rounded-md hover:bg-gray-800 disabled:bg-gray-400 disabled:cursor-not-allowed"
           >
             {isWithdrawing ? 'Processing...' : successMessage ? 'Submitted!' : 'Withdraw Now'}
