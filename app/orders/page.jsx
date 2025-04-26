@@ -28,22 +28,16 @@ export default function Orders() {
   const fetchOrders = useCallback(async () => {
     setLoading(true);
     try {
-      const response = await userAuthFetch(USER_ENDPOINTS.ORDERS);
-      if (response.ok) {
-        const data = await response.json();
-        // Handle different API response formats
-        const ordersList = Array.isArray(data)
-          ? data
-          : data.orders || data.data?.orders || data.data || [];
+      // userAuthFetch already returns parsed JSON data
+      const data = await userAuthFetch(USER_ENDPOINTS.ORDERS);
+      
+      // Handle different API response formats
+      const ordersList = Array.isArray(data)
+        ? data
+        : data.orders || data.data?.orders || data.data || [];
 
-        setOrders(ordersList);
-        console.log("Orders fetched successfully:", ordersList);
-      } else {
-        console.error(
-          `Error fetching orders: ${response.status} ${response.statusText}`
-        );
-        toast.error("Failed to fetch orders. Please try again.");
-      }
+      setOrders(ordersList);
+      console.log("Orders fetched successfully:", ordersList);
     } catch (error) {
       console.error("Error fetching orders:", error);
       if (

@@ -393,8 +393,9 @@ export function AuthProvider({ children }) {
     authFetch,
     updateSellerDetails,
     sendSellerOTP,
-    verifySellerOTP
-  }), [seller, loading, isInitialized, login, register, logout, authFetch, updateSellerDetails, sendSellerOTP, verifySellerOTP]);
+    verifySellerOTP,
+    fetchCurrentSellerProfile: fetchSellerProfile
+  }), [seller, loading, isInitialized, login, register, logout, authFetch, updateSellerDetails, sendSellerOTP, verifySellerOTP, fetchSellerProfile]);
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }

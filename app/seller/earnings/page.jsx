@@ -64,7 +64,7 @@ function EarningsContent() {
               availableBalance: periodStats.availableBalance || 0,
               immediateEarningsTotal: periodStats.immediateEarningsTotal || 0,
               postWindowEarningsTotal: periodStats.postWindowEarningsTotal || 0,
-              returnWindowAmount: periodStats.returnWindowAmount || 0
+              returnWindowAmount: periodStats.inReturnWindowAmount || 0 // Corrected key to match backend
           });
         } else {
           // Default stats if not available or structure is wrong
@@ -123,9 +123,15 @@ function EarningsContent() {
   // Filter transactions based on active tab
   const filteredTransactions = earnings.filter((transaction) => {
     if (activeTab === "all") return true;
-    if (activeTab === "return_window") return false; // Return window items are handled separately
+    if (activeTab === "return_window") return false; // Return window items are handled separately in JSX
+    if (activeTab === "fulfilled") {
+      // Show only transactions that are marked as 'COMPLETED'
+      return transaction?.status?.toLowerCase() === 'completed';
+    }
+    // Fallback for any other potential tabs (though we removed them)
     // Ensure comparison is robust (case-insensitive and handles potential null/undefined type)
-    return transaction?.type?.toLowerCase() === activeTab.toLowerCase();
+    // This part might not be strictly needed anymore but kept for robustness
+    return transaction?.type?.toLowerCase() === activeTab.toLowerCase(); 
   });
 
   // Get transaction type badge color
@@ -254,39 +260,13 @@ function EarningsContent() {
               </div>
             </div>
 
-            {/* In Return Window Amount Card */}
+            {/* In Return Window Card */}
             <div className="bg-white p-6 rounded-lg shadow">
-              <h3 className="text-sm font-medium text-gray-500">
-                In Return Window 
-                <span className="ml-1 inline-flex items-center rounded-full bg-yellow-100 px-2.5 py-0.5 text-xs font-medium text-yellow-800">
-                  Pending
-                </span>
-              </h3>
+              <h3 className="text-sm font-medium text-gray-500">In Return Window</h3>
               <p className="mt-2 text-3xl font-semibold text-gray-900">
                 {formatCurrency(stats.returnWindowAmount)}
               </p>
-              <p className="mt-1 text-xs text-gray-500">
-                Amounts for items still within return period
-              </p>
-            </div>
-
-            {/* Earnings Breakdown Card */}
-            <div className="bg-white p-6 rounded-lg shadow">
-              <h3 className="text-sm font-medium text-gray-500">Earnings Breakdown</h3>
-              <div className="mt-2">
-                <div className="flex justify-between items-center mb-1">
-                  <span className="text-sm text-gray-600">Immediate:</span>
-                  <span className="text-sm font-medium text-green-600">
-                    {formatCurrency(stats.immediateEarningsTotal)}
-                  </span>
-                </div>
-                <div className="flex justify-between items-center">
-                  <span className="text-sm text-gray-600">Post-Window:</span>
-                  <span className="text-sm font-medium text-blue-600">
-                    {formatCurrency(stats.postWindowEarningsTotal)}
-                  </span>
-                </div>
-              </div>
+              <p className="text-xs text-gray-500">Amounts for items still within return period</p>
             </div>
           </div>
 
@@ -306,44 +286,39 @@ function EarningsContent() {
 
           {/* Transaction Type Tabs */}
           <div className="border-b border-gray-200 mb-6">
-            <nav className="-mb-px flex space-x-8">
+            <nav className="-mb-px flex space-x-8" aria-label="Tabs">
               <button
                 onClick={() => setActiveTab("all")}
-                className={`${
+                className={`${// All Transactions Tab
                   activeTab === "all"
                     ? "border-blue-500 text-blue-600"
                     : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
                 } whitespace-nowrap pb-4 px-1 border-b-2 font-medium text-sm`}
+                aria-current={activeTab === "all" ? "page" : undefined}
               >
                 All Transactions
               </button>
+              {/* Removed Immediate Earnings Tab */}
+              {/* Removed Post-Window Earnings Tab */}
               <button
-                onClick={() => setActiveTab("immediate")}
-                className={`${
-                  activeTab === "immediate"
+                onClick={() => setActiveTab("fulfilled")}
+                className={`${// Fulfilled Orders Tab
+                  activeTab === "fulfilled"
                     ? "border-blue-500 text-blue-600"
                     : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
                 } whitespace-nowrap pb-4 px-1 border-b-2 font-medium text-sm`}
+                aria-current={activeTab === "fulfilled" ? "page" : undefined}
               >
-                Immediate Earnings
-              </button>
-              <button
-                onClick={() => setActiveTab("post_return_window")}
-                className={`${
-                  activeTab === "post_return_window"
-                    ? "border-blue-500 text-blue-600"
-                    : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
-                } whitespace-nowrap pb-4 px-1 border-b-2 font-medium text-sm`}
-              >
-                Post-Window Earnings
+                Fulfilled Orders
               </button>
               <button
                 onClick={() => setActiveTab("return_window")}
-                className={`${
+                className={`${// In Return Window Tab
                   activeTab === "return_window"
                     ? "border-blue-500 text-blue-600"
                     : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
                 } whitespace-nowrap pb-4 px-1 border-b-2 font-medium text-sm`}
+                aria-current={activeTab === "return_window" ? "page" : undefined}
               >
                 In Return Window
               </button>

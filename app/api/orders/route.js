@@ -39,19 +39,71 @@ export async function GET(request) {
       where: {
         userId: userId, // Filter orders by the authenticated user's ID
       },
-      include: {
-        // Include related data you want to display on the frontend
+      // Use `select` instead of `include` to explicitly choose fields
+      // and exclude the non-existent `shippingAddress`
+      select: {
+        id: true,
+        orderNumber: true,
+        userId: true,
+        totalAmount: true,
+        status: true,
+        paymentStatus: true,
+        paymentMethod: true,
+        addressId: true,
+        discount: true,
+        shippingFee: true,
+        tax: true,
+        notes: true,
+        deliveryNotes: true,
+        estimatedDelivery: true,
+        trackingNumber: true,
+        deliveredAt: true,
+        cancelledAt: true,
+        createdAt: true,
+        updatedAt: true,
+        sellerPhone: true,
+        adminNotified: true,
+        customerNotified: true,
+        primarySellerId: true,
+        adminProcessed: true,
+        adminNotes: true,
+        sellerConfirmed: true,
+        // Select the related address and its fields
+        address: {
+          select: {
+            id: true,
+            name: true,
+            phone: true,
+            line1: true,
+            line2: true,
+            city: true,
+            state: true,
+            pincode: true,
+            country: true
+          }
+        },
+        // Select the related items and their fields (including nested product)
         items: {
-          include: {
-            product: { // Include basic product info for display
+          select: {
+            id: true,
+            productId: true,
+            productName: true,
+            sellerId: true,
+            quantity: true,
+            size: true,
+            color: true,
+            price: true,
+            discount: true,
+            // Select necessary product fields from the nested relation
+            product: {
               select: {
                 name: true,
-                images: true, // Include product images if needed
+                images: true,
               }
             }
           }
-        },
-        address: true, // Corrected relation name from shippingAddress to address
+        }
+        // Note: `shippingAddress` is intentionally excluded from this select clause
       },
       orderBy: {
         createdAt: 'desc', // Show newest orders first
