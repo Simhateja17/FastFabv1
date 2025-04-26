@@ -111,8 +111,35 @@ export async function POST(request) {
           })),
         },
       },
-      include: {
-         items: true
+      select: {
+        id: true,
+        orderNumber: true,
+        userId: true,
+        addressId: true,
+        address: true,
+        totalAmount: true,
+        paymentMethod: true,
+        shippingFee: true,
+        tax: true,
+        discount: true,
+        notes: true,
+        deliveryNotes: true,
+        estimatedDelivery: true,
+        trackingNumber: true,
+        deliveredAt: true,
+        cancelledAt: true,
+        createdAt: true,
+        updatedAt: true,
+        sellerPhone: true,
+        adminNotified: true,
+        customerNotified: true,
+        primarySellerId: true,
+        adminProcessed: true,
+        adminNotes: true,
+        sellerConfirmed: true,
+        status: true,
+        paymentStatus: true,
+        items: true, // Include order items relation
       }
     });
 

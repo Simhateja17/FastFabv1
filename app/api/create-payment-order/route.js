@@ -39,6 +39,7 @@ export async function POST(request) {
         source: 'web'
       }
     };
+    
 
     // Add email to the payload only if it exists
     if (customer_details.customer_email) {
