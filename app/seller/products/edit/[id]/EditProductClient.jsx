@@ -137,27 +137,48 @@ export default function EditProductClient({ productId }) {
   // Function to fetch color inventories separately
   const fetchColorInventories = useCallback(async (pid) => {
     try {
-      const colorResponse = await authFetch(
-        `${API_URL}/seller/products/${pid}/colors`
+      console.log(`Fetching color inventories for product: ${pid}`);
+      const response = await authFetch(
+        PRODUCT_ENDPOINTS.COLORS(pid)
       );
-
-      if (colorResponse.ok) {
-        const colorData = await colorResponse.json();
-        setColorInventories(colorData.colorInventories || []);
-      } else if (colorResponse.status === 401) {
-        console.error("Authentication error while fetching color inventories");
-        toast.error("Please login again to continue.");
-        setTimeout(() => {
-          router.push("/signin");
-        }, 2000);
+      
+      console.log(`Color inventory response:`, response);
+      
+      // Handle the nested response structure where colorInventories might be in different places
+      if (response) {
+        // Case 1: Direct colorInventories array
+        if (Array.isArray(response.colorInventories)) {
+          setColorInventories(response.colorInventories);
+          console.log(`Found ${response.colorInventories.length} color inventories directly`);
+        } 
+        // Case 2: Nested inside error:false structure
+        else if (response.error === false && response.colorInventories) {
+          setColorInventories(response.colorInventories);
+          console.log(`Found ${response.colorInventories.length} color inventories in success response`);
+        }
+        // Case 3: Nested inside data property
+        else if (response.data && response.data.colorInventories) {
+          setColorInventories(response.data.colorInventories);
+          console.log(`Found ${response.data.colorInventories.length} color inventories in data property`);
+        }
+        // Case 4: None found
+        else {
+          console.warn(`No color inventories found in response structure:`, response);
+          setColorInventories([]);
+        }
       } else {
-        console.warn(`Failed to fetch color inventories: ${colorResponse.status}`);
-        // Continue with the product data we have
+        console.warn(`Empty response received for color inventories`);
+        setColorInventories([]);
       }
     } catch (colorError) {
       console.error("Error fetching color inventories:", colorError);
-      // Don't throw, just continue with the product data we have
-      if (colorError.message.includes("Authentication required")) {
+      setColorInventories([]);
+      
+      // Handle auth errors
+      if (colorError.message && (
+        colorError.message.includes("Authentication required") || 
+        colorError.message.includes("Unauthorized")
+      )) {
         toast.error("Please login again to continue.");
         setTimeout(() => {
           router.push("/signin");
@@ -267,12 +288,11 @@ export default function EditProductClient({ productId }) {
         console.log("Using direct seller service URL:", apiUrl);
         
         try {
-          // Use regular fetch here to bypass authFetch which might be causing issues
-          const accessToken = localStorage.getItem("accessToken");
+          // Use regular fetch with credentials instead of token from localStorage
           const directResponse = await fetch(
             `${apiUrl}/api/products/${productId}`, {
+              credentials: 'include', // Include cookies for authentication
               headers: {
-                'Authorization': `Bearer ${accessToken}`,
                 'Content-Type': 'application/json'
               }
             }
@@ -559,14 +579,8 @@ export default function EditProductClient({ productId }) {
   const directUpload = async (url, formData) => {
     console.log(`[DirectUpload] Starting direct upload to ${url}`);
     
-    // Get auth token directly
-    const accessToken = localStorage.getItem("accessToken");
-    if (!accessToken) {
-      throw new Error("Authentication required. Please login again.");
-    }
-    
-    // Log request details
-    console.log(`[DirectUpload] Authorization header configured with token`);
+    // Remove token from localStorage and use credentials instead
+    console.log(`[DirectUpload] Using credentials:include for authentication`);
     console.log(`[DirectUpload] FormData contains ${formData.getAll('images').length} files`);
     formData.getAll('images').forEach((file, i) => {
       console.log(`[DirectUpload] File ${i+1}: ${file.name}, ${file.size} bytes, ${file.type}`);
@@ -581,15 +595,14 @@ export default function EditProductClient({ productId }) {
       try {
         console.log(`[DirectUpload] Attempt ${attempts}/${maxAttempts}`);
         
-        // Use direct fetch with manual auth header instead of authFetch
+        // Use direct fetch with credentials instead of manual auth header
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), 30000); // 30 second timeout
         
         const response = await fetch(url, {
           method: 'POST',
           headers: {
-            'Authorization': `Bearer ${accessToken}`
-            // Don't set Content-Type for multipart/form-data
+            // No Authorization header - using cookies instead
           },
           body: formData,
           credentials: 'include',
@@ -760,12 +773,8 @@ export default function EditProductClient({ productId }) {
     setError("");
 
     try {
-      // Validate token
-      const accessToken = localStorage.getItem("accessToken");
-      if (!accessToken) {
-        throw new Error("Authentication required. Please login again.");
-      }
-
+      // Remove localStorage token check - using HTTP-only cookies instead
+      
       // Upload new images if any
       let imageUrls = formData.images;
       if (selectedFiles.length > 0) {
@@ -818,7 +827,7 @@ export default function EditProductClient({ productId }) {
 
       console.log("Update payload:", JSON.stringify(payload));
 
-      const response = await authFetch(
+      const responseBody = await authFetch(
         apiUrl,
         {
           method: "PUT",
@@ -829,23 +838,14 @@ export default function EditProductClient({ productId }) {
         }
       );
 
-      console.log("Update response status:", response.status);
+      console.log("Update response status:", responseBody.status || "200");
+      console.log("Response body:", responseBody);
 
-      // Try to get response body regardless of status
-      let responseBody;
-      try {
-        responseBody = await response.json();
-        console.log("Response body:", responseBody);
-      } catch (e) {
-        console.log("Could not parse response as JSON:", e);
-        const text = await response.text();
-        console.log("Response text:", text);
-      }
-
-      if (!response.ok) {
+      // No need to parse the response, authFetch already returns parsed JSON
+      if (!responseBody.success && !responseBody.product) {
         throw new Error(
-          responseBody?.message ||
-            `Failed to update product: ${response.status}`
+          responseBody.message ||
+            `Failed to update product: ${responseBody.status || "Error"}`
         );
       }
 

@@ -113,6 +113,7 @@ model Order {
   items             OrderItem[]
   transactions      PaymentTransaction[]
   primarySeller     Seller?              @relation("SellerOrders", fields: [primarySellerId], references: [id])
+  returnRequests    ReturnRequest[]
 
   @@index([createdAt])
   @@index([primarySellerId])
@@ -122,25 +123,35 @@ model Order {
 }
 
 model OrderItem {
-  id          String   @id
-  orderId     String
-  productId   String
-  productName String
-  sellerId    String
-  quantity    Int
-  size        String
-  color       String?
-  price       Float
-  discount    Float    @default(0)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime
-  product     Product  @relation(fields: [productId], references: [id])
-  order       Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
-  seller      Seller   @relation(fields: [sellerId], references: [id])
+  id                String    @id
+  orderId           String
+  productId         String
+  productName       String
+  sellerId          String
+  quantity          Int
+  size              String
+  color             String?
+  price             Float
+  discount          Float     @default(0)
+  isReturnable      Boolean   @default(false)
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime
+  returnWindowStatus String?
+  returnedAt        DateTime?
+  returnWindowStart DateTime?
+  returnWindowEnd   DateTime?
+  earningsCredited   Boolean   @default(false)
+  earningsCreditedAt DateTime?
+  product           Product   @relation(fields: [productId], references: [id])
+  order             Order     @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  seller            Seller    @relation(fields: [sellerId], references: [id])
+  returnRequest     ReturnRequest?
 
   @@index([orderId])
   @@index([productId])
   @@index([sellerId])
+  @@index([returnWindowStatus])
+  @@index([earningsCredited])
 }
 
 model PaymentTransaction {
@@ -278,6 +289,7 @@ model User {
   role               UserRole  @default(USER)
   tokenVersion       Int       @default(0)
   orders             Order[]
+  returnRequests     ReturnRequest[]
 }
 
 model UserRefreshToken {
@@ -344,6 +356,25 @@ model SiteSettings {
   value     Json
   createdAt DateTime @default(now())
   updatedAt DateTime
+}
+
+model ReturnRequest {
+  id            String   @id @default(cuid())
+  orderId       String
+  orderItemId   String   @unique
+  userId        String
+  reason        String?
+  status        String   // PENDING, APPROVED, REJECTED
+  productName   String?
+  amount        Float?
+  submittedAt   DateTime @default(now())
+  user          User     @relation(fields: [userId], references: [id])
+  order         Order    @relation(fields: [orderId], references: [id])
+  orderItem     OrderItem @relation(fields: [orderItemId], references: [id])
+
+  @@index([orderId])
+  @@index([userId])
+  @@index([status])
 }
 
 enum OrderStatus {

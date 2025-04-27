@@ -13,6 +13,7 @@ import {
   FiDollarSign,
   FiSearch,
 } from "react-icons/fi";
+import Image from 'next/image';
 
 export default function Orders() {
   const router = useRouter();
@@ -23,7 +24,22 @@ export default function Orders() {
   const [statusFilter, setStatusFilter] = useState("all");
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
+  const [returnedOrders, setReturnedOrders] = useState([]);
   const ordersPerPage = 5;
+
+  useEffect(() => {
+    // Load returned orders from localStorage
+    try {
+      const storedReturnedOrders = JSON.parse(localStorage.getItem("returnedOrders") || "[]");
+      setReturnedOrders(storedReturnedOrders);
+    } catch (error) {
+      console.error("Error loading returned orders from localStorage:", error);
+    }
+  }, []);
+
+  const isOrderReturned = (orderId) => {
+    return returnedOrders.includes(orderId);
+  };
 
   const fetchOrders = useCallback(async () => {
     setLoading(true);
@@ -140,7 +156,18 @@ export default function Orders() {
     return new Intl.NumberFormat("en-IN", {
       style: "currency",
       currency: "INR",
-    }).format(amount);
+      currencyDisplay: 'narrowSymbol'
+    }).format(amount).replace('₹', '₹ ');
+  };
+
+  // Helper function to check if product is returnable
+  const isProductReturnable = (order) => {
+    // Check if the order has at least one item
+    if (!order.items || order.items.length === 0) return false;
+    
+    // Check if the primary product is returnable
+    // The returnable flag should come from the database or API
+    return order.items[0]?.product?.isReturnable || false;
   };
 
   if (authLoading) {
@@ -230,74 +257,76 @@ export default function Orders() {
           </div>
         ) : (
           <>
-            <div className="overflow-x-auto">
-              <table className="min-w-full">
-                <thead>
-                  <tr className="bg-gray-50 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
-                    <th className="px-4 py-3">Order ID</th>
-                    <th className="px-4 py-3">Date</th>
-                    <th className="px-4 py-3">Items</th>
-                    <th className="px-4 py-3">Total</th>
-                    <th className="px-4 py-3">Status</th>
-                    <th className="px-4 py-3 text-right">Action</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-200">
-                  {orders.map((order) => (
-                    <tr key={order.id} className="hover:bg-gray-50">
-                      <td className="px-4 py-4 whitespace-nowrap">
-                        <span className="font-medium">
-                          {order.orderId || order.id}
-                        </span>
-                      </td>
-                      <td className="px-4 py-4 whitespace-nowrap">
-                        <div className="flex items-center">
-                          <FiCalendar className="text-gray-400 mr-2" />
-                          {formatDate(order.createdAt)}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {orders.map((order) => (
+                <div key={order.id} className="bg-white rounded-lg shadow-sm p-4 border border-gray-200 hover:shadow-md transition-shadow">
+                  {/* Order header with ID and date */}
+                  <div className="flex justify-between items-center mb-3 pb-2 border-b">
+                    <div>
+                      <div className="text-sm text-gray-500 flex items-center">
+                        <FiCalendar className="text-gray-400 mr-2" />
+                        {formatDate(order.createdAt)}
+                      </div>
+                    </div>
+                    <span
+                      className={`px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(
+                        order.status
+                      )}`}
+                    >
+                      {order.status || "Processing"}
+                    </span>
+                  </div>
+                  
+                  {/* Product information section */}
+                  <div className="flex mb-3">
+                    <div className="w-16 h-16 bg-gray-100 rounded flex-shrink-0 flex items-center justify-center">
+                      {order.items?.[0]?.product?.images?.[0] ? (
+                        <Image
+                          src={order.items[0].product.images[0]}
+                          alt="Product"
+                          width={64}
+                          height={64}
+                          className="w-full h-full object-cover rounded"
+                        />
+                      ) : (
+                        <FiPackage className="text-gray-400 text-2xl" />
+                      )}
+                    </div>
+                    <div className="ml-3">
+                      <div className="font-medium mb-1">{order.items?.length || 0} item(s)</div>
+                      {order.items?.[0] && (
+                        <div className="text-sm text-gray-500 truncate max-w-xs">
+                          {order.items[0].product?.name}
+                          {order.items.length > 1 && ` + ${order.items.length - 1} more`}
                         </div>
-                      </td>
-                      <td className="px-4 py-4">
-                        <div>
-                          <span className="font-medium">
-                            {order.items?.length || 0} item(s)
-                          </span>
-                          {order.items?.[0] && (
-                            <div className="text-sm text-gray-500 truncate max-w-xs">
-                              {order.items[0].product?.name}
-                              {order.items.length > 1 &&
-                                ` + ${order.items.length - 1} more`}
-                            </div>
-                          )}
-                        </div>
-                      </td>
-                      <td className="px-4 py-4 whitespace-nowrap">
-                        <div className="flex items-center">
-                          <FiDollarSign className="text-gray-400 mr-1" />
-                          {formatCurrency(order.totalAmount)}
-                        </div>
-                      </td>
-                      <td className="px-4 py-4 whitespace-nowrap">
-                        <span
-                          className={`px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(
-                            order.status
-                          )}`}
-                        >
-                          {order.status || "Processing"}
-                        </span>
-                      </td>
-                      <td className="px-4 py-4 whitespace-nowrap text-right">
-                        <Link
-                          href={`/orders/${order.id}`}
-                          className="inline-flex items-center text-blue-600 hover:text-blue-900"
-                        >
-                          View Details
-                          <FiChevronRight className="ml-1" />
-                        </Link>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+                      )}
+                    </div>
+                  </div>
+                  
+                  {/* Price and action section */}
+                  <div className="flex justify-between items-center mt-2">
+                    <div className="font-medium">
+                      {formatCurrency(order.totalAmount)}
+                    </div>
+                    {isOrderReturned(order.id) ? (
+                      <span className="text-gray-500 text-sm font-medium">
+                        Submitted for Return
+                      </span>
+                    ) : isProductReturnable(order) ? (
+                      <button
+                        onClick={() => router.push(`/returns?orderId=${order.id}&productName=${order.items?.[0]?.product?.name || ''}&price=${order.totalAmount}`)}
+                        className="inline-flex items-center px-3 py-1 border border-gray-300 rounded-md text-sm text-gray-700 bg-white hover:bg-gray-50"
+                      >
+                        Return Item
+                      </button>
+                    ) : (
+                      <span className="text-gray-500 text-sm font-medium">
+                        Non-returnable
+                      </span>
+                    )}
+                  </div>
+                </div>
+              ))}
             </div>
 
             {/* Pagination */}

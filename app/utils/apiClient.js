@@ -1,8 +1,14 @@
 import axios from "axios";
 
-// API base URL - use environment variable, fallback to localhost for dev
-export const API_BASE_URL =
-  process.env.NEXT_PUBLIC_SELLER_SERVICE_URL || "http://localhost:8000";
+// API base URL - using relative URLs by default with environment variable fallback
+export const API_BASE_URL = 
+  typeof window !== 'undefined' ? '' : (process.env.NEXT_PUBLIC_API_BASE_URL || "");
+
+// Seller service URL for admin API endpoints
+export const SELLER_SERVICE_URL = 
+  typeof window !== 'undefined' && process.env.NEXT_PUBLIC_SELLER_SERVICE_URL 
+  ? process.env.NEXT_PUBLIC_SELLER_SERVICE_URL 
+  : "http://localhost:8000";
 
 /**
  * Creates an authenticated axios instance for admin API requests
@@ -31,9 +37,9 @@ export const getAdminApiClient = () => {
     );
   }
 
-  // Create axios instance with baseURL
+  // Create axios instance with baseURL (using seller service for admin endpoints)
   const apiClient = axios.create({
-    baseURL: API_BASE_URL,
+    baseURL: SELLER_SERVICE_URL,
     headers: {
       "Content-Type": "application/json",
     },

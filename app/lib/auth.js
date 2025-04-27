@@ -17,7 +17,7 @@ try {
  * @returns {Promise<Object>} Authentication result with success flag and sellerId/userId if successful
  */
 export async function auth(request) {
-  const cookieStore = cookies();
+  const cookieStore = await cookies();
   const token = cookieStore.get('accessToken')?.value;
 
   if (!token) {

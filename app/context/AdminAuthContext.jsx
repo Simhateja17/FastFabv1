@@ -32,8 +32,12 @@ export function AdminAuthProvider({ children }) {
     setError(null);
 
     try {
-      // Make API call to backend for authentication
-      const response = await axios.post(`${API_BASE_URL}/api/admin/login`, {
+      // Use the seller service URL instead of the local API endpoint
+      const SELLER_SERVICE_URL = process.env.NEXT_PUBLIC_SELLER_SERVICE_URL || "http://localhost:8000";
+      console.log("Using seller service URL:", SELLER_SERVICE_URL);
+      
+      // Make API call to seller service for authentication - use the correct path
+      const response = await axios.post(`${SELLER_SERVICE_URL}/api/admin/login`, {
         email,
         password,
       });

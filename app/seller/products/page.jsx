@@ -1,6 +1,3 @@
-
-
-
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
@@ -69,7 +66,7 @@ function ProductsListContent({ seller }) {
     } else {
       console.warn('[ProductsPage Effect] Running but seller prop is missing or invalid.');
     }
-  }, [seller?.id]);
+  }, [seller?.id, fetchProducts]);
 
   useEffect(() => {
     const handleStorageChange = () => {

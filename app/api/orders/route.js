@@ -99,6 +99,7 @@ export async function GET(request) {
               select: {
                 name: true,
                 images: true,
+                isReturnable: true,
               }
             }
           }

@@ -197,7 +197,7 @@ export function AuthProvider({ children }) {
 
 
   // Login function (assuming OTP flow where backend sets cookies)
-  const login = async (phone) => {
+  const login = useCallback(async (phone) => {
     // This function might primarily be used AFTER OTP verification
     // to fetch the profile and confirm login status set by the backend.
     setLoading(true);
@@ -219,10 +219,10 @@ export function AuthProvider({ children }) {
     } finally {
       setLoading(false);
     }
-  };
+  }, [fetchSellerProfile]);
 
   // Register function (assuming OTP flow where backend sets cookies)
-  const register = async (phone) => {
+  const register = useCallback(async (phone) => {
     setLoading(true);
     try {
       // Use standard fetch, backend needs to set httpOnly cookies on success
@@ -262,10 +262,10 @@ export function AuthProvider({ children }) {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
   // Logout function
-  const logout = async () => {
+  const logout = useCallback(async () => {
     setLoading(true);
     try {
       // Call backend logout endpoint to clear HttpOnly cookies
@@ -286,10 +286,10 @@ export function AuthProvider({ children }) {
       // Optional: redirect or clear other sensitive frontend state
       // window.location.href = '/seller/signin'; // Example redirect
     }
-  };
+  }, []);
 
   // Function to update seller details locally and via API
-  const updateSellerDetails = async (details) => {
+  const updateSellerDetails = useCallback(async (details) => {
     if (!seller) return { success: false, error: "Not authenticated" };
     
     setLoading(true);
@@ -314,10 +314,10 @@ export function AuthProvider({ children }) {
     } finally {
       setLoading(false);
     }
-  };
+  }, [authFetch]);
 
   // Send OTP (Seller)
-  const sendSellerOTP = async (phone) => {
+  const sendSellerOTP = useCallback(async (phone) => {
     console.log("Sending OTP to seller:", phone);
     try {
       const response = await fetch(SELLER_AUTH_ENDPOINTS.SEND_OTP, {
@@ -334,10 +334,10 @@ export function AuthProvider({ children }) {
       console.error("Send OTP error:", error);
       return { success: false, error: error.message };
     }
-  };
+  }, []);
 
   // Verify OTP (Seller)
-  const verifySellerOTP = async (phone, otpCode) => {
+  const verifySellerOTP = useCallback(async (phone, otpCode) => {
      console.log("Verifying OTP for seller:", phone);
      try {
       const response = await fetch(SELLER_AUTH_ENDPOINTS.VERIFY_OTP, {
@@ -380,7 +380,7 @@ export function AuthProvider({ children }) {
       setSeller(null); // Clear seller state on verification failure
       return { success: false, error: error.message };
     }
-  };
+  }, [authFetch]);
 
 
   const value = useMemo(() => ({

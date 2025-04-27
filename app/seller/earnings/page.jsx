@@ -118,7 +118,7 @@ function EarningsContent() {
       setLoading(false);
     }
     // Use seller.id in dependencies
-  }, [seller?.id, dateRange]);
+  }, [dateRange, authFetch, seller]);
 
   // Filter transactions based on active tab
   const filteredTransactions = earnings.filter((transaction) => {

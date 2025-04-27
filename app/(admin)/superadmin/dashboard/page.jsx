@@ -62,6 +62,7 @@ function AdminDashboardContent() {
     totalRevenue: 0,
     todayOrdersCount: 0,
     usersCount: 0,
+    returnsCount: 0,
   });
   const [recentSellers, setRecentSellers] = useState([]);
   const [recentProducts, setRecentProducts] = useState([]);
@@ -73,7 +74,7 @@ function AdminDashboardContent() {
       setLoading(true);
       setError(null);
 
-      // Use the dashboard-stats endpoint on the seller service with the correct prefix
+      // Use the dashboard-stats endpoint on the seller service with the correct /api prefix
       const dashboardResponse = await apiClient.get("/api/admin/dashboard-stats");
       
       if (dashboardResponse.data) {
@@ -88,6 +89,7 @@ function AdminDashboardContent() {
           totalRevenue: stats.totalRevenue || 0,
           todayOrdersCount: stats.todayOrdersCount || 0,
           usersCount: stats.usersCount || 0,
+          returnsCount: stats.returnsCount || 0,
         });
         
         // Update recent data
@@ -205,6 +207,28 @@ function AdminDashboardContent() {
           icon={<FiUsers className="w-6 h-6" />}
           color="bg-teal-500"
           link="/superadmin/users"
+        />
+        <StatsCard
+          title="Returns"
+          value={stats.returnsCount || 0}
+          icon={
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              className="w-6 h-6"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M16 15v-1a4 4 0 00-4-4H8m0 0l3 3m-3-3l3-3m9 14V5a2 2 0 00-2-2H6a2 2 0 00-2 2v16l4-2 4 2 4-2 4 2z"
+              />
+            </svg>
+          }
+          color="bg-red-500"
+          link="/superadmin/returns"
         />
       </div>
 
