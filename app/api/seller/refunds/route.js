@@ -5,8 +5,14 @@ import { auth } from "@/app/lib/auth";
 const prisma = new PrismaClient();
 
 export async function GET(request) {
+  // Get tab/status filter from query params
+  const { searchParams } = new URL(request.url);
+  const statusFilter = searchParams.get("status");
+
+  console.log('[REFUNDS API] Request received with status filter:', statusFilter);
+
   try {
-    // Verify seller authentication
+    // Verify seller auth and get seller ID using the auth function
     const authResult = await auth(request);
     
     if (!authResult.success) {
@@ -23,70 +29,250 @@ export async function GET(request) {
       );
     }
     
-    // Get sellerId from auth result
     const sellerId = authResult.sellerId;
-    
-    const { searchParams } = new URL(request.url);
-    const querySellerId = searchParams.get("sellerId");
-    
-    // Ensure the authenticated seller is requesting their own data
-    if (querySellerId && querySellerId !== sellerId) {
-      return NextResponse.json(
-        { error: "Unauthorized to access this seller's refunds" },
-        { status: 403 }
-      );
-    }
-    
-    // Query refunds
-    const refunds = await prisma.refund.findMany({
+    console.log('[REFUNDS API] Authenticated seller ID:', sellerId);
+
+    // Get Return Requests where the seller's products were returned
+    // We need to find ReturnRequests where the orderItem's sellerId matches our seller
+    const returnRequests = await prisma.returnRequest.findMany({
       where: {
-        sellerId: sellerId,
+        ...(statusFilter ? { status: statusFilter } : {}),
+        orderItem: {
+          sellerId: sellerId,
+        },
       },
       include: {
-        sellerEarning: true
+        user: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+          },
+        },
+        order: {
+          select: {
+            id: true,
+            orderNumber: true,
+          },
+        },
+        orderItem: {
+          include: {
+            product: {
+              select: {
+                id: true,
+                name: true,
+                images: true,
+              },
+            },
+          },
+        },
       },
       orderBy: {
-        createdAt: 'desc'
-      }
+        submittedAt: "desc",
+      },
     });
+
+    console.log('[REFUNDS API] Return requests found:', returnRequests.length);
     
-    // Calculate summary statistics
+    // DEBUGGING: Log the first request if available
+    if (returnRequests.length > 0) {
+      console.log('[REFUNDS API] Sample return request:', JSON.stringify(returnRequests[0], null, 2));
+    }
+
+    // Get orders that were directly marked as RETURNED 
+    // (without going through the ReturnRequest process)
+    // We need to find Order Items where:
+    // 1. Order status is RETURNED
+    // 2. The item's sellerId matches our seller
+    // 3. There is no ReturnRequest record for this order (to avoid duplicates)
+    
+    // First get all order IDs that have return requests
+    const existingOrderIdsWithReturnRequests = new Set(
+      returnRequests.map((rr) => rr.orderId)
+    );
+
+    console.log('[REFUNDS API] Existing order IDs with return requests:', Array.from(existingOrderIdsWithReturnRequests));
+
+    const returnedOrders = await prisma.order.findMany({
+      where: {
+        status: "RETURNED",
+        id: {
+          notIn: Array.from(existingOrderIdsWithReturnRequests),
+        },
+        items: {
+          some: {
+            sellerId: sellerId,
+          },
+        },
+      },
+      include: {
+        user: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+          },
+        },
+        items: {
+          where: {
+            sellerId: sellerId,
+          },
+          include: {
+            product: {
+              select: {
+                id: true,
+                name: true,
+              },
+            }
+          },
+        },
+      },
+      orderBy: {
+        updatedAt: "desc",
+      },
+    });
+
+    console.log('[REFUNDS API] Returned orders found:', returnedOrders.length);
+    
+    // DEBUGGING: Log the first returned order if available
+    if (returnedOrders.length > 0) {
+      console.log('[REFUNDS API] Sample returned order:', JSON.stringify(returnedOrders[0], null, 2));
+    }
+
+    // Format return requests for the UI
+    const formattedReturnRequests = returnRequests.map((request) => ({
+      id: request.id,
+      orderId: request.orderId,
+      orderNumber: request.order?.orderNumber || 'N/A',
+      orderItemId: request.orderItemId,
+      customerName: request.user?.name || 'Unknown Customer',
+      userId: request.userId,
+      reason: request.reason,
+      status: request.status,
+      productName: request.productName || request.orderItem?.product?.name || 'Unknown Product',
+      productImage: request.orderItem?.product?.images?.[0] || null,
+      amount: request.amount,
+      submittedAt: request.submittedAt,
+      source: 'returnRequest', // Mark the source for filtering
+    }));
+
+    // Format returned orders for the UI - we'll only include them
+    // if there's no status filter or the status is 'APPROVED'
+    // since directly returned orders are essentially "approved returns"
+    
+    let formattedReturnedOrders = [];
+    
+    if (!statusFilter || statusFilter === 'APPROVED') {
+      formattedReturnedOrders = returnedOrders.flatMap((order) => 
+        order.items.map((item) => ({
+          id: `order-${order.id}-item-${item.id}`, // Create a unique ID
+          orderId: order.id,
+          orderNumber: order.orderNumber || 'N/A',
+          orderItemId: item.id,
+          customerName: order.user?.name || 'Unknown Customer',
+          userId: order.userId,
+          reason: 'Order marked as returned', // Default reason
+          status: 'APPROVED', // Direct returns are considered approved
+          productName: item.product?.name || 'Unknown Product',
+          productImage: null, // We don't have image info in this query
+          amount: item.price,
+          submittedAt: order.updatedAt, // Use order updated date as submitted date
+          source: 'returnedOrder', // Mark the source for filtering
+        }))
+      );
+    }
+
+    // Combine both data sources
+    const combinedRefunds = [
+      ...formattedReturnRequests, 
+      ...formattedReturnedOrders
+    ].sort((a, b) => 
+      new Date(b.submittedAt) - new Date(a.submittedAt)
+    );
+
+    console.log('[REFUNDS API] Combined refunds count:', combinedRefunds.length);
+    
+    // DEBUGGING: Log a sample of the combined refund data
+    if (combinedRefunds.length > 0) {
+      console.log('[REFUNDS API] Sample combined refund data:', JSON.stringify(combinedRefunds[0], null, 2));
+    }
+
+    // Calculate statistics
+    // For total refunds, we'll sum up approved returns in the last 30 days
     const thirtyDaysAgo = new Date();
     thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-    
-    let totalRefundsAmount = 0;
-    let pendingRefundsCount = 0;
-    
-    refunds.forEach(refund => {
-      const refundDate = new Date(refund.createdAt);
-      
-      // Only count refunds from last 30 days
-      if (refundDate >= thirtyDaysAgo) {
-        totalRefundsAmount += refund.amount;
-        
-        if (refund.status === 'PENDING') {
-          pendingRefundsCount++;
-        }
-      }
+
+    // Sum of all approved refunds in last 30 days
+    const totalRefundsAmount = combinedRefunds
+      .filter(
+        (refund) => 
+          refund.status === "APPROVED" && 
+          new Date(refund.submittedAt) > thirtyDaysAgo
+      )
+      .reduce((total, refund) => total + (refund.amount || 0), 0);
+
+    // Count of pending returns
+    const pendingRefundsCount = combinedRefunds.filter(
+      (refund) => refund.status === "PENDING"
+    ).length;
+
+    // Refund rate calculation requires total orders data 
+    // Get total orders in last 30 days
+    const totalOrdersLast30Days = await prisma.orderItem.count({
+      where: {
+        sellerId: sellerId,
+        order: {
+          createdAt: {
+            gte: thirtyDaysAgo,
+          },
+        },
+      },
     });
+
+    console.log('[REFUNDS API] Total orders in last 30 days:', totalOrdersLast30Days);
+
+    // Calculate refund rate (approved returns / total orders) in percentage
+    // Avoid division by zero
+    const approvedRefundsLast30Days = combinedRefunds.filter(
+      (refund) => 
+        refund.status === "APPROVED" && 
+        new Date(refund.submittedAt) > thirtyDaysAgo
+    ).length;
     
-    // Calculate refund rate (assuming we can get total orders for comparison)
-    // This is just a placeholder calculation
-    const refundRate = refunds.length > 0 ? 
-      Math.min(3.2, (refunds.length / 100) * 100).toFixed(1) : 0;
-    
-    const stats = {
+    const refundRate = totalOrdersLast30Days > 0
+      ? Math.round((approvedRefundsLast30Days / totalOrdersLast30Days) * 100)
+      : 0;
+
+    console.log('[REFUNDS API] Refund stats:', {
       totalRefundsAmount,
       pendingRefundsCount,
+      approvedRefundsLast30Days,
+      totalOrdersLast30Days,
       refundRate
-    };
-    
-    return NextResponse.json({ refunds, stats });
-    
+    });
+
+    // Return both the refunds data and stats
+    return NextResponse.json({
+      refunds: combinedRefunds,
+      stats: {
+        totalRefundsAmount,
+        pendingRefundsCount,
+        refundRate
+      }
+    });
   } catch (error) {
-    console.error("Error fetching seller refunds:", error);
+    console.error("[REFUNDS API] Error:", error);
+
+    // Handle different error types
+    if (error.name === "AuthenticationError") {
+      return NextResponse.json(
+        { message: "Authentication failed", details: error.message },
+        { status: 401 }
+      );
+    }
+
     return NextResponse.json(
-      { error: "Failed to fetch refunds" },
+      { message: "Error processing refunds request", error: error.message },
       { status: 500 }
     );
   } finally {

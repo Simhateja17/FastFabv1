@@ -123,7 +123,7 @@ model Order {
 }
 
 model OrderItem {
-  id                String    @id
+  id                String              @id
   orderId           String
   productId         String
   productName       String
@@ -132,20 +132,21 @@ model OrderItem {
   size              String
   color             String?
   price             Float
-  discount          Float     @default(0)
-  isReturnable      Boolean   @default(false)
-  createdAt         DateTime  @default(now())
+  discount          Float               @default(0)
+  isReturnable      Boolean             @default(false)
+  createdAt         DateTime            @default(now())
   updatedAt         DateTime
-  returnWindowStatus String?
+  returnWindowStatus ReturnWindowStatus?
   returnedAt        DateTime?
   returnWindowStart DateTime?
   returnWindowEnd   DateTime?
-  earningsCredited   Boolean   @default(false)
+  earningsCredited   Boolean             @default(false)
   earningsCreditedAt DateTime?
-  product           Product   @relation(fields: [productId], references: [id])
-  order             Order     @relation(fields: [orderId], references: [id], onDelete: Cascade)
-  seller            Seller    @relation(fields: [sellerId], references: [id])
+  product           Product             @relation(fields: [productId], references: [id])
+  order             Order               @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  seller            Seller              @relation(fields: [sellerId], references: [id])
   returnRequest     ReturnRequest?
+  earnings          SellerEarning[]
 
   @@index([orderId])
   @@index([productId])
@@ -255,6 +256,9 @@ model Seller {
   products              Product[]
   orderItems            OrderItem[]
   orders                Order[]                   @relation("SellerOrders")
+  withdrawals           Withdrawal[]
+  earnings              SellerEarning[]
+  payouts               Payout[]
 
   @@index([manuallyHidden], map: "idx_seller_manually_hidden")
   @@index([isVisible], map: "idx_seller_visibility")
@@ -344,6 +348,7 @@ model Payout {
   cashfreePayoutId String?      @unique
   requestedAt      DateTime     @default(now())
   processedAt      DateTime?
+  seller           Seller       @relation(fields: [sellerId], references: [id])
 
   @@index([requestedAt])
   @@index([sellerId])
@@ -375,6 +380,51 @@ model ReturnRequest {
   @@index([orderId])
   @@index([userId])
   @@index([status])
+}
+
+// Added models and enums
+
+model Withdrawal {
+  id                 String           @id @default(cuid())
+  sellerId           String
+  amount             Float
+  currency           String           @default("INR")
+  status             WithdrawalStatus @default(PENDING)
+  gatewayTransferId  String?
+  gatewayReferenceId String?
+  processedAt        DateTime?        @db.Timestamptz(3)
+  failedReason       String?
+  createdAt          DateTime         @default(now()) @db.Timestamptz(3)
+  updatedAt          DateTime         @updatedAt @db.Timestamptz(3)
+  seller             Seller           @relation(fields: [sellerId], references: [id], onDelete: Cascade)
+
+  @@index([createdAt], map: "idx_withdrawal_created_at")
+  @@index([gatewayReferenceId], map: "idx_withdrawal_gateway_reference_id")
+  @@index([gatewayTransferId], map: "idx_withdrawal_gateway_transfer_id")
+  @@index([sellerId], map: "idx_withdrawal_seller_id")
+  @@index([status], map: "idx_withdrawal_status")
+}
+
+model SellerEarning {
+  id                String      @id @default(cuid())
+  sellerId          String
+  orderItemId       String
+  amount            Float
+  commission        Float       @default(0)
+  type              EarningType
+  status            String      @default("PENDING")
+  creditedToBalance Boolean     @default(false)
+  creditedAt        DateTime?
+  createdAt         DateTime    @default(now())
+  updatedAt         DateTime    @updatedAt
+  seller            Seller      @relation(fields: [sellerId], references: [id], onDelete: Cascade)
+  orderItem         OrderItem   @relation(fields: [orderItemId], references: [id], onDelete: Cascade)
+
+  @@index([sellerId])
+  @@index([orderItemId])
+  @@index([type])
+  @@index([status])
+  @@index([creditedToBalance])
 }
 
 enum OrderStatus {
@@ -420,4 +470,26 @@ enum PayoutStatus {
   PENDING
   SUCCESS
   FAILED
+}
+
+// Added enums
+
+enum ReturnWindowStatus {
+  NOT_APPLICABLE  // For non-returnable products
+  ACTIVE          // In the 24-hour return window
+  COMPLETED       // Window completed, earnings credited
+  RETURNED        // Item was returned during window
+}
+
+enum WithdrawalStatus {
+  PENDING
+  PROCESSING
+  COMPLETED
+  FAILED
+  CANCELLED
+}
+
+enum EarningType {
+  IMMEDIATE
+  POST_RETURN_WINDOW
 }

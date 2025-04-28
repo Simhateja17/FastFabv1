@@ -1,16 +1,16 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
-import { useAuth } from "@/app/context/AuthContext";
+import { useUserAuth } from "@/app/context/UserAuthContext";
 import ProtectedRoute from "@/app/components/ProtectedRoute";
 
 // The actual refunds content
-function RefundsContent() {
-  const { user, getAccessToken } = useAuth();
-  const [activeTab, setActiveTab] = useState("all");
+function RefundsContent({ seller }) {
+  const { userAuthFetch } = useUserAuth();
+  const [activeTab, setActiveTab] = useState("all"); // 'all', 'pending', 'approved', 'rejected'
   const [searchTerm, setSearchTerm] = useState("");
-  const [refunds, setRefunds] = useState([]);
+  const [refunds, setRefunds] = useState([]); // This will hold the formatted return requests
   const [stats, setStats] = useState({
     totalRefundsAmount: 0,
     pendingRefundsCount: 0,
@@ -19,96 +19,74 @@ function RefundsContent() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
-  useEffect(() => {
-    const fetchRefunds = async () => {
-      try {
-        setLoading(true);
-        
-        // Get the authentication token
-        const token = await getAccessToken();
-        
-        if (!token) {
-          // Handle missing token case
-          console.error('No authentication token available');
-          setError('Authentication required');
-          setLoading(false);
-          return;
-        }
-        
-        const response = await fetch(`/api/seller/refunds`, {
-          headers: {
-            'Authorization': `Bearer ${token}`
-          }
-        });
-        
-        if (!response.ok) {
-          throw new Error(`Failed to fetch refunds: ${response.status} ${response.statusText}`);
-        }
-        
-        const data = await response.json();
-        
-        if (!data || typeof data !== 'object') {
-          throw new Error('Invalid response format');
-        }
-        
-        setRefunds(data.refunds || []);
-        
-        // Safely access stats
-        if (data.stats && typeof data.stats === 'object') {
-          setStats(data.stats);
-        } else {
-          // Default stats if not available
-          setStats({
-            totalRefundsAmount: 0,
-            pendingRefundsCount: 0,
-            refundRate: 0
-          });
-        }
-      } catch (err) {
-        console.error('Error fetching refunds:', err);
-        setError(err.message);
-        // Reset to default values on error
-        setRefunds([]);
-        setStats({
-          totalRefundsAmount: 0,
-          pendingRefundsCount: 0,
-          refundRate: 0
-        });
-      } finally {
-        setLoading(false);
-      }
-    };
+  const fetchRefunds = useCallback(async (statusFilter) => {
+    try {
+      setLoading(true);
+      setError(null);
 
-    if (user?.id) {
-      fetchRefunds();
-    } else {
-      // Handle case when user is not authenticated
+      if (!seller?.id) {
+        console.error('No seller ID available');
+        setError('Seller authentication required');
+        setLoading(false);
+        return;
+      }
+      
+      // Construct API URL with status filter if not 'all'
+      let apiUrl = '/api/seller/refunds';
+      if (statusFilter && statusFilter !== 'all') {
+        apiUrl += `?status=${statusFilter.toUpperCase()}`;
+      }
+      
+      const data = await userAuthFetch(apiUrl);
+      
+      if (!data || typeof data !== 'object') {
+        throw new Error('Invalid response format');
+      }
+      
+      // The API now returns `refunds` (which are formatted return requests) and `stats`
+      setRefunds(data.refunds || []);
+      setStats(data.stats || { totalRefundsAmount: 0, pendingRefundsCount: 0, refundRate: 0 });
+      
+    } catch (err) {
+      console.error('Error fetching refunds:', err);
+      setError(err.message);
+      setRefunds([]);
+      setStats({ totalRefundsAmount: 0, pendingRefundsCount: 0, refundRate: 0 });
+    } finally {
       setLoading(false);
     }
-  }, [user?.id, getAccessToken]);
+  }, [seller?.id, userAuthFetch]); // Dependencies updated
 
-  // Filter refunds based on active tab and search term
+  // Fetch initial data and refetch when tab changes
+  useEffect(() => {
+    if (seller?.id) {
+      fetchRefunds(activeTab);
+    } else {
+      setLoading(false); // Don't load if not authenticated
+    }
+  }, [seller?.id, activeTab, fetchRefunds]);
+
+  // Filter refunds locally based ONLY on search term (API handles status filtering)
   const filteredRefunds = refunds.filter((refund) => {
-    const matchesTab = activeTab === "all" || refund.status.toLowerCase() === activeTab.toLowerCase();
-
-    const matchesSearch =
-      refund.id?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      refund.orderId?.toLowerCase().includes(searchTerm.toLowerCase());
-
-    return matchesTab && matchesSearch;
+    const searchTermLower = searchTerm.toLowerCase();
+    return (
+      refund.orderNumber?.toLowerCase().includes(searchTermLower) ||
+      refund.customerName?.toLowerCase().includes(searchTermLower) ||
+      refund.productName?.toLowerCase().includes(searchTermLower) ||
+      refund.id?.toLowerCase().includes(searchTermLower) // Search by return request ID
+    );
   });
 
-  // Get status badge color
+  // Get status badge color - Use consistent colors
   const getStatusBadgeClass = (status) => {
-    switch (status.toLowerCase()) {
-      case "pending":
-        return "bg-accent-light text-accent-dark";
-      case "approved":
-        return "bg-success bg-opacity-10 text-success";
-      case "rejected":
-        return "bg-error bg-opacity-10 text-error";
-      case "processed":
-        return "bg-info bg-opacity-10 text-info";
+    switch (status?.toUpperCase()) {
+      case "PENDING":
+        return "bg-yellow-100 text-yellow-800";
+      case "APPROVED":
+        return "bg-green-100 text-green-800";
+      case "REJECTED":
+        return "bg-red-100 text-red-800";
+      // Add other potential statuses if needed
       default:
         return "bg-gray-100 text-gray-800";
     }
@@ -119,12 +97,13 @@ function RefundsContent() {
     return new Intl.NumberFormat('en-IN', {
       style: 'currency',
       currency: 'INR',
-      maximumFractionDigits: 0
-    }).format(amount);
+      // maximumFractionDigits: 0
+    }).format(amount || 0);
   };
 
   // Format date
   const formatDate = (dateString) => {
+    if (!dateString) return 'N/A';
     return new Date(dateString).toLocaleDateString("en-IN", {
       day: "numeric",
       month: "short",
@@ -132,307 +111,153 @@ function RefundsContent() {
     });
   };
 
+  // Handle tab change
+  const handleTabClick = (tab) => {
+    setActiveTab(tab);
+    // Data will refetch via useEffect
+  };
+
   return (
     <div className="max-w-7xl mx-auto p-6">
+      {/* Header and Search */}
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4">
-        <h1 className="text-2xl font-semibold text-primary">
+        <h1 className="text-2xl font-semibold text-gray-900">
           Refund Management
         </h1>
-
         <div className="relative w-full md:w-64">
           <input
             type="text"
-            placeholder="Search refunds..."
-            className="w-full px-4 py-2 border border-ui-border rounded-md focus:outline-none focus:ring-2 focus:ring-primary bg-input"
+            placeholder="Search by Order#, Customer, Product..."
+            className="w-full px-4 py-2 pl-10 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white text-gray-900"
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
           />
-          <svg
-            xmlns="http://www.w3.org/2000/svg"
-            className="h-5 w-5 absolute right-3 top-1/2 transform -translate-y-1/2 text-text-muted"
-            fill="none"
-            viewBox="0 0 24 24"
-            stroke="currentColor"
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth={2}
-              d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
-            />
-          </svg>
+           <svg className="h-5 w-5 absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
         </div>
       </div>
 
       {/* Stats Cards */}
-      {loading ? (
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
-          {[1, 2, 3].map((item) => (
-            <div key={item} className="bg-background-card p-6 rounded-lg shadow-sm border border-ui-border">
-              <div className="animate-pulse flex space-x-4">
-                <div className="flex-1 space-y-4 py-1">
-                  <div className="h-4 bg-background-alt rounded w-3/4"></div>
-                  <div className="h-6 bg-background-alt rounded w-1/2"></div>
-                </div>
-                <div className="rounded-full bg-background-alt h-12 w-12"></div>
-              </div>
-            </div>
-          ))}
-        </div>
-      ) : (
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
-          <div className="bg-background-card p-6 rounded-lg shadow-sm border border-ui-border">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-text-muted text-sm">Total Refunds</p>
-                <h3 className="text-2xl font-semibold text-text-dark mt-1">
-                  {formatCurrency(stats.totalRefundsAmount)}
-                </h3>
-              </div>
-              <div className="p-3 bg-primary bg-opacity-10 rounded-full">
-                <svg
-                  xmlns="http://www.w3.org/2000/svg"
-                  className="h-6 w-6 text-primary"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  stroke="currentColor"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M16 15v-1a4 4 0 00-4-4H8m0 0l3 3m-3-3l3-3m9 14V5a2 2 0 00-2-2H6a2 2 0 00-2 2v16l4-2 4 2 4-2 4 2z"
-                  />
-                </svg>
-              </div>
-            </div>
-            <div className="mt-4">
-              <span className="text-xs text-text-muted">Last 30 days</span>
-            </div>
-          </div>
+       <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
+         {/* Total Refunds Card */}
+         <div className="bg-white p-6 rounded-lg shadow border border-gray-200">
+           <div className="flex items-center justify-between">
+             <div>
+               <p className="text-gray-500 text-sm">Total Approved Refunds (Last 30d)</p>
+               <h3 className="text-2xl font-semibold text-gray-800 mt-1">
+                 {loading ? <span className="h-8 bg-gray-200 rounded w-24 inline-block animate-pulse"></span> : formatCurrency(stats.totalRefundsAmount)}
+               </h3>
+             </div>
+             <div className="p-3 bg-blue-100 rounded-full">
+               <svg className="h-6 w-6 text-blue-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 15v-1a4 4 0 00-4-4H8m0 0l3 3m-3-3l3-3m9 14V5a2 2 0 00-2-2H6a2 2 0 00-2 2v16l4-2 4 2 4-2 4 2z" /></svg>
+             </div>
+           </div>
+         </div>
 
-          <div className="bg-background-card p-6 rounded-lg shadow-sm border border-ui-border">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-text-muted text-sm">Pending Refunds</p>
-                <h3 className="text-2xl font-semibold text-text-dark mt-1">
-                  {stats.pendingRefundsCount}
-                </h3>
-              </div>
-              <div className="p-3 bg-accent bg-opacity-10 rounded-full">
-                <svg
-                  xmlns="http://www.w3.org/2000/svg"
-                  className="h-6 w-6 text-accent-dark"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  stroke="currentColor"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"
-                  />
-                </svg>
-              </div>
-            </div>
+         {/* Pending Refunds Card */}
+         <div className="bg-white p-6 rounded-lg shadow border border-gray-200">
+           <div className="flex items-center justify-between">
+             <div>
+               <p className="text-gray-500 text-sm">Pending Return Requests</p>
+               <h3 className="text-2xl font-semibold text-gray-800 mt-1">
+                 {loading ? <span className="h-8 bg-gray-200 rounded w-12 inline-block animate-pulse"></span> : stats.pendingRefundsCount}
+               </h3>
+             </div>
+             <div className="p-3 bg-yellow-100 rounded-full">
+               <svg className="h-6 w-6 text-yellow-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+             </div>
+           </div>
+           <div className="mt-4">
+             <span className={`text-xs ${stats.pendingRefundsCount > 0 ? 'text-yellow-700' : 'text-gray-500'}`}>
+               {loading ? <span className="h-4 bg-gray-200 rounded w-32 inline-block animate-pulse"></span> : (stats.pendingRefundsCount > 0 ? "Awaiting admin review" : "No pending requests")}
+             </span>
+           </div>
+         </div>
+
+         {/* Refund Rate Card */}
+         <div className="bg-white p-6 rounded-lg shadow border border-gray-200">
+           <div className="flex items-center justify-between">
+             <div>
+               <p className="text-gray-500 text-sm">Est. Refund Rate</p>
+               <h3 className="text-2xl font-semibold text-gray-800 mt-1">
+                  {loading ? <span className="h-8 bg-gray-200 rounded w-16 inline-block animate-pulse"></span> : `${stats.refundRate}%`}
+               </h3>
+             </div>
+             <div className="p-3 bg-red-100 rounded-full">
+               <svg className="h-6 w-6 text-red-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7h8m0 0v8m0-8l-8 8M4 12a8 8 0 1116 0 8 8 0 01-16 0z" /></svg>
+             </div>
+           </div>
             <div className="mt-4">
-              <span className="text-xs text-accent-dark">
-                {stats.pendingRefundsCount > 0 ? "Requires action" : "No action needed"}
+              <span className="text-xs text-gray-500">
+                 {loading ? <span className="h-4 bg-gray-200 rounded w-28 inline-block animate-pulse"></span> : "Based on approved returns"}
               </span>
             </div>
-          </div>
-
-          <div className="bg-background-card p-6 rounded-lg shadow-sm border border-ui-border">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-text-muted text-sm">Refund Rate</p>
-                <h3 className="text-2xl font-semibold text-text-dark mt-1">
-                  {stats.refundRate}%
-                </h3>
-              </div>
-              <div className="p-3 bg-secondary bg-opacity-10 rounded-full">
-                <svg
-                  xmlns="http://www.w3.org/2000/svg"
-                  className="h-6 w-6 text-secondary"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  stroke="currentColor"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"
-                  />
-                </svg>
-              </div>
-            </div>
-            <div className="mt-4">
-              <span className="text-xs text-success">
-                {parseFloat(stats.refundRate) < 5 ? "Below industry average" : "Review needed"}
-              </span>
-            </div>
-          </div>
-        </div>
-      )}
+         </div>
+       </div>
 
       {/* Tabs */}
-      <div className="flex overflow-x-auto mb-6 border-b border-ui-border">
-        <button
-          className={`px-4 py-2 font-medium text-sm whitespace-nowrap ${
-            activeTab === "all"
-              ? "text-primary border-b-2 border-primary"
-              : "text-text-muted hover:text-primary"
-          }`}
-          onClick={() => setActiveTab("all")}
-        >
-          All Refunds
-        </button>
-        <button
-          className={`px-4 py-2 font-medium text-sm whitespace-nowrap ${
-            activeTab === "pending"
-              ? "text-primary border-b-2 border-primary"
-              : "text-text-muted hover:text-primary"
-          }`}
-          onClick={() => setActiveTab("pending")}
-        >
-          Pending
-        </button>
-        <button
-          className={`px-4 py-2 font-medium text-sm whitespace-nowrap ${
-            activeTab === "approved"
-              ? "text-primary border-b-2 border-primary"
-              : "text-text-muted hover:text-primary"
-          }`}
-          onClick={() => setActiveTab("approved")}
-        >
-          Approved
-        </button>
-        <button
-          className={`px-4 py-2 font-medium text-sm whitespace-nowrap ${
-            activeTab === "rejected"
-              ? "text-primary border-b-2 border-primary"
-              : "text-text-muted hover:text-primary"
-          }`}
-          onClick={() => setActiveTab("rejected")}
-        >
-          Rejected
-        </button>
-        <button
-          className={`px-4 py-2 font-medium text-sm whitespace-nowrap ${
-            activeTab === "processed"
-              ? "text-primary border-b-2 border-primary"
-              : "text-text-muted hover:text-primary"
-          }`}
-          onClick={() => setActiveTab("processed")}
-        >
-          Processed
-        </button>
+      <div className="mb-6 border-b border-gray-200">
+        <nav className="-mb-px flex space-x-8" aria-label="Tabs">
+          {['all', 'pending', 'approved', 'rejected'].map((tab) => (
+            <button
+              key={tab}
+              onClick={() => handleTabClick(tab)}
+              className={`whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm capitalize ${
+                activeTab === tab
+                  ? 'border-blue-500 text-blue-600'
+                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+              }`}
+            >
+              {tab}
+            </button>
+          ))}
+        </nav>
       </div>
 
-      {/* Refunds Table */}
-      <div className="bg-background-card rounded-lg shadow-sm overflow-hidden">
+      {/* Refunds Table/List */}
+      <div className="bg-white shadow overflow-hidden sm:rounded-lg border border-gray-200">
         {loading ? (
-          <div className="py-10 text-center">
-            <p className="text-text-muted">Loading refunds...</p>
-          </div>
+           <div className="p-6 text-center text-gray-500">Loading requests...</div>
         ) : error ? (
-          <div className="py-10 text-center">
-            <p className="text-error">Error: {error}</p>
-          </div>
+           <div className="p-6 text-center text-red-600">Error: {error}</div>
         ) : filteredRefunds.length === 0 ? (
-          <div className="py-10 text-center">
-            <p className="text-text-muted">No refunds found.</p>
-          </div>
+          <div className="p-6 text-center text-gray-500">No matching requests found.</div>
         ) : (
           <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-ui-border">
-              <thead className="bg-background-alt">
+            <table className="min-w-full divide-y divide-gray-200">
+              <thead className="bg-gray-50">
                 <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-text-muted uppercase tracking-wider">
-                    Refund ID
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-text-muted uppercase tracking-wider">
-                    Order ID
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-text-muted uppercase tracking-wider">
-                    Date
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-text-muted uppercase tracking-wider">
-                    Amount
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-text-muted uppercase tracking-wider">
-                    Reason
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-text-muted uppercase tracking-wider">
-                    Status
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-text-muted uppercase tracking-wider">
-                    Actions
-                  </th>
+                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Order #</th>
+                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Customer</th>
+                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Submitted</th>
+                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Product</th>
+                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Amount</th>
+                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
                 </tr>
               </thead>
-              <tbody className="bg-background-card divide-y divide-ui-border">
+              <tbody className="bg-white divide-y divide-gray-200">
                 {filteredRefunds.map((refund) => (
-                  <tr key={refund.id} className="hover:bg-background-alt">
-                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-primary">
-                      {refund.id.substring(0, 8)}
+                  <tr key={refund.id}>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                      <Link href={`/seller/orders/${refund.orderId}`} className="text-blue-600 hover:text-blue-800">
+                        {refund.orderNumber}
+                      </Link>
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-text">
-                      {refund.orderId}
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                      {refund.customerName}
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-text">
-                      {formatDate(refund.createdAt)}
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                      {formatDate(refund.submittedAt)}
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-text">
+                    <td className="px-6 py-4 text-sm text-gray-500 max-w-xs truncate">
+                      {refund.productName}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                       {formatCurrency(refund.amount)}
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-text max-w-xs truncate">
-                      {refund.reason}
-                    </td>
                     <td className="px-6 py-4 whitespace-nowrap">
-                      <span
-                        className={`px-2 py-1 text-xs rounded-full ${getStatusBadgeClass(
-                          refund.status
-                        )}`}
-                      >
-                        {refund.status.charAt(0) +
-                          refund.status.slice(1).toLowerCase()}
+                      <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${getStatusBadgeClass(refund.status)}`}>
+                        {refund.status}
                       </span>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-text">
-                      <button
-                        className="text-primary hover:text-primary-dark mr-3"
-                        onClick={() => {
-                          // View refund details (to be implemented)
-                          alert(`View details for refund ${refund.id}`);
-                        }}
-                      >
-                        View
-                      </button>
-                      {refund.status === "PENDING" && (
-                        <>
-                          <button
-                            className="text-success hover:text-success-dark mr-3"
-                            onClick={() => {
-                              // Approve refund (to be implemented)
-                              alert(`Approve refund ${refund.id}`);
-                            }}
-                          >
-                            Approve
-                          </button>
-                          <button
-                            className="text-error hover:text-error-dark"
-                            onClick={() => {
-                              // Reject refund (to be implemented)
-                              alert(`Reject refund ${refund.id}`);
-                            }}
-                          >
-                            Reject
-                          </button>
-                        </>
-                      )}
                     </td>
                   </tr>
                 ))}
@@ -445,11 +270,11 @@ function RefundsContent() {
   );
 }
 
-// Wrap the refunds content with the ProtectedRoute component
+// Wrap with ProtectedRoute HOC
 export default function SellerRefunds() {
   return (
-    <ProtectedRoute requireOnboarding={true}>
-      <RefundsContent />
+    <ProtectedRoute>
+      {(seller) => <RefundsContent seller={seller} />}
     </ProtectedRoute>
   );
 }
