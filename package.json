@@ -30,10 +30,12 @@
     "dotenv": "^16.4.7",
     "firebase": "^11.4.0",
     "jsonwebtoken": "^9.0.2",
+    "lucide-react": "^0.503.0",
     "nanoid": "^5.1.5",
     "next": "15.2.1",
     "pg": "^8.14.1",
     "postcss": "^8.4.35",
+    "prisma": "^6.4.1",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "react-hot-toast": "^2.4.1",
@@ -42,8 +44,7 @@
     "uuid": "^11.1.0",
     "web-push": "^3.6.7",
     "zod": "^3.24.2",
-    "zustand": "^5.0.3",
-    "prisma": "^6.4.1"
+    "zustand": "^5.0.3"
   },
   "devDependencies": {
     "@types/uuid": "^10.0.0",
