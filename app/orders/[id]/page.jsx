@@ -198,6 +198,22 @@ export default function OrderDetail({ params }) {
                     </span>
                   </div>
                 </div>
+                
+                {/* Display Return Status if available */}
+                {order.returnStatus && (
+                  <div className={`mt-4 p-3 rounded ${
+                    order.returnStatus === 'APPROVED' ? 'bg-green-50 text-green-700' :
+                    order.returnStatus === 'REJECTED' ? 'bg-red-50 text-red-700' :
+                    'bg-yellow-50 text-yellow-700'
+                  }`}>
+                    <p className="font-medium">{order.returnStatusMessage || 'Return in Process'}</p>
+                    {order.returnStatus === 'REJECTED' && (
+                      <p className="text-sm mt-1">
+                        Please contact customer support for more information.
+                      </p>
+                    )}
+                  </div>
+                )}
               </div>
 
               {/* Order Items */}

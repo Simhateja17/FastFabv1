@@ -308,20 +308,36 @@ export default function Orders() {
                     <div className="font-medium">
                       {formatCurrency(order.totalAmount)}
                     </div>
-                    {isOrderReturned(order.id) ? (
-                      <span className="text-gray-500 text-sm font-medium">
+                    {order.returnStatus ? (
+                      <span className={`text-sm font-medium ${
+                        order.returnStatus === 'APPROVED' ? 'text-green-600' :
+                        order.returnStatus === 'REJECTED' ? 'text-red-600' :
+                        'text-yellow-600'
+                      }`}>
+                        {order.returnStatus === 'APPROVED' ? 'Return Approved' :
+                         order.returnStatus === 'REJECTED' ? 'Return Rejected' :
+                         'Submitted for Return'}
+                      </span>
+                    ) : isOrderReturned(order.id) ? (
+                      <span className="text-yellow-600 text-sm font-medium">
                         Submitted for Return
                       </span>
-                    ) : isProductReturnable(order) ? (
+                    ) : order.status === "CONFIRMED" && isProductReturnable(order) ? (
                       <button
                         onClick={() => router.push(`/returns?orderId=${order.id}&productName=${order.items?.[0]?.product?.name || ''}&price=${order.totalAmount}`)}
                         className="inline-flex items-center px-3 py-1 border border-gray-300 rounded-md text-sm text-gray-700 bg-white hover:bg-gray-50"
                       >
                         Return Item
                       </button>
-                    ) : (
+                    ) : order.status === "CONFIRMED" ? (
                       <span className="text-gray-500 text-sm font-medium">
                         Non-returnable
+                      </span>
+                    ) : (
+                      <span className="text-gray-500 text-sm font-medium">
+                        {order.status === "PENDING" ? "Awaiting confirmation" : 
+                         order.status === "CANCELLED" ? "Order cancelled" : 
+                         "Not eligible for return"}
                       </span>
                     )}
                   </div>

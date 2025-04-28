@@ -6,6 +6,20 @@ import { cookies } from 'next/headers'; // Import cookies
 const prisma = new PrismaClient();
 const JWT_SECRET = process.env.JWT_SECRET; // Get secret from environment
 
+// Helper function to get formatted status message
+function getReturnStatusMessage(status) {
+  switch (status) {
+    case 'APPROVED':
+      return 'Return Accepted';
+    case 'REJECTED':
+      return 'Return Rejected';
+    case 'PENDING':
+      return 'Submitted for Return';
+    default:
+      return null;
+  }
+}
+
 export async function GET(request) {
   try {
     // --- 1. Authentication (Using httpOnly Cookie) ---
@@ -103,8 +117,21 @@ export async function GET(request) {
               }
             }
           }
+        },
+        // Include any return requests for this order
+        returnRequests: {
+          select: {
+            id: true,
+            status: true,
+            submittedAt: true,
+            reason: true,
+            orderItemId: true,
+            productName: true
+          },
+          orderBy: {
+            submittedAt: 'desc'
+          }
         }
-        // Note: `shippingAddress` is intentionally excluded from this select clause
       },
       orderBy: {
         createdAt: 'desc', // Show newest orders first
@@ -113,8 +140,23 @@ export async function GET(request) {
 
     console.log(`Found ${orders.length} orders for user ${userId}`);
 
+    // Process orders to include return status information
+    const processedOrders = orders.map(order => {
+      // Check if there are any return requests for this order
+      const hasReturnRequests = order.returnRequests && order.returnRequests.length > 0;
+      const latestReturnRequest = hasReturnRequests ? order.returnRequests[0] : null;
+      
+      return {
+        ...order,
+        // Add returnStatus field with the latest return status
+        returnStatus: latestReturnRequest ? latestReturnRequest.status : null,
+        // Add formatted return status message
+        returnStatusMessage: latestReturnRequest ? getReturnStatusMessage(latestReturnRequest.status) : null
+      };
+    });
+
     // --- 3. Return Response ---
-    return NextResponse.json(orders, { status: 200 });
+    return NextResponse.json(processedOrders, { status: 200 });
 
   } catch (error) {
     console.error('Error fetching user orders:', error);
