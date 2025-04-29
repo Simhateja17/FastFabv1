@@ -93,50 +93,63 @@ export async function GET(request) {
 
     console.log('[REFUNDS API] Existing order IDs with return requests:', Array.from(existingOrderIdsWithReturnRequests));
 
-    const returnedOrders = await prisma.order.findMany({
-      where: {
-        status: "RETURNED",
-        id: {
-          notIn: Array.from(existingOrderIdsWithReturnRequests),
-        },
-        items: {
-          some: {
-            sellerId: sellerId,
-          },
-        },
-      },
-      include: {
-        user: {
-          select: {
-            id: true,
-            name: true,
-            email: true,
-          },
-        },
-        items: {
-          where: {
-            sellerId: sellerId,
-          },
-          include: {
-            product: {
-              select: {
-                id: true,
-                name: true,
-              },
-            }
-          },
-        },
-      },
-      orderBy: {
-        updatedAt: "desc",
-      },
-    });
-
-    console.log('[REFUNDS API] Returned orders found:', returnedOrders.length);
+    // Initialize returned orders array
+    let returnedOrders = [];
     
-    // DEBUGGING: Log the first returned order if available
-    if (returnedOrders.length > 0) {
-      console.log('[REFUNDS API] Sample returned order:', JSON.stringify(returnedOrders[0], null, 2));
+    try {
+      // Query returned orders carefully to avoid shippingAddress issue
+      returnedOrders = await prisma.order.findMany({
+        where: {
+          status: "RETURNED",
+          id: {
+            notIn: Array.from(existingOrderIdsWithReturnRequests),
+          },
+          items: {
+            some: {
+              sellerId: sellerId,
+            },
+          },
+        },
+        include: {
+          user: {
+            select: {
+              id: true,
+              name: true,
+              email: true,
+            },
+          },
+          items: {
+            where: {
+              sellerId: sellerId,
+            },
+            include: {
+              product: {
+                select: {
+                  id: true,
+                  name: true,
+                  images: true,
+                },
+              }
+            },
+          },
+          // Include address if it exists as a relation
+          address: true
+        },
+        orderBy: {
+          updatedAt: "desc",
+        },
+      });
+
+      console.log('[REFUNDS API] Returned orders found:', returnedOrders.length);
+      
+      // DEBUGGING: Log the first returned order if available
+      if (returnedOrders.length > 0) {
+        console.log('[REFUNDS API] Sample returned order:', JSON.stringify(returnedOrders[0], null, 2));
+      }
+    } catch (error) {
+      console.error('[REFUNDS API] Error fetching returned orders:', error);
+      // Continue with empty returned orders array instead of failing completely
+      returnedOrders = [];
     }
 
     // Format return requests for the UI
@@ -163,8 +176,25 @@ export async function GET(request) {
     let formattedReturnedOrders = [];
     
     if (!statusFilter || statusFilter === 'APPROVED') {
-      formattedReturnedOrders = returnedOrders.flatMap((order) => 
-        order.items.map((item) => ({
+      formattedReturnedOrders = returnedOrders.flatMap((order) => {
+        // Get shipping address from different possible sources
+        let shippingAddress = null;
+        if (order.address) {
+          shippingAddress = order.address;
+        } else if (order.addressId) {
+          // We already included address relation above, but this is a fallback
+          console.log('[REFUNDS API] Order has addressId but no address relation:', order.addressId);
+        } else if (order.address || order.city || order.state) {
+          // In some schemas, address details are stored directly in order fields
+          shippingAddress = {
+            address: order.address || '',
+            city: order.city || '',
+            state: order.state || '',
+            pincode: order.pincode || order.zipCode || ''
+          };
+        }
+        
+        return order.items.map((item) => ({
           id: `order-${order.id}-item-${item.id}`, // Create a unique ID
           orderId: order.id,
           orderNumber: order.orderNumber || 'N/A',
@@ -174,12 +204,13 @@ export async function GET(request) {
           reason: 'Order marked as returned', // Default reason
           status: 'APPROVED', // Direct returns are considered approved
           productName: item.product?.name || 'Unknown Product',
-          productImage: null, // We don't have image info in this query
+          productImage: item.product?.images?.[0] || null, 
           amount: item.price,
           submittedAt: order.updatedAt, // Use order updated date as submitted date
           source: 'returnedOrder', // Mark the source for filtering
-        }))
-      );
+          shippingAddress // Include the shipping address if available
+        }));
+      });
     }
 
     // Combine both data sources
