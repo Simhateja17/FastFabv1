@@ -341,18 +341,22 @@ model spatial_ref_sys {
 }
 
 model Payout {
-  id               String       @id
+  id               String            @id
   sellerId         String
   amount           Float
-  status           PayoutStatus @default(PENDING)
-  cashfreePayoutId String?      @unique
-  requestedAt      DateTime     @default(now())
+  status           PayoutStatus      @default(PENDING)
+  cashfreePayoutId String?           @unique
+  requestedAt      DateTime          @default(now())
   processedAt      DateTime?
-  seller           Seller       @relation(fields: [sellerId], references: [id])
+  paymentMethod    PayoutMethod      @default(BANK_TRANSFER)
+  paymentDetails   Json?
+  remarks          String?
+  seller           Seller            @relation(fields: [sellerId], references: [id])
 
   @@index([requestedAt])
   @@index([sellerId])
   @@index([status])
+  @@index([paymentMethod])
 }
 
 model SiteSettings {
@@ -493,4 +497,11 @@ enum WithdrawalStatus {
 enum EarningType {
   IMMEDIATE
   POST_RETURN_WINDOW
+}
+
+enum PayoutMethod {
+  BANK_TRANSFER
+  UPI
+  WALLET
+  CARD
 }

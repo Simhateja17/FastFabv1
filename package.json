@@ -18,6 +18,8 @@
     ]
   },
   "dependencies": {
+    "@headlessui/react": "^2.2.2",
+    "@heroicons/react": "^2.2.0",
     "@prisma/client": "^6.4.1",
     "@react-google-maps/api": "^2.20.6",
     "@supabase/supabase-js": "^2.49.1",
