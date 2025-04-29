@@ -79,6 +79,19 @@ export async function POST(request) {
       return NextResponse.json({ error: 'Could not determine primary seller for order' }, { status: 400 });
     }
 
+    // Fetch products to get isReturnable status
+    const productIds = items.map(item => item.productId);
+    const products = await prisma.product.findMany({
+      where: { id: { in: productIds } },
+      select: { id: true, isReturnable: true }
+    });
+    
+    // Create a lookup map for quick access
+    const productMap = products.reduce((map, product) => {
+      map[product.id] = product;
+      return map;
+    }, {});
+
     console.log(`Creating internal order record with orderNumber: ${orderId}`);
 
     // --- Create Order in DB ---
@@ -107,6 +120,7 @@ export async function POST(request) {
             color: item.color || null,
             price: item.price,
             discount: 0,
+            isReturnable: productMap[item.productId]?.isReturnable || false, // Copy isReturnable flag from product
             updatedAt: new Date(),
           })),
         },
