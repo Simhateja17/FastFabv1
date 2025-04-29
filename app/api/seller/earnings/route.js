@@ -248,8 +248,17 @@ function calculateStats(earnings, immediateEarnings, postWindowEarnings, returnW
     }
   });
   
-  const netEarnings = totalSales - totalRefunds - totalCommission;
-  const availableBalance = netEarnings;
+  // Fix precision for all calculations
+  totalSales = parseFloat(totalSales.toFixed(2));
+  totalCommission = parseFloat(totalCommission.toFixed(2));
+  totalRefunds = parseFloat(totalRefunds.toFixed(2));
+  immediateEarningsTotal = parseFloat(immediateEarningsTotal.toFixed(2));
+  postWindowEarningsTotal = parseFloat(postWindowEarningsTotal.toFixed(2));
+  returnWindowAmount = parseFloat(returnWindowAmount.toFixed(2));
+  
+  // Calculate with fixed precision
+  const netEarnings = parseFloat((totalSales - totalRefunds - totalCommission).toFixed(2));
+  const availableBalance = parseFloat((netEarnings - returnWindowAmount).toFixed(2));
   
   return {
     totalSales,

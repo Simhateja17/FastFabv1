@@ -6,7 +6,6 @@ import { useAuth } from "@/app/context/AuthContext";
 import { toast } from "react-hot-toast";
 import Link from "next/link";
 import ProtectedRoute from "@/app/components/ProtectedRoute";
-import BankDetailsForm from './components/BankDetailsForm';
 import {
   FiUser,
   FiChevronRight,
@@ -654,11 +653,6 @@ function ProfileContent() {
             </div>
           )}
         </div>
-      </div>
-
-      {/* --- Bank Details Section --- */}
-      <div className="mb-6">
-        <BankDetailsForm />
       </div>
     </div>
   );

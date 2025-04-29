@@ -171,10 +171,15 @@ function EarningsContent() {
   const formatCurrency = (amount) => {
     if (amount === undefined || amount === null) return "₹0.00";
     
+    // Ensure amount is a number and has proper precision before formatting
+    const fixedAmount = parseFloat(parseFloat(amount).toFixed(2));
+    
     return new Intl.NumberFormat('en-IN', {
       style: 'currency',
       currency: 'INR',
-    }).format(amount);
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2
+    }).format(fixedAmount);
   };
 
   // Handle opening withdraw modal

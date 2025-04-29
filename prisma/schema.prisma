@@ -411,6 +411,7 @@ model SellerEarning {
   orderItemId       String
   amount            Float
   commission        Float       @default(0)
+  grossAmount       Float       @default(0)
   type              EarningType
   status            String      @default("PENDING")
   creditedToBalance Boolean     @default(false)

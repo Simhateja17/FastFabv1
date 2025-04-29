@@ -106,10 +106,7 @@ export async function GET(request) {
         gstNumber: true,
         isVisible: true,
         manuallyHidden: true,
-        bankAccountName: true, // Include bank details if needed
-        bankName: true,
-        accountNumber: true,
-        ifsc: true,
+        // Removed bank details fields
         // DO NOT select password or other sensitive fields like cashfreeBeneficiaryId unless needed
       }
     });
@@ -170,10 +167,7 @@ export async function PUT(request) {
         closeTime: updateData.closeTime,
         categories: updateData.categories,
         gstNumber: updateData.gstNumber,
-        bankAccountName: updateData.bankAccountName,
-        bankName: updateData.bankName,
-        accountNumber: updateData.accountNumber,
-        ifsc: updateData.ifsc,
+        // Removed bank details fields
         // Add other fields that are safe to update here
     };
 
@@ -208,10 +202,7 @@ export async function PUT(request) {
         gstNumber: true,
         isVisible: true,
         manuallyHidden: true,
-        bankAccountName: true,
-        bankName: true,
-        accountNumber: true,
-        ifsc: true,
+        // Removed bank details fields
       }
     });
 

@@ -21,6 +21,12 @@ function DashboardContent() {
   const { seller, authFetch } = useAuth();
   const [isVisible, setIsVisible] = useState(true);
   const [isToggling, setIsToggling] = useState(false);
+  const [visibilityState, setVisibilityState] = useState({
+    isVisible: true,
+    manuallyHidden: false,
+    isWithinHours: true,
+    effectiveVisibility: true
+  });
   
   const { 
     permissionStatus, 
@@ -33,27 +39,36 @@ function DashboardContent() {
       // First, check if seller exists before proceeding
       if (!seller) {
         console.log('No seller data available in context, cannot fetch visibility status');
-        setIsVisible(false); // Default to hidden if no seller data
+        setVisibilityState({
+          isVisible: false,
+          manuallyHidden: true,
+          isWithinHours: false,
+          effectiveVisibility: false
+        });
         return;
       }
 
       // Debug log
       console.log('Fetching visibility status from API');
       
-      const backendApiUrl = process.env.NEXT_PUBLIC_SELLER_SERVICE_URL || 'http://localhost:8000/api';
-      const response = await authFetch(`${backendApiUrl}/seller/visibility`);
+      // Ensure the URL has the correct /api prefix
+      const baseUrl = process.env.NEXT_PUBLIC_SELLER_SERVICE_URL || 'http://localhost:8000';
+      const data = await authFetch(`${baseUrl}/api/seller/visibility`);
+      console.log('Visibility status response:', data);
       
-      if (response.ok) {
-        const data = await response.json();
-        console.log('Visibility status response:', data);
-        
-        if (data.isVisible !== undefined) {
-          setIsVisible(data.isVisible);
-        }
+      if (data.success && data.data) {
+        setVisibilityState(data.data);
+        setIsVisible(data.data.isVisible);
       } else {
-        console.error('Failed to fetch visibility status:', response.status);
+        console.error('Failed to fetch visibility status:', data.message);
         // Fallback to the seller data we already have
         if (seller && seller.isVisible !== undefined) {
+          setVisibilityState({
+            isVisible: seller.isVisible,
+            manuallyHidden: !seller.isVisible,
+            isWithinHours: true,
+            effectiveVisibility: seller.isVisible
+          });
           setIsVisible(seller.isVisible);
         }
       }
@@ -61,9 +76,21 @@ function DashboardContent() {
       console.error('Error fetching visibility status:', error);
       // Fallback to the seller data we already have
       if (seller && seller.isVisible !== undefined) {
+        setVisibilityState({
+          isVisible: seller.isVisible,
+          manuallyHidden: !seller.isVisible,
+          isWithinHours: true,
+          effectiveVisibility: seller.isVisible
+        });
         setIsVisible(seller.isVisible);
       } else {
         console.log('No seller context data after error, defaulting to visible');
+        setVisibilityState({
+          isVisible: true,
+          manuallyHidden: false,
+          isWithinHours: true,
+          effectiveVisibility: true
+        });
         setIsVisible(true);
       }
     }
@@ -73,6 +100,12 @@ function DashboardContent() {
     if (seller) {
       // Initial visibility state from seller object
       if (seller.isVisible !== undefined) {
+        setVisibilityState({
+          isVisible: seller.isVisible,
+          manuallyHidden: !seller.isVisible,
+          isWithinHours: true,
+          effectiveVisibility: seller.isVisible
+        });
         setIsVisible(seller.isVisible);
       }
       
@@ -113,7 +146,7 @@ function DashboardContent() {
       }
 
       // Check if within store hours before allowing toggle
-      if (!isWithinStoreHours()) {
+      if (!visibilityState.isWithinHours) {
         toast.error('Cannot change store visibility outside of store hours');
         return;
       }
@@ -123,97 +156,44 @@ function DashboardContent() {
       // Debug log
       console.log(`Toggling visibility from ${isVisible} to ${!isVisible}`);
       
-      // Call the backend service API directly
-      const backendApiUrl = process.env.NEXT_PUBLIC_SELLER_SERVICE_URL || 'http://localhost:8000/api'; // Define backend URL
-      const apiUrl = `${backendApiUrl}/seller/visibility`; // Correct backend endpoint
+      // Ensure the URL has the correct /api prefix
+      const baseUrl = process.env.NEXT_PUBLIC_SELLER_SERVICE_URL || 'http://localhost:8000';
+      const apiUrl = `${baseUrl}/api/seller/visibility`;
       console.log(`Using API URL: ${apiUrl}`);
       
-      // Add retry mechanism
-      let attempts = 0;
-      const maxAttempts = 2;
-      let success = false;
-      let lastError = null;
-      
-      while (!success && attempts < maxAttempts) {
-        attempts++;
-        try {
-          console.log(`Attempt ${attempts} to toggle visibility`);
-          
-          const response = await authFetch(
-            apiUrl,
-            {
-              method: 'PUT',
-              headers: {
-                'Content-Type': 'application/json',
-              },
-              body: JSON.stringify({ 
-                isVisible: !isVisible 
-              }),
-            }
-          );
-
-          // Log response status for debugging
-          console.log(`Visibility toggle response status: ${response.status}`);
-
-          if (response.ok) {
-            const result = await response.json();
-            console.log('Visibility toggle result:', result);
-            
-            setIsVisible(result.isVisible);
-            
-            // Use the *new* state (!isVisible) to determine the success message
-            toast.success(
-              !isVisible 
-                ? 'Your store is now visible to customers' 
-                : 'Your store is now hidden from customers'
-            );
-            
-            success = true;
-            break;
-          } else {
-            let errorMsg = 'Failed to update store visibility';
-            try {
-              const errorData = await response.json();
-              errorMsg = errorData.message || errorMsg;
-            } catch (e) {
-              // If JSON parsing fails, try to get text
-              try {
-                errorMsg = await response.text();
-              } catch (textError) {
-                console.error('Could not parse error response:', textError);
-              }
-            }
-            
-            console.error(`Visibility toggle error (attempt ${attempts}): ${errorMsg}`);
-            lastError = new Error(errorMsg);
-            
-            // Wait before retrying
-            if (attempts < maxAttempts) {
-              console.log(`Waiting before retry ${attempts+1}...`);
-              await new Promise(resolve => setTimeout(resolve, 1000));
-            }
-          }
-        } catch (error) {
-          console.error(`Error in toggle attempt ${attempts}:`, error);
-          lastError = error;
-          
-          // Wait before retrying
-          if (attempts < maxAttempts) {
-            console.log(`Waiting before retry ${attempts+1}...`);
-            await new Promise(resolve => setTimeout(resolve, 1000));
-          }
+      const result = await authFetch(
+        apiUrl,
+        {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ 
+            isVisible: !isVisible 
+          }),
         }
-      }
-      
-      if (!success && lastError) {
-        throw lastError;
+      );
+
+      console.log('Visibility toggle result:', result);
+
+      if (result.success && result.data) {
+        setVisibilityState(result.data);
+        setIsVisible(result.data.isVisible);
+        
+        toast.success(
+          result.data.isVisible 
+            ? 'Your store is now visible to customers' 
+            : 'Your store is now hidden from customers'
+        );
+      } else {
+        throw new Error(result.message || 'Failed to update store visibility');
       }
     } catch (error) {
       console.error('Error toggling visibility:', error);
       toast.error(error.message || 'Failed to update store visibility');
       
       // Refresh visibility status to ensure UI is in sync
-      if (seller) { // Only fetch if seller exists
+      if (seller) {
         fetchVisibilityStatus();
       }
     } finally {
@@ -249,30 +229,6 @@ function DashboardContent() {
     },
   ];
 
-  // Update the isWithinStoreHours function to be more robust
-  const isWithinStoreHours = () => {
-    // If seller data is missing or if store hours aren't set, default to true
-    if (!seller || !seller.openTime || !seller.closeTime) {
-      console.log('Store hours not set or seller data missing, defaulting to store open');
-      return true;
-    }
-
-    const now = new Date();
-    const currentTime = now.getHours() * 60 + now.getMinutes();
-    
-    const [openHours, openMinutes] = seller.openTime.split(':').map(Number);
-    const [closeHours, closeMinutes] = seller.closeTime.split(':').map(Number);
-    
-    const openTime = openHours * 60 + openMinutes;
-    const closeTime = closeHours * 60 + closeMinutes;
-    
-    const isOpen = currentTime >= openTime && currentTime <= closeTime;
-    console.log(`Current time: ${currentTime}, Open time: ${openTime}, Close time: ${closeTime}, Is within hours: ${isOpen}`);
-    return isOpen;
-  };
-
-  const storeStatus = isWithinStoreHours();
-
   return (
     <div className="p-6">
       <h1 className="text-2xl font-semibold text-primary mb-6">
@@ -292,20 +248,20 @@ function DashboardContent() {
                   Store Visibility:
                 </span>
                 <button
-                  disabled={isToggling || !storeStatus}
+                  disabled={isToggling || !visibilityState.isWithinHours}
                   onClick={handleVisibilityToggle}
                   className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary disabled:opacity-50 disabled:cursor-not-allowed ${
-                    isVisible ? 'bg-green-500' : 'bg-black'
+                    visibilityState.effectiveVisibility ? 'bg-green-500' : 'bg-black'
                   }`}
                 >
                   <span
                     className={`inline-block h-4 w-4 transform rounded-full transition-transform ${
-                      isVisible ? 'translate-x-6 bg-black' : 'translate-x-1 bg-white'
+                      visibilityState.effectiveVisibility ? 'translate-x-6 bg-black' : 'translate-x-1 bg-white'
                     }`}
                   />
                 </button>
                 <span className="ml-2 text-sm text-text-muted">
-                  {isVisible ? (
+                  {visibilityState.effectiveVisibility ? (
                     <span className="flex items-center text-green-600">
                       <FiEye className="mr-1" /> Visible
                     </span>
@@ -316,7 +272,7 @@ function DashboardContent() {
                   )}
                 </span>
               </div>
-              {!storeStatus && (
+              {!visibilityState.isWithinHours && (
                  <p className="text-xs text-red-600 text-right mt-1">
                    Can only change when store is open
                  </p>
@@ -325,9 +281,9 @@ function DashboardContent() {
           </div>
           
           <div className="flex items-center mt-2">
-            <div className={`h-3 w-3 rounded-full mr-2 ${storeStatus ? 'bg-green-500' : 'bg-red-500'}`}></div>
+            <div className={`h-3 w-3 rounded-full mr-2 ${visibilityState.isWithinHours ? 'bg-green-500' : 'bg-red-500'}`}></div>
             <p className="text-sm text-text-muted">
-              {storeStatus 
+              {visibilityState.isWithinHours 
                 ? 'Your store is open right now' 
                 : 'Your store is closed right now'}
               {seller.openTime && seller.closeTime && 
