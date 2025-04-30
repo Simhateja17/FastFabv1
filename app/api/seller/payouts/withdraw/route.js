@@ -42,14 +42,7 @@ export async function POST(request) {
     console.log(`[Withdraw API Route] Cookie header present: ${!!cookies}`);
     
     // Forward request to backend
-    let targetUrl;
-    if (backendUrl.endsWith('/api')) {
-      targetUrl = `${backendUrl}/seller/payouts/withdraw`;
-    } else if (backendUrl.endsWith('/api/')) {
-      targetUrl = `${backendUrl}seller/payouts/withdraw`;
-    } else {
-      targetUrl = `${backendUrl}/api/seller/payouts/withdraw`;
-    }
+    const targetUrl = `${backendUrl}/api/seller/payouts/withdraw`;
     console.log(`[Withdraw API Route] 🚀 Sending request to: ${targetUrl}`);
     
     // Prepare authorization header from cookies if needed
