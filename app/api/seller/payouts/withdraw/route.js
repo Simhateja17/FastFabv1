@@ -50,10 +50,39 @@ export async function POST(request) {
     
     // If no Authorization header but we have cookies with accessToken, extract and use it
     if (!authHeader && cookies) {
+      // Try multiple possible formats of the access token in cookies
       const accessTokenMatch = cookies.match(/accessToken=([^;]+)/);
+      const jwtMatch = cookies.match(/jwt=([^;]+)/); // Some systems use this name
+      
+      let token = null;
       if (accessTokenMatch && accessTokenMatch[1]) {
-        authHeader = `Bearer ${accessTokenMatch[1]}`;
-        console.log(`[Withdraw API Route] 🔑 Extracted access token from cookies`);
+        token = accessTokenMatch[1];
+        console.log(`[Withdraw API Route] 🔑 Extracted access token from 'accessToken' cookie`);
+      } else if (jwtMatch && jwtMatch[1]) {
+        token = jwtMatch[1];
+        console.log(`[Withdraw API Route] 🔑 Extracted access token from 'jwt' cookie`);
+      }
+      
+      if (token) {
+        // Validate the token format to ensure it has sellerId (for debugging)
+        try {
+          const parts = token.split('.');
+          if (parts.length === 3) {
+            const payload = JSON.parse(Buffer.from(parts[1], 'base64').toString());
+            console.log(`[Withdraw API Route] Token payload:`, JSON.stringify(payload));
+            
+            if (!payload.sellerId) {
+              console.warn(`[Withdraw API Route] ⚠️ Warning: Token missing sellerId field`);
+            } else {
+              console.log(`[Withdraw API Route] ✅ Token contains sellerId:`, payload.sellerId);
+            }
+          }
+        } catch (tokenError) {
+          console.error(`[Withdraw API Route] Error parsing token:`, tokenError.message);
+        }
+        
+        authHeader = `Bearer ${token}`;
+        console.log(`[Withdraw API Route] Created Authorization header from cookie token`);
       }
     }
     

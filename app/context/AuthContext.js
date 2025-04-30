@@ -87,6 +87,29 @@ export function AuthProvider({ children }) {
 
        // Successful refresh means backend has set new cookies
        console.log("Token refresh successful. New cookies should be set by backend.");
+       
+       // Validate the token structure to ensure it has proper fields
+       try {
+         // Extract token from cookie (for client-side validation only)
+         const cookieToken = document.cookie.match(/accessToken=([^;]+)/)?.[1];
+         if (cookieToken) {
+           // Decode the JWT payload (second part between dots)
+           const payload = JSON.parse(atob(cookieToken.split('.')[1]));
+           console.log("Validating refreshed token structure:", payload);
+           
+           // Verify the token contains the required sellerId field
+           if (!payload.sellerId) {
+             console.error("⚠️ Token missing sellerId field - backend may reject this token");
+             // Don't throw, but log this issue for debugging
+           } else {
+             console.log("✅ Token structure verified, contains sellerId:", payload.sellerId);
+           }
+         }
+       } catch (validationError) {
+         console.error("Error validating token structure:", validationError);
+         // Don't throw this error - just log it for debugging
+       }
+       
        // Optionally, the refresh endpoint *could* return the new user data
        // const data = await response.json();
        // if (data && data.seller) { setSeller(data.seller); }

@@ -85,7 +85,16 @@ export async function POST(request) {
             return NextResponse.json({ message: 'Internal server error: Configuration missing' }, { status: 500 });
         }
 
-        const newAccessTokenPayload = { sellerId: seller.id };
+        // Create standardized token payload to ensure consistent format with backend expectations
+        const newAccessTokenPayload = { 
+            sellerId: seller.id,
+            sub: seller.id,
+            type: 'seller',
+            role: 'seller'
+        };
+        
+        console.log("Creating new access token with payload:", JSON.stringify(newAccessTokenPayload));
+        
         const newAccessToken = jwt.sign(
             newAccessTokenPayload,
             // ACCESS_TOKEN_SECRET,

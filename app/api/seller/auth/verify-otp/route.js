@@ -229,14 +229,27 @@ const generateSellerTokens = (sellerId) => {
   
   // Create token payload with consistent field names
   const tokenPayload = { 
-    sellerId,            // Primary field for seller ID
+    sellerId,            // Primary field for seller ID - CRITICAL for backend validation
     sub: sellerId,       // JWT standard subject field
     type: 'seller',      // Explicit type for role-based checks
     role: 'seller'       // Alternative role field for compatibility
   };
   
+  console.log('[Seller Verify] Creating tokens with payload:', JSON.stringify(tokenPayload));
+  
   const accessToken = jwt.sign(tokenPayload, JWT_SECRET, { expiresIn: ACCESS_TOKEN_EXPIRY });
   const refreshToken = jwt.sign(tokenPayload, JWT_REFRESH_SECRET, { expiresIn: REFRESH_TOKEN_EXPIRY });
+  
+  // Verify the token structure after signing (for debugging)
+  try {
+    const decoded = jwt.verify(accessToken, JWT_SECRET);
+    console.log('[Seller Verify] Verified token payload:', JSON.stringify(decoded));
+    if (!decoded.sellerId) {
+      console.error('[Seller Verify] ⚠️ WARNING: Generated token missing sellerId field!');
+    }
+  } catch (err) {
+    console.error('[Seller Verify] Error verifying generated token:', err);
+  }
   
   return { accessToken, refreshToken };
 };
