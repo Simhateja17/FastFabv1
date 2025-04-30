@@ -37,17 +37,27 @@ function EarningsContent() {
       try {
         setLoading(true);
         
-        // Comment out the backend URL construction as we're switching to relative URL
-        // const backendUrl = process.env.NEXT_PUBLIC_SELLER_SERVICE_URL || 'http://localhost:8000';
-
-        // Use a relative URL instead of absolute URL with domain
-        const data = await authFetch(`/api/seller/earnings?period=${dateRange}`);
+        // Construct the backend URL using environment variable or default
+        const backendUrl = process.env.NEXT_PUBLIC_SELLER_SERVICE_URL || 'http://localhost:8000';
+        
+        // Determine if we're in production or local environment
+        const isProduction = backendUrl.includes('api.fastandfab.in');
+        
+        // Use the appropriate URL format based on environment
+        // - For production: Remove redundant /api from URL
+        // - For local development: Keep the /api prefix
+        const apiPath = isProduction 
+          ? `/seller/earnings?period=${dateRange}` 
+          : `/api/seller/earnings?period=${dateRange}`;
+        
+        // Fetch data with the correct URL format
+        const data = await authFetch(`${backendUrl}${apiPath}`);
 
         if (!data || typeof data !== 'object' || !data.earnings) {
-             throw new Error('Invalid response format from API. Expected { earnings: [], stats: {} }');
-         }
-
-        setEarnings(data.earnings || []); // Use the 'earnings' key directly
+          throw new Error('Invalid response format from API. Expected { earnings: [], stats: {} }');
+        }
+        
+        setEarnings(data.earnings || []);
         
         // Set new earnings data
         setImmediateEarnings(data.immediateEarnings || []);
