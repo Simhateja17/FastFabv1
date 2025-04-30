@@ -37,11 +37,11 @@ function EarningsContent() {
       try {
         setLoading(true);
         
-        // Construct the backend URL using environment variable or default
-        const backendUrl = process.env.NEXT_PUBLIC_SELLER_SERVICE_URL || 'http://localhost:8000';
+        // Comment out the backend URL construction as we're switching to relative URL
+        // const backendUrl = process.env.NEXT_PUBLIC_SELLER_SERVICE_URL || 'http://localhost:8000';
 
-        // Use authFetch and ensure the path includes /api
-         const data = await authFetch(`${backendUrl}/api/seller/earnings?period=${dateRange}`);
+        // Use a relative URL instead of absolute URL with domain
+        const data = await authFetch(`/api/seller/earnings?period=${dateRange}`);
 
         if (!data || typeof data !== 'object' || !data.earnings) {
              throw new Error('Invalid response format from API. Expected { earnings: [], stats: {} }');
