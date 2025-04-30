@@ -89,7 +89,14 @@ export async function GET(request) {
     }
     
     // Log the full request we're about to make
-    const targetUrl = `${backendUrl}/api/seller/earnings?period=${period}`;
+    let targetUrl;
+    if (backendUrl.endsWith('/api')) {
+      targetUrl = `${backendUrl}/seller/earnings?period=${period}`;
+    } else if (backendUrl.endsWith('/api/')) {
+      targetUrl = `${backendUrl}seller/earnings?period=${period}`;
+    } else {
+      targetUrl = `${backendUrl}/api/seller/earnings?period=${period}`;
+    }
     console.log(`[API Route] 🚀 Sending request to: ${targetUrl}`);
     
     const fetchOptions = {
