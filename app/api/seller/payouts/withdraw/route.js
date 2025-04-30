@@ -45,13 +45,24 @@ export async function POST(request) {
     const targetUrl = `${backendUrl}/api/seller/payouts/withdraw`;
     console.log(`[Withdraw API Route] 🚀 Sending request to: ${targetUrl}`);
     
+    // Prepare authorization header from cookies if needed
+    let authHeader = request.headers.get('Authorization');
+    
+    // If no Authorization header but we have cookies with accessToken, extract and use it
+    if (!authHeader && cookies) {
+      const accessTokenMatch = cookies.match(/accessToken=([^;]+)/);
+      if (accessTokenMatch && accessTokenMatch[1]) {
+        authHeader = `Bearer ${accessTokenMatch[1]}`;
+        console.log(`[Withdraw API Route] 🔑 Extracted access token from cookies`);
+      }
+    }
+    
     const fetchOptions = {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         'Cookie': cookies,
-        ...(request.headers.get('Authorization') ? 
-            { 'Authorization': request.headers.get('Authorization') } : {})
+        ...(authHeader ? { 'Authorization': authHeader } : {})
       },
       body: JSON.stringify(requestData),
       credentials: 'include'
