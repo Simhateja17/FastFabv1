@@ -37,21 +37,15 @@ function EarningsContent() {
       try {
         setLoading(true);
         
-        // Construct the backend URL using environment variable or default
-        const backendUrl = process.env.NEXT_PUBLIC_SELLER_SERVICE_URL || 'http://localhost:8000';
+        // Use NextJS API route directly like orders page does
+        // Instead of using the express backend
+        const url = new URL(`/api/seller/earnings`, window.location.origin);
+        url.searchParams.append("period", dateRange);
         
-        // Determine if we're in production or local environment
-        const isProduction = backendUrl.includes('api.fastandfab.in');
+        console.log(`[DEBUG] Fetching earnings with URL: ${url.toString()}`);
         
-        // Use the appropriate URL format based on environment
-        // - For production: Remove redundant /api from URL
-        // - For local development: Keep the /api prefix
-        const apiPath = isProduction 
-          ? `/seller/earnings?period=${dateRange}` 
-          : `/api/seller/earnings?period=${dateRange}`;
-        
-        // Fetch data with the correct URL format
-        const data = await authFetch(`${backendUrl}${apiPath}`);
+        // Use authFetch with the NextJS API URL
+        const data = await authFetch(url.toString());
 
         if (!data || typeof data !== 'object' || !data.earnings) {
           throw new Error('Invalid response format from API. Expected { earnings: [], stats: {} }');
