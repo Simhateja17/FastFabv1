@@ -37,11 +37,21 @@ function EarningsContent() {
       try {
         setLoading(true);
         
-        // Construct the backend URL using environment variable or default
-        const backendUrl = process.env.NEXT_PUBLIC_SELLER_SERVICE_URL || 'http://localhost:8000';
+        // UPDATED: Use Next.js API route instead of direct backend call
+        // This fixes CORS issues in production by proxying through Next.js
+        const url = new URL("/api/seller/earnings", window.location.origin);
+        url.searchParams.append("period", dateRange);
+        
+        console.log(`[EarningsContent] Fetching earnings from: ${url.toString()}`);
+        
+        const data = await authFetch(url.toString());
 
-        // Use authFetch and ensure the path includes /api
-         const data = await authFetch(`${backendUrl}/api/seller/earnings?period=${dateRange}`);
+        // Check if the backend returned a redirect instruction (usually for auth failures)
+        if (data.redirect) {
+          console.log(`[EarningsContent] Received redirect instruction to: ${data.redirect}`);
+          window.location.href = data.redirect;
+          return;
+        }
 
         if (!data || typeof data !== 'object' || !data.earnings) {
              throw new Error('Invalid response format from API. Expected { earnings: [], stats: {} }');
