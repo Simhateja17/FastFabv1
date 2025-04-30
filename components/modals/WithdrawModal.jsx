@@ -714,7 +714,7 @@ const WithdrawModal = ({ isOpen, onClose, maxAmount = 0, onSubmit, savedBankDeta
           remarks
         });
         
-        const response = await authFetch('http://localhost:8000/api/payouts/withdraw', {
+        const response = await authFetch('/api/seller/payouts/withdraw', {
             method: 'POST',
             body: JSON.stringify({ 
               amount: numericAmount,
