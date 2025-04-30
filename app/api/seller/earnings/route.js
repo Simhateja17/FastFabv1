@@ -1,15 +1,12 @@
 import { NextResponse } from "next/server";
+import { PrismaClient } from "@prisma/client";
 import { auth } from "@/app/lib/auth";
 
-// Helper to determine the backend URL
-function getBackendUrl() {
-  // Use environment variable if defined, otherwise fallback to localhost in development
-  return process.env.NEXT_PUBLIC_SELLER_SERVICE_URL || 'http://localhost:8000';
-}
+const prisma = new PrismaClient();
 
 export async function GET(request) {
   try {
-    // 1. Verify seller authentication
+    // Verify seller authentication
     const authResult = await auth(request);
     
     if (!authResult.success) {
@@ -26,92 +23,185 @@ export async function GET(request) {
       );
     }
     
-    // 2. Get the period parameter from the request URL
+    // Get sellerId from auth result
+    const sellerId = authResult.sellerId;
+    
     const { searchParams } = new URL(request.url);
-    const period = searchParams.get("period") || "30days";
+    const querySellerId = searchParams.get("sellerId");
     
-    // 3. Forward all authentication-related headers and cookies
-    const cookieHeader = request.headers.get('cookie');
-    const authHeader = request.headers.get('authorization');
-    
-    // 4. Determine the backend URL
-    const backendUrl = getBackendUrl();
-    
-    // 5. Forward the request to the Express backend
-    const apiUrl = `${backendUrl}/api/seller/earnings?period=${period}`;
-    console.log(`[API Route] Proxying earnings request to: ${apiUrl}`);
-    
-    // Prepare headers to forward
-    const headers = new Headers();
-    headers.append('Content-Type', 'application/json');
-    
-    // Forward Authorization header if present
-    if (authHeader) {
-      headers.append('Authorization', authHeader);
-    }
-    
-    // Forward cookies if present (important for session-based auth)
-    if (cookieHeader) {
-      headers.append('Cookie', cookieHeader);
-    }
-    
-    // Make the request to the backend, including credentials
-    const backendResponse = await fetch(apiUrl, {
-      headers,
-      credentials: 'include', // Important: This forwards cookies in fetch requests
-      mode: 'cors',           // Ensure CORS is properly handled
-    });
-    
-    // If the backend returns an error, handle it
-    if (!backendResponse.ok) {
-      console.error(`[API Route] Backend returned error: ${backendResponse.status} ${backendResponse.statusText}`);
-      
-      // Try to get error details
-      let errorData;
-      try {
-        errorData = await backendResponse.json();
-      } catch (e) {
-        errorData = { message: backendResponse.statusText };
-      }
-      
-      // Log detailed error info to help with debugging
-      console.error('[API Route] Backend error details:', errorData);
-      
+    // Ensure the authenticated seller is requesting their own data
+    if (querySellerId && querySellerId !== sellerId) {
       return NextResponse.json(
-        { error: errorData.message || "Failed to fetch earnings from backend" },
-        { status: backendResponse.status }
+        { error: "Unauthorized to access this seller's earnings" },
+        { status: 403 }
       );
     }
     
-    // Get the data from the backend response
-    const data = await backendResponse.json();
+    // Query sellerEarnings
+    const earnings = await prisma.sellerEarning.findMany({
+      where: {
+        sellerId: sellerId,
+      },
+      orderBy: {
+        createdAt: 'desc'
+      }
+    });
+
+    // Get items in return window with enhanced details
+    const itemsInReturnWindow = await prisma.orderItem.findMany({
+      where: {
+        sellerId: sellerId,
+        returnWindowStatus: 'ACTIVE',
+      },
+      include: {
+        earnings: true,
+        product: {
+          select: {
+            id: true,
+            name: true,
+            images: true,
+            isReturnable: true
+          }
+        },
+        order: {
+          select: {
+            id: true,
+            orderNumber: true,
+            createdAt: true,
+            status: true,
+            user: {
+              select: {
+                id: true,
+                name: true,
+                phone: true
+              }
+            }
+          }
+        }
+      }
+    });
+
+    // Calculate amount in return window and enrich items with time remaining
+    let returnWindowAmount = 0;
+    const now = new Date();
     
-    // 6. Return the backend data
-    console.log(`[API Route] Successfully proxied earnings request`);
-    
-    // Create the response and forward any cookies from the backend
-    const response = NextResponse.json(data);
-    
-    // Forward Set-Cookie headers from backend to client if present
-    const backendCookies = backendResponse.headers.getSetCookie();
-    if (backendCookies && backendCookies.length > 0) {
-      backendCookies.forEach(cookie => {
-        response.headers.append('Set-Cookie', cookie);
+    const enrichedItems = itemsInReturnWindow.map(item => {
+      const itemAmount = item.price * item.quantity;
+      returnWindowAmount += itemAmount;
+      
+      // Calculate time remaining in return window
+      const endDate = item.returnWindowEnd ? new Date(item.returnWindowEnd) : null;
+      const startDate = item.returnWindowStart ? new Date(item.returnWindowStart) : null;
+      
+      let timeRemaining = null;
+      let progress = 0;
+      
+      if (endDate && startDate) {
+        const totalWindowMs = endDate - startDate;
+        const elapsedMs = now - startDate;
+        const remainingMs = Math.max(0, endDate - now);
+        
+        progress = Math.min(100, Math.max(0, (elapsedMs / totalWindowMs) * 100));
+        timeRemaining = {
+          ms: remainingMs,
+          hours: Math.floor(remainingMs / (1000 * 60 * 60)),
+          minutes: Math.floor((remainingMs % (1000 * 60 * 60)) / (1000 * 60)),
+        };
+      }
+      
+      return {
+        ...item,
+        timeRemaining,
+        progress,
+        amount: itemAmount
+      };
+    });
+
+    // Calculate projected release dates
+    const projectedReleases = enrichedItems.reduce((acc, item) => {
+      if (!item.returnWindowEnd) return acc;
+      
+      const releaseDate = new Date(item.returnWindowEnd);
+      const dateKey = releaseDate.toISOString().split('T')[0];
+      
+      if (!acc[dateKey]) {
+        acc[dateKey] = {
+          date: releaseDate,
+          totalAmount: 0,
+          items: []
+        };
+      }
+      
+      acc[dateKey].totalAmount += item.amount;
+      acc[dateKey].items.push({
+        id: item.id,
+        productName: item.product?.name || 'Unknown Product',
+        amount: item.amount
       });
-    }
+      
+      return acc;
+    }, {});
+
+    // Query earnings by type
+    const immediateEarnings = await prisma.sellerEarning.findMany({
+      where: {
+        sellerId: sellerId,
+        type: 'IMMEDIATE'
+      }
+    });
+
+    const postWindowEarnings = await prisma.sellerEarning.findMany({
+      where: {
+        sellerId: sellerId,
+        type: 'POST_RETURN_WINDOW'
+      }
+    });
     
-    return response;
+    // Calculate summary statistics
+    const currentDate = new Date();
+    
+    // Last 30 days
+    const thirtyDaysAgo = new Date(currentDate);
+    thirtyDaysAgo.setDate(currentDate.getDate() - 30);
+    
+    // Last 7 days
+    const sevenDaysAgo = new Date(currentDate);
+    sevenDaysAgo.setDate(currentDate.getDate() - 7);
+    
+    // Last 90 days
+    const ninetyDaysAgo = new Date(currentDate);
+    ninetyDaysAgo.setDate(currentDate.getDate() - 90);
+    
+    // Calculate stats for different periods
+    const stats = {
+      "7days": calculateStats(earnings, immediateEarnings, postWindowEarnings, returnWindowAmount, sevenDaysAgo),
+      "30days": calculateStats(earnings, immediateEarnings, postWindowEarnings, returnWindowAmount, thirtyDaysAgo),
+      "90days": calculateStats(earnings, immediateEarnings, postWindowEarnings, returnWindowAmount, ninetyDaysAgo),
+      "all": calculateStats(earnings, immediateEarnings, postWindowEarnings, returnWindowAmount, null)
+    };
+    
+    return NextResponse.json({ 
+      earnings, 
+      immediateEarnings, 
+      postWindowEarnings, 
+      itemsInReturnWindow: enrichedItems,
+      returnWindowAmount,
+      projectedReleases,
+      stats 
+    });
     
   } catch (error) {
-    console.error("[API Route] Error in earnings proxy:", error);
+    console.error("Error fetching seller earnings:", error);
     return NextResponse.json(
-      { error: "Failed to fetch earnings: " + error.message },
+      { error: "Failed to fetch earnings" },
       { status: 500 }
     );
+  } finally {
+    await prisma.$disconnect();
   }
 }
 
-// Keep the existing calculateStats function for fallback/reference
+// Helper function to calculate earnings statistics
 function calculateStats(earnings, immediateEarnings, postWindowEarnings, returnWindowAmount, startDate) {
   let totalSales = 0;
   let totalCommission = 0;

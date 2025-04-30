@@ -37,21 +37,17 @@ function EarningsContent() {
       try {
         setLoading(true);
         
-        // Use NextJS API route directly like orders page does
-        // Instead of using the express backend
-        const url = new URL(`/api/seller/earnings`, window.location.origin);
-        url.searchParams.append("period", dateRange);
-        
-        console.log(`[DEBUG] Fetching earnings with URL: ${url.toString()}`);
-        
-        // Use authFetch with the NextJS API URL
-        const data = await authFetch(url.toString());
+        // Construct the backend URL using environment variable or default
+        const backendUrl = process.env.NEXT_PUBLIC_SELLER_SERVICE_URL || 'http://localhost:8000';
+
+        // Use authFetch and ensure the path includes /api
+         const data = await authFetch(`${backendUrl}/api/seller/earnings?period=${dateRange}`);
 
         if (!data || typeof data !== 'object' || !data.earnings) {
-          throw new Error('Invalid response format from API. Expected { earnings: [], stats: {} }');
-        }
-        
-        setEarnings(data.earnings || []);
+             throw new Error('Invalid response format from API. Expected { earnings: [], stats: {} }');
+         }
+
+        setEarnings(data.earnings || []); // Use the 'earnings' key directly
         
         // Set new earnings data
         setImmediateEarnings(data.immediateEarnings || []);
