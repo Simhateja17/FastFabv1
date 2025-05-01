@@ -89,10 +89,7 @@ export async function GET(request) {
     }
     
     // Log the full request we're about to make
-    // Fix the URL construction to ensure it doesn't duplicate /api path
-    // Check if backendUrl already has /api in it
-    const apiPath = backendUrl.endsWith('/api') ? '' : '/api';
-    const targetUrl = `${backendUrl}${apiPath}/seller/earnings?period=${period}`;
+    const targetUrl = `${backendUrl}/api/seller/earnings?period=${period}`;
     console.log(`[API Route] 🚀 Sending request to: ${targetUrl}`);
     
     const fetchOptions = {
