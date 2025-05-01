@@ -15,7 +15,7 @@ export default function SellerOnboarding() {
   const autocompleteRef = useRef(null);
   const [inputReady, setInputReady] = useState(false);
 
-  const { seller, updateSellerDetails, authFetch, setSeller } = useAuth();
+  const { seller, updateSellerDetails, authFetch, setSeller, fetchCurrentSellerProfile } = useAuth();
   const [formData, setFormData] = useState({
     shopName: "",
     ownerName: "",
@@ -41,6 +41,28 @@ export default function SellerOnboarding() {
       router.push("/seller/dashboard");
     }
   }, [seller, router]);
+
+  // Verify authentication on page load
+  useEffect(() => {
+    const verifyAuth = async () => {
+      try {
+        // Only refresh the profile if seller exists but skip if we're already loading
+        if (seller && !loading) {
+          console.log("Verifying authentication once on page load");
+          await fetchCurrentSellerProfile();
+          console.log("Authentication verified for onboarding");
+        }
+      } catch (error) {
+        console.error("Authentication verification failed:", error);
+        toast.error("Authentication error. Please sign in again.");
+        router.push("/seller/signin");
+      }
+    };
+    
+    verifyAuth();
+    // Only run this effect once on component mount using an empty dependency array
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Ensure the address input element is ready
   useEffect(() => {
@@ -235,28 +257,70 @@ export default function SellerOnboarding() {
 
     try {
       if (!seller || !seller.id) {
-        throw new Error("Authentication required. Please sign in again.");
+        // Additional check - try to refresh profile first before failing
+        try {
+          const refreshedProfile = await fetchCurrentSellerProfile();
+          if (!refreshedProfile) {
+            throw new Error("Authentication required. Please sign in again.");
+          }
+        } catch (authError) {
+          throw new Error("Authentication required. Please sign in again.");
+        }
       }
 
+      console.log("Submitting seller details with form data:", formData);
+      
+      // Don't call fetchCurrentSellerProfile here - it can cause issues
+      
       const result = await updateSellerDetails(formData);
       console.log("Update profile response:", result);
 
       if (result.success) {
-        toast.success("Profile updated successfully!");
+        // Check if a beneficiary ID was created
+        if (result.seller?.cashfreeBeneficiaryId) {
+          console.log("✅ Cashfree beneficiary ID created successfully:", result.seller.cashfreeBeneficiaryId);
+          toast.success("Profile updated and payment account set up successfully!");
+        } else {
+          console.log("⚠️ Profile updated but no Cashfree beneficiary ID was created");
+          toast.success("Profile updated successfully!");
+        }
         
-        // Set a flag to indicate onboarding is done (optional, for immediate UI updates if needed)
+        // Set a flag to indicate onboarding is done
         sessionStorage.setItem('onboardingComplete', 'true');
 
-        // Redirect to dashboard
-        router.push("/seller/dashboard");
+        // Wait a moment before redirecting to ensure state is updated
+        setTimeout(() => {
+          // Force redirect to dashboard
+          window.location.href = "/seller/dashboard";
+        }, 500);
       } else {
         const errorMessage = result.error || "Failed to update profile";
         console.error("Profile update failed:", errorMessage);
-        toast.error(errorMessage);
+        
+        // Special handling for authentication errors
+        if (errorMessage.includes("Not authenticated") || errorMessage.includes("401")) {
+          toast.error("Authentication error. Please sign in again.");
+          // Don't call setSeller, just redirect
+          setTimeout(() => {
+            router.push("/seller/signin");
+          }, 1000);
+        } else {
+          toast.error(errorMessage);
+        }
       }
     } catch (error) {
       console.error("Error updating profile:", error);
-      toast.error("Something went wrong. Please try again.");
+      
+      // Check if it's an auth error
+      if (error.message.includes("authentication") || error.message.includes("authenticated") || error.message.includes("401")) {
+        toast.error("Authentication error. Please sign in again.");
+        // Don't call setSeller, just redirect
+        setTimeout(() => {
+          router.push("/seller/signin");
+        }, 1000);
+      } else {
+        toast.error("Something went wrong. Please try again.");
+      }
     } finally {
       setLoading(false);
     }

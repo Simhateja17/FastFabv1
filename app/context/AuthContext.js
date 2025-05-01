@@ -317,11 +317,15 @@ export function AuthProvider({ children }) {
     
     setLoading(true);
     try {
+      console.log("Updating seller details for ID:", seller.id);
+      
       // Use authFetch to handle authentication and token refresh
       const updatedData = await authFetch(SELLER_AUTH_ENDPOINTS.UPDATE_DETAILS(seller.id), {
         method: "PUT",
         body: JSON.stringify(details),
       });
+
+      console.log("Seller details update API response:", updatedData);
 
       if (updatedData && updatedData.seller) {
         // Update local state
@@ -337,7 +341,7 @@ export function AuthProvider({ children }) {
     } finally {
       setLoading(false);
     }
-  }, [authFetch]);
+  }, [authFetch, seller, setSeller]);
 
   // Send OTP (Seller)
   const sendSellerOTP = useCallback(async (phone) => {

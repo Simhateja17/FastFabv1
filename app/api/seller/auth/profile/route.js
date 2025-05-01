@@ -22,13 +22,13 @@ const JWT_SECRET = process.env.JWT_SECRET;
 /**
  * Verify JWT access token from cookies
  */
-const verifyTokenFromCookies = (request) => {
+const verifyTokenFromCookies = async (request) => {
   if (!JWT_SECRET) {
     console.error('[Seller Profile] JWT_SECRET not set');
     return null;
   }
   try {
-    const cookieStore = cookies(); // Use next/headers cookies
+    const cookieStore = await cookies(); // Use next/headers cookies with await
     const token = cookieStore.get('accessToken')?.value;
 
     if (!token) {
@@ -73,7 +73,7 @@ export async function GET(request) {
 
   try {
     // 1. Verify Authentication from Cookies
-    const authResult = verifyTokenFromCookies(request);
+    const authResult = await verifyTokenFromCookies(request);
 
     if (!authResult || !authResult.sellerId) {
       console.log('[Seller Profile] Authentication failed or missing sellerId.');
@@ -145,7 +145,7 @@ export async function PUT(request) {
 
   try {
     // 1. Verify Authentication
-    const authResult = verifyTokenFromCookies(request);
+    const authResult = await verifyTokenFromCookies(request);
     if (!authResult || !authResult.sellerId) {
       return NextResponse.json({ success: false, message: 'Unauthorized' }, { status: 401 });
     }
