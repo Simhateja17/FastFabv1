@@ -724,11 +724,16 @@ const WithdrawModal = ({ isOpen, onClose, maxAmount = 0, onSubmit, savedBankDeta
             }),
         });
 
-        const data = await response.json();
+        // The authFetch helper already parses JSON if applicable
+        // Remove the redundant .json() call
+        const data = response; // Use the already parsed data from authFetch
 
-        if (!response.ok) {
-            throw new Error(data.message || `Withdrawal failed: ${response.statusText}`);
-        }
+        // Check the structure returned by authFetch for success
+        // Assuming authFetch throws an error if !response.ok
+        // If authFetch returns { success: false, ... } on error, adjust check:
+        // if (!data || data.success === false) {
+        //    throw new Error(data.message || 'Withdrawal failed');
+        // }
 
         console.log('Withdrawal successful:', data);
         setSuccessMessage(data.message || 'Withdrawal request submitted successfully!');
