@@ -453,7 +453,7 @@ const PaymentMethodForm = ({
   );
 };
 
-const WithdrawModal = ({ isOpen, onClose, maxAmount = 0, onSubmit, savedBankDetails }) => {
+const WithdrawModal = ({ isOpen, onClose, maxAmount = 0, onSubmit, savedBankDetails, onWithdrawalSuccess }) => {
   const [amount, setAmount] = useState('');
   const [remarks, setRemarks] = useState('');
   const [error, setError] = useState('');
@@ -737,6 +737,12 @@ const WithdrawModal = ({ isOpen, onClose, maxAmount = 0, onSubmit, savedBankDeta
 
         console.log('Withdrawal successful:', data);
         setSuccessMessage(data.message || 'Withdrawal request submitted successfully!');
+
+        // Call the callback to notify the parent page to refresh
+        if (onWithdrawalSuccess) {
+          console.log("[WithdrawModal] Calling onWithdrawalSuccess callback.");
+          onWithdrawalSuccess();
+        }
 
         if (onSubmit) {
             onSubmit(numericAmount, paymentMethod);
