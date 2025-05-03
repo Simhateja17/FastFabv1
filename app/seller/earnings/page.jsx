@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import { useAuth } from "@/app/context/AuthContext";
 import ProtectedRoute from "@/app/components/ProtectedRoute";
@@ -32,21 +32,13 @@ function EarningsContent() {
   // Remove the log for 'user', use 'seller'
   console.log("[EarningsContent] Seller from useAuth():", JSON.stringify(seller));
 
-  // --- Refactored Fetching Logic --- 
-  const fetchEarningsData = useCallback(async () => {
-      // Check if seller is loaded before fetching
-      if (!seller?.id) {
-          console.log("[EarningsContent fetchEarningsData] Seller not loaded yet, skipping fetch.");
-          // Optionally set loading to false if you know seller won't load
-          // setLoading(false);
-          return;
-      }
-      
-      console.log(`[EarningsContent fetchEarningsData] Starting fetch for period: ${dateRange}`);
+  useEffect(() => {
+    const fetchEarnings = async () => {
       try {
         setLoading(true);
-        setError(null); // Clear previous errors
         
+        // UPDATED: Use Next.js API route instead of direct backend call
+        // This fixes CORS issues in production by proxying through Next.js
         const url = new URL("/api/seller/earnings", window.location.origin);
         url.searchParams.append("period", dateRange);
         
@@ -67,15 +59,14 @@ function EarningsContent() {
 
         setEarnings(data.earnings || []); // Use the 'earnings' key directly
         
-        // Set new earnings data (This part seems less relevant now, maybe remove if unused?)
-        // setImmediateEarnings(data.immediateEarnings || []);
-        // setPostWindowEarnings(data.postWindowEarnings || []);
-        // setReturnWindowAmount(data.returnWindowAmount || 0);
+        // Set new earnings data
+        setImmediateEarnings(data.immediateEarnings || []);
+        setPostWindowEarnings(data.postWindowEarnings || []);
+        setReturnWindowAmount(data.returnWindowAmount || 0);
 
         // Safely access stats with fallback
-        const periodStats = data.stats ? data.stats[dateRange] : null; // Get stats for the correct period
+        const periodStats = data.stats[dateRange]; // Get stats for the correct period
         if (periodStats && typeof periodStats === 'object') {
-          console.log("[EarningsContent fetchEarningsData] Received Stats:", periodStats);
           setStats({
               totalSales: periodStats.totalSales || 0,
               platformFees: periodStats.totalCommission || 0, // Map commission to platformFees
@@ -86,7 +77,6 @@ function EarningsContent() {
               returnWindowAmount: periodStats.inReturnWindowAmount || 0 // Corrected key to match backend
           });
         } else {
-          console.warn("[EarningsContent fetchEarningsData] Stats not found or invalid structure for period:", dateRange, data.stats);
           // Default stats if not available or structure is wrong
           setStats({
             totalSales: 0,
@@ -99,16 +89,16 @@ function EarningsContent() {
           });
         }
 
-        // Update itemsInReturnWindow (Seems unused, maybe remove?)
-        // setItemsInReturnWindow(data.itemsInReturnWindow || []);
+        // Update itemsInReturnWindow
+        setItemsInReturnWindow(data.itemsInReturnWindow || []);
       } catch (err) {
         console.error('Error fetching earnings data:', err);
         setError(err.message);
         // Reset to default values on error
         setEarnings([]);
-        // setImmediateEarnings([]);
-        // setPostWindowEarnings([]);
-        // setReturnWindowAmount(0);
+        setImmediateEarnings([]);
+        setPostWindowEarnings([]);
+        setReturnWindowAmount(0);
         setStats({
           totalSales: 0,
           platformFees: 0,
@@ -118,25 +108,27 @@ function EarningsContent() {
           postWindowEarningsTotal: 0,
           returnWindowAmount: 0
         });
-        // setItemsInReturnWindow([]);
+        setItemsInReturnWindow([]);
       } finally {
         setLoading(false);
-        console.log("[EarningsContent fetchEarningsData] Fetch finished.");
       }
-  }, [authFetch, dateRange, seller?.id]); // Add dependencies: authFetch, dateRange, seller.id
-  // --- End Refactored Fetching Logic --- 
+    };
 
-  useEffect(() => {
     // Log seller object state *before* the check
     console.log("[EarningsContent useEffect] Checking seller object:", JSON.stringify(seller));
     console.log("[EarningsContent useEffect] Checking seller ID:", seller?.id);
 
     // Use seller.id for the check
-    if (seller?.id) {
-      fetchEarningsData();
+    if (seller?.id) { 
+      console.log(`[EarningsContent useEffect] Seller ID found (${seller.id}), fetching earnings...`);
+      fetchEarnings();
+    } else {
+      console.error("[EarningsContent useEffect] Seller object or seller ID is missing.", JSON.stringify(seller));
+      setError("Seller not authenticated or seller ID is missing."); // Updated error message slightly
+      setLoading(false);
     }
-    // Add fetchEarningsData to dependency array if it changes based on its own dependencies
-  }, [seller?.id, dateRange, fetchEarningsData]); // Trigger fetch when seller ID or dateRange changes
+    // Use seller.id in dependencies
+  }, [dateRange, authFetch, seller]);
 
   // Filter transactions based on active tab
   const filteredTransactions = earnings.filter((transaction) => {
@@ -219,282 +211,284 @@ function EarningsContent() {
   };
 
   return (
-    <ProtectedRoute>
-      <div className="container mx-auto px-4 py-8">
-        <h1 className="text-2xl font-semibold mb-6">Earnings</h1>
+    <div className="container mx-auto px-4 py-8">
+      {/* Error Display */}
+      {error && (
+        <div className="mb-4 p-4 bg-red-100 border border-red-400 text-red-700 rounded">
+          {error}
+        </div>
+      )}
 
-        {/* Error Display */}
-        {error && (
-          <div className="mb-4 p-4 bg-red-100 border border-red-400 text-red-700 rounded">
-            {error}
-          </div>
-        )}
+      {/* Loading State */}
+      {loading ? (
+        <div className="flex justify-center items-center h-64">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-gray-900"></div>
+        </div>
+      ) : (
+        <>
+          {/* Stats Grid */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-8">
+            {/* Total Sales Card */}
+            <div className="bg-white p-6 rounded-lg shadow">
+              <h3 className="text-sm font-medium text-gray-500">Total Sales</h3>
+              <p className="mt-2 text-3xl font-semibold text-gray-900">
+                {formatCurrency(stats.totalSales)}
+              </p>
+            </div>
 
-        {/* Loading State */}
-        {loading ? (
-          <div className="flex justify-center items-center h-64">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-gray-900"></div>
-          </div>
-        ) : (
-          <>
-            {/* Stats Grid */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-8">
-              {/* Total Sales Card */}
-              <div className="bg-white p-6 rounded-lg shadow">
-                <h3 className="text-sm font-medium text-gray-500">Total Sales</h3>
-                <p className="mt-2 text-3xl font-semibold text-gray-900">
-                  {formatCurrency(stats.totalSales)}
-                </p>
-              </div>
+            {/* Platform Fees Card */}
+            <div className="bg-white p-6 rounded-lg shadow">
+              <h3 className="text-sm font-medium text-gray-500">Platform Fees</h3>
+              <p className="mt-2 text-3xl font-semibold text-gray-900">
+                {formatCurrency(stats.platformFees)}
+              </p>
+            </div>
 
-              {/* Platform Fees Card */}
-              <div className="bg-white p-6 rounded-lg shadow">
-                <h3 className="text-sm font-medium text-gray-500">Platform Fees</h3>
-                <p className="mt-2 text-3xl font-semibold text-gray-900">
-                  {formatCurrency(stats.platformFees)}
-                </p>
-              </div>
+            {/* Net Earnings Card */}
+            <div className="bg-white p-6 rounded-lg shadow">
+              <h3 className="text-sm font-medium text-gray-500">Net Earnings</h3>
+              <p className="mt-2 text-3xl font-semibold text-gray-900">
+                {formatCurrency(stats.netEarnings)}
+              </p>
+            </div>
 
-              {/* Net Earnings Card */}
-              <div className="bg-white p-6 rounded-lg shadow">
-                <h3 className="text-sm font-medium text-gray-500">Net Earnings</h3>
-                <p className="mt-2 text-3xl font-semibold text-gray-900">
-                  {formatCurrency(stats.netEarnings)}
-                </p>
-              </div>
-
-              {/* Available Balance Card */}
-              <div className="bg-white p-6 rounded-lg shadow">
-                <div className="flex justify-between items-start">
-                  <div>
-                    <h3 className="text-sm font-medium text-gray-500">Available Balance</h3>
-                    <p className="mt-2 text-3xl font-semibold text-gray-900">
-                      {formatCurrency(stats.availableBalance)}
-                    </p>
-                  </div>
-                  <button
-                    onClick={() => setIsWithdrawModalOpen(true)}
-                    className={`px-4 py-2 rounded ${
-                      stats.availableBalance > 0
-                        ? 'bg-blue-600 text-white hover:bg-blue-700'
-                        : 'bg-gray-300 text-gray-500 cursor-not-allowed'
-                    }`}
-                    disabled={stats.availableBalance <= 0 || loading}
-                  >
-                    Withdraw
-                  </button>
+            {/* Available Balance Card */}
+            <div className="bg-white p-6 rounded-lg shadow">
+              <div className="flex justify-between items-start">
+                <div>
+                  <h3 className="text-sm font-medium text-gray-500">Available Balance</h3>
+                  <p className="mt-2 text-3xl font-semibold text-gray-900">
+                    {formatCurrency(stats.availableBalance)}
+                  </p>
                 </div>
-              </div>
-
-              {/* In Return Window Card */}
-              <div className="bg-white p-6 rounded-lg shadow">
-                <h3 className="text-sm font-medium text-gray-500">In Return Window</h3>
-                <p className="mt-2 text-3xl font-semibold text-gray-900">
-                  {formatCurrency(stats.returnWindowAmount)}
-                </p>
-                <p className="text-xs text-gray-500">Amounts for items still within return period</p>
+                <button
+                  onClick={handleOpenWithdrawModal}
+                  disabled={stats.availableBalance <= 0}
+                  className={`px-4 py-2 rounded ${
+                    stats.availableBalance > 0
+                      ? 'bg-blue-600 text-white hover:bg-blue-700'
+                      : 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                  }`}
+                >
+                  Withdraw
+                </button>
               </div>
             </div>
 
-            {/* Date Range Filter */}
-            <div className="mb-6">
-              <select
-                value={dateRange}
-                onChange={(e) => setDateRange(e.target.value)}
-                className="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm rounded-md"
+            {/* In Return Window Card */}
+            <div className="bg-white p-6 rounded-lg shadow">
+              <h3 className="text-sm font-medium text-gray-500">In Return Window</h3>
+              <p className="mt-2 text-3xl font-semibold text-gray-900">
+                {formatCurrency(stats.returnWindowAmount)}
+              </p>
+              <p className="text-xs text-gray-500">Amounts for items still within return period</p>
+            </div>
+          </div>
+
+          {/* Date Range Filter */}
+          <div className="mb-6">
+            <select
+              value={dateRange}
+              onChange={(e) => setDateRange(e.target.value)}
+              className="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm rounded-md"
+            >
+              <option value="7days">Last 7 Days</option>
+              <option value="30days">Last 30 Days</option>
+              <option value="90days">Last 90 Days</option>
+              <option value="all">All Time</option>
+            </select>
+          </div>
+
+          {/* Transaction Type Tabs */}
+          <div className="border-b border-gray-200 mb-6">
+            <nav className="-mb-px flex space-x-8" aria-label="Tabs">
+              <button
+                onClick={() => setActiveTab("all")}
+                className={`${// All Transactions Tab
+                  activeTab === "all"
+                    ? "border-blue-500 text-blue-600"
+                    : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
+                } whitespace-nowrap pb-4 px-1 border-b-2 font-medium text-sm`}
+                aria-current={activeTab === "all" ? "page" : undefined}
               >
-                <option value="7days">Last 7 Days</option>
-                <option value="30days">Last 30 Days</option>
-                <option value="90days">Last 90 Days</option>
-                <option value="all">All Time</option>
-              </select>
-            </div>
+                All Transactions
+              </button>
+              {/* Removed Immediate Earnings Tab */}
+              {/* Removed Post-Window Earnings Tab */}
+              <button
+                onClick={() => setActiveTab("fulfilled")}
+                className={`${// Fulfilled Orders Tab
+                  activeTab === "fulfilled"
+                    ? "border-blue-500 text-blue-600"
+                    : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
+                } whitespace-nowrap pb-4 px-1 border-b-2 font-medium text-sm`}
+                aria-current={activeTab === "fulfilled" ? "page" : undefined}
+              >
+                Fulfilled Orders
+              </button>
+              <button
+                onClick={() => setActiveTab("return_window")}
+                className={`${// In Return Window Tab
+                  activeTab === "return_window"
+                    ? "border-blue-500 text-blue-600"
+                    : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
+                } whitespace-nowrap pb-4 px-1 border-b-2 font-medium text-sm`}
+                aria-current={activeTab === "return_window" ? "page" : undefined}
+              >
+                In Return Window
+              </button>
+            </nav>
+          </div>
 
-            {/* Transaction Type Tabs */}
-            <div className="border-b border-gray-200 mb-6">
-              <nav className="-mb-px flex space-x-8" aria-label="Tabs">
-                <button
-                  onClick={() => setActiveTab("all")}
-                  className={`${// All Transactions Tab
-                    activeTab === "all"
-                      ? "border-blue-500 text-blue-600"
-                      : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
-                  } whitespace-nowrap pb-4 px-1 border-b-2 font-medium text-sm`}
-                  aria-current={activeTab === "all" ? "page" : undefined}
-                >
-                  All Transactions
-                </button>
-                {/* Removed Immediate Earnings Tab */}
-                {/* Removed Post-Window Earnings Tab */}
-                <button
-                  onClick={() => setActiveTab("fulfilled")}
-                  className={`${// Fulfilled Orders Tab
-                    activeTab === "fulfilled"
-                      ? "border-blue-500 text-blue-600"
-                      : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
-                  } whitespace-nowrap pb-4 px-1 border-b-2 font-medium text-sm`}
-                  aria-current={activeTab === "fulfilled" ? "page" : undefined}
-                >
-                  Fulfilled Orders
-                </button>
-                <button
-                  onClick={() => setActiveTab("return_window")}
-                  className={`${// In Return Window Tab
-                    activeTab === "return_window"
-                      ? "border-blue-500 text-blue-600"
-                      : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
-                  } whitespace-nowrap pb-4 px-1 border-b-2 font-medium text-sm`}
-                  aria-current={activeTab === "return_window" ? "page" : undefined}
-                >
-                  In Return Window
-                </button>
-              </nav>
-            </div>
-
-            {/* Transactions List */}
-            <div className="bg-white shadow overflow-hidden sm:rounded-md">
-              <ul className="divide-y divide-gray-200">
-                {activeTab === "return_window" ? (
-                  // Display items currently in return window
-                  <>
-                    <li className="px-6 py-4 bg-yellow-50">
-                      <div className="flex items-center">
-                        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-yellow-500 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                        </svg>
-                        <p className="text-sm text-yellow-700">
-                          These items are in the return window period. Once the return window closes, the earnings will be added to your available balance.
+          {/* Transactions List */}
+          <div className="bg-white shadow overflow-hidden sm:rounded-md">
+            <ul className="divide-y divide-gray-200">
+              {activeTab === "return_window" ? (
+                // Display items currently in return window
+                <>
+                  <li className="px-6 py-4 bg-yellow-50">
+                    <div className="flex items-center">
+                      <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-yellow-500 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                      </svg>
+                      <p className="text-sm text-yellow-700">
+                        These items are in the return window period. Once the return window closes, the earnings will be added to your available balance.
+                      </p>
+                    </div>
+                  </li>
+                  {itemsInReturnWindow && itemsInReturnWindow.length > 0 ? (
+                    itemsInReturnWindow.map((item) => (
+                      <li key={item.id} className="px-6 py-4">
+                        <div className="flex items-center justify-between">
+                          <div className="flex flex-col">
+                            <div className="flex items-center">
+                              <span className="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium bg-yellow-100 text-yellow-800">
+                                Return Window
+                              </span>
+                              <span className="ml-2 text-sm text-gray-900">
+                                {item.orderId ? (
+                                  <Link
+                                    href={`/seller/orders/${item.orderId}`}
+                                    className="hover:underline text-blue-600"
+                                  >
+                                    Order #{item.orderId.substring(0, 8)}...
+                                  </Link>
+                                ) : (
+                                  "No order reference"
+                                )}
+                              </span>
+                            </div>
+                            <span className="text-xs text-gray-500">
+                              {item.productName} (x{item.quantity})
+                            </span>
+                          </div>
+                          <div className="text-right">
+                            <span className="text-sm font-medium text-yellow-600">
+                              {formatCurrency(item.price * item.quantity)}
+                            </span>
+                            <div className="flex items-center justify-end mt-1">
+                              <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-yellow-500 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                              </svg>
+                              <p className="text-xs text-yellow-600">Pending release</p>
+                            </div>
+                          </div>
+                        </div>
+                      </li>
+                    ))
+                  ) : (
+                    <li className="px-6 py-8 text-center text-gray-500">
+                      No items currently in return window
+                    </li>
+                  )}
+                </>
+              ) : filteredTransactions.length === 0 ? (
+                <li className="px-6 py-8 text-center text-gray-500">
+                  No transactions found
+                </li>
+              ) : (
+                filteredTransactions.map((transaction) => (
+                  <li key={transaction.id} className="px-6 py-4">
+                    <div className="flex items-center justify-between">
+                      <div className="flex flex-col">
+                        <div className="flex items-center">
+                          <span
+                            className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${getTypeBadgeClass(
+                              transaction.type
+                            )}`}
+                          >
+                            {transaction.type === "POST_RETURN_WINDOW" 
+                              ? "Return Window Complete" 
+                              : transaction.type || "Unknown"}
+                          </span>
+                          <span className="ml-2 text-sm text-gray-900">
+                            {transaction.orderId ? (
+                              <Link
+                                href={`/seller/orders/${transaction.orderId}`}
+                                className="hover:underline text-blue-600"
+                              >
+                                Order #{transaction.orderId.substring(0, 8)}...
+                              </Link>
+                            ) : (
+                              "No order reference"
+                            )}
+                          </span>
+                        </div>
+                        <span className="text-xs text-gray-500">
+                          {formatTimestamp(transaction.createdAt)}
+                          {transaction.type === "POST_RETURN_WINDOW" && (
+                            <span className="ml-2 text-green-600">
+                              • Added to available balance
+                            </span>
+                          )}
+                        </span>
+                      </div>
+                      <div className="text-right">
+                        <span
+                          className={`text-sm font-medium ${
+                            transaction.type === "SALE" || transaction.type === "IMMEDIATE" || transaction.type === "POST_RETURN_WINDOW"
+                              ? "text-green-600"
+                              : transaction.type === "REFUND"
+                              ? "text-red-600"
+                              : "text-gray-900"
+                          }`}
+                        >
+                          {transaction.type === "REFUND" ? "-" : "+"}{" "}
+                          {formatCurrency(transaction.amount)}
+                        </span>
+                        <p className="text-xs text-gray-500">
+                          {transaction.status}
+                          {transaction.type === "POST_RETURN_WINDOW" && (
+                            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-green-500 inline ml-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                            </svg>
+                          )}
                         </p>
                       </div>
-                    </li>
-                    {itemsInReturnWindow && itemsInReturnWindow.length > 0 ? (
-                      itemsInReturnWindow.map((item) => (
-                        <li key={item.id} className="px-6 py-4">
-                          <div className="flex items-center justify-between">
-                            <div className="flex flex-col">
-                              <div className="flex items-center">
-                                <span className="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium bg-yellow-100 text-yellow-800">
-                                  Return Window
-                                </span>
-                                <span className="ml-2 text-sm text-gray-900">
-                                  {item.orderId ? (
-                                    <Link
-                                      href={`/seller/orders/${item.orderId}`}
-                                      className="hover:underline text-blue-600"
-                                    >
-                                      Order #{item.orderId.substring(0, 8)}...
-                                    </Link>
-                                  ) : (
-                                    "No order reference"
-                                  )}
-                                </span>
-                              </div>
-                              <span className="text-xs text-gray-500">
-                                {item.productName} (x{item.quantity})
-                              </span>
-                            </div>
-                            <div className="text-right">
-                              <span className="text-sm font-medium text-yellow-600">
-                                {formatCurrency(item.price * item.quantity)}
-                              </span>
-                              <div className="flex items-center justify-end mt-1">
-                                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-yellow-500 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                                </svg>
-                                <p className="text-xs text-yellow-600">Pending release</p>
-                              </div>
-                            </div>
-                          </div>
-                        </li>
-                      ))
-                    ) : (
-                      <li className="px-6 py-8 text-center text-gray-500">
-                        No items currently in return window
-                      </li>
-                    )}
-                  </>
-                ) : filteredTransactions.length === 0 ? (
-                  <li className="px-6 py-8 text-center text-gray-500">
-                    No transactions found
+                    </div>
                   </li>
-                ) : (
-                  filteredTransactions.map((transaction) => (
-                    <li key={transaction.id} className="px-6 py-4">
-                      <div className="flex items-center justify-between">
-                        <div className="flex flex-col">
-                          <div className="flex items-center">
-                            <span
-                              className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${getTypeBadgeClass(
-                                transaction.type
-                              )}`}
-                            >
-                              {transaction.type === "POST_RETURN_WINDOW" 
-                                ? "Return Window Complete" 
-                                : transaction.type || "Unknown"}
-                            </span>
-                            <span className="ml-2 text-sm text-gray-900">
-                              {transaction.orderId ? (
-                                <Link
-                                  href={`/seller/orders/${transaction.orderId}`}
-                                  className="hover:underline text-blue-600"
-                                >
-                                  Order #{transaction.orderId.substring(0, 8)}...
-                                </Link>
-                              ) : (
-                                "No order reference"
-                              )}
-                            </span>
-                          </div>
-                          <span className="text-xs text-gray-500">
-                            {formatTimestamp(transaction.createdAt)}
-                            {transaction.type === "POST_RETURN_WINDOW" && (
-                              <span className="ml-2 text-green-600">
-                                • Added to available balance
-                              </span>
-                            )}
-                          </span>
-                        </div>
-                        <div className="text-right">
-                          <span
-                            className={`text-sm font-medium ${
-                              transaction.type === "SALE" || transaction.type === "IMMEDIATE" || transaction.type === "POST_RETURN_WINDOW"
-                                ? "text-green-600"
-                                : transaction.type === "REFUND"
-                                ? "text-red-600"
-                                : "text-gray-900"
-                            }`}
-                          >
-                            {transaction.type === "REFUND" ? "-" : "+"}{" "}
-                            {formatCurrency(transaction.amount)}
-                          </span>
-                          <p className="text-xs text-gray-500">
-                            {transaction.status}
-                            {transaction.type === "POST_RETURN_WINDOW" && (
-                              <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-green-500 inline ml-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                              </svg>
-                            )}
-                          </p>
-                        </div>
-                      </div>
-                    </li>
-                  ))
-                )}
-              </ul>
-            </div>
-          </>
-        )}
-      </div>
-      
-      <WithdrawModal 
+                ))
+              )}
+            </ul>
+          </div>
+        </>
+      )}
+
+      {/* Withdraw Modal */}
+      <WithdrawModal
         isOpen={isWithdrawModalOpen}
         onClose={handleCloseWithdrawModal}
         onSubmit={handleWithdrawSubmit}
         maxAmount={stats.availableBalance}
-        onWithdrawalSuccess={fetchEarningsData}
       />
-    </ProtectedRoute>
+    </div>
   );
 }
 
-export default EarningsContent;
+export default function SellerEarnings() {
+  return (
+    <ProtectedRoute>
+      <EarningsContent />
+    </ProtectedRoute>
+  );
+}

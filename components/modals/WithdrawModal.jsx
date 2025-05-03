@@ -2,12 +2,8 @@
 
 import React, { useState, useContext, useEffect } from 'react';
 import { useAuth } from '@/app/context/AuthContext';
-import { Tab } from '@headlessui/react';
 import { 
-  BanknotesIcon, 
-  CreditCardIcon, 
   QrCodeIcon, 
-  WalletIcon, 
   QuestionMarkCircleIcon,
   InformationCircleIcon,
   ExclamationCircleIcon,
@@ -453,66 +449,39 @@ const PaymentMethodForm = ({
   );
 };
 
-const WithdrawModal = ({ isOpen, onClose, maxAmount = 0, onSubmit, savedBankDetails, onWithdrawalSuccess }) => {
+const WithdrawModal = ({ isOpen, onClose, maxAmount = 0, onSubmit, savedBankDetails }) => {
   const [amount, setAmount] = useState('');
   const [remarks, setRemarks] = useState('');
   const [error, setError] = useState('');
   const [successMessage, setSuccessMessage] = useState('');
   const [isWithdrawing, setIsWithdrawing] = useState(false);
-  const [selectedTabIndex, setSelectedTabIndex] = useState(0);
   const [fieldFocused, setFieldFocused] = useState({ method: null, field: null });
   
   // Define payment methods
   const paymentMethods = [
-    { id: 'BANK_TRANSFER', name: 'Bank Account', icon: BanknotesIcon },
-    { id: 'UPI', name: 'UPI', icon: QrCodeIcon },
-    { id: 'WALLET', name: 'Wallet', icon: WalletIcon },
-    { id: 'CARD', name: 'Card', icon: CreditCardIcon }
+    { id: 'UPI', name: 'UPI', icon: QrCodeIcon }
   ];
   
   // Payment details state for each method
   const [paymentDetails, setPaymentDetails] = useState({
-    BANK_TRANSFER: {
-      accountHolderName: savedBankDetails?.accountHolderName || '',
-      bankName: savedBankDetails?.bankName || '',
-      accountNumber: savedBankDetails?.accountNumber || '',
-      ifscCode: savedBankDetails?.ifscCode || ''
-    },
     UPI: {
       upiId: '',
       holderName: savedBankDetails?.accountHolderName || ''
-    },
-    WALLET: {
-      walletProvider: '',
-      walletId: '',
-      walletName: ''
-    },
-    CARD: {
-      cardHolderName: savedBankDetails?.accountHolderName || '',
-      cardNetwork: '',
-      cardLastFour: '',
-      cardType: 'debit'
     }
   });
   
   // Form validation errors
   const [validationErrors, setValidationErrors] = useState({
-    BANK_TRANSFER: {},
-    UPI: {},
-    WALLET: {},
-    CARD: {}
+    UPI: {}
   });
   
   // Touch state to track which fields have been interacted with
   const [touchedFields, setTouchedFields] = useState({
-    BANK_TRANSFER: {},
-    UPI: {},
-    WALLET: {},
-    CARD: {}
+    UPI: {}
   });
   
-  // Get current payment method
-  const currentPaymentMethod = paymentMethods[selectedTabIndex].id;
+  // Get current payment method - always UPI since it's the only option
+  const currentPaymentMethod = 'UPI';
 
   const { authFetch } = useAuth();
 
@@ -649,37 +618,24 @@ const WithdrawModal = ({ isOpen, onClose, maxAmount = 0, onSubmit, savedBankDeta
     }
   };
 
-  // Validate the current payment method details
+  // Validate current payment method
   const validateCurrentPaymentMethod = () => {
-    const method = paymentMethods[selectedTabIndex].id;
-    const methodDetails = paymentDetails[method];
+    const method = 'UPI';
+    const details = paymentDetails[method];
     
-    // Mark all fields as touched for this method
-    const updatedTouched = { ...touchedFields };
-    formFieldConfigs[method].forEach(field => {
-      updatedTouched[method][field.id] = true;
-    });
-    setTouchedFields(updatedTouched);
+    // Use UPI validator only
+    const { isValid, errors } = paymentMethodValidators.UPI(details);
     
-    // Validate all fields
-    const updatedErrors = { ...validationErrors };
-    updatedErrors[method] = {};
-    
-    let isValid = true;
-    
-    formFieldConfigs[method].forEach(field => {
-      const error = validateField(method, field.id, methodDetails[field.id]);
-      if (error) {
-        isValid = false;
-        updatedErrors[method][field.id] = error;
-      }
-    });
-    
-    setValidationErrors(updatedErrors);
+    // Set errors
+    setValidationErrors(prev => ({
+      ...prev,
+      [method]: errors
+    }));
     
     return isValid;
   };
-
+  
+  // Handle withdraw
   const handleWithdraw = async () => {
     const numericAmount = parseFloat(amount);
 
@@ -703,7 +659,7 @@ const WithdrawModal = ({ isOpen, onClose, maxAmount = 0, onSubmit, savedBankDeta
     setSuccessMessage('');
     setIsWithdrawing(true);
 
-    const paymentMethod = paymentMethods[selectedTabIndex].id;
+    const paymentMethod = 'UPI';
     const methodDetails = paymentDetails[paymentMethod];
 
     try {
@@ -738,12 +694,6 @@ const WithdrawModal = ({ isOpen, onClose, maxAmount = 0, onSubmit, savedBankDeta
         console.log('Withdrawal successful:', data);
         setSuccessMessage(data.message || 'Withdrawal request submitted successfully!');
 
-        // Call the callback to notify the parent page to refresh
-        if (onWithdrawalSuccess) {
-          console.log("[WithdrawModal] Calling onWithdrawalSuccess callback.");
-          onWithdrawalSuccess();
-        }
-
         if (onSubmit) {
             onSubmit(numericAmount, paymentMethod);
         }
@@ -761,29 +711,33 @@ const WithdrawModal = ({ isOpen, onClose, maxAmount = 0, onSubmit, savedBankDeta
     }
   };
 
+  // Reset form
+  const resetForm = () => {
+    setAmount('');
+    setRemarks('');
+    setError('');
+    setSuccessMessage('');
+    setIsWithdrawing(false);
+    setPaymentDetails({
+      UPI: {
+        upiId: '',
+        holderName: savedBankDetails?.accountHolderName || ''
+      }
+    });
+    setTouchedFields({
+      UPI: {}
+    });
+    setValidationErrors({
+      UPI: {}
+    });
+  };
+
   // Reset form when modal closes
   useEffect(() => {
     if (!isOpen) {
-      setAmount('');
-      setRemarks('');
-      setError('');
-      setSuccessMessage('');
-      setIsWithdrawing(false);
-      setSelectedTabIndex(0);
-      setTouchedFields({
-        BANK_TRANSFER: {},
-        UPI: {},
-        WALLET: {},
-        CARD: {}
-      });
-      setValidationErrors({
-        BANK_TRANSFER: {},
-        UPI: {},
-        WALLET: {},
-        CARD: {}
-      });
+      resetForm();
     }
-  }, [isOpen]);
+  }, [isOpen, savedBankDetails]);
 
   if (!isOpen) return null;
 
@@ -815,41 +769,21 @@ const WithdrawModal = ({ isOpen, onClose, maxAmount = 0, onSubmit, savedBankDeta
         <div className="mb-4">
           <h3 className="text-lg font-medium mb-3">Payment Method</h3>
           
-          <Tab.Group selectedIndex={selectedTabIndex} onChange={setSelectedTabIndex}>
-            <Tab.List className="flex space-x-2 rounded-lg bg-gray-100 p-1 mb-4">
-              {paymentMethods.map((method) => (
-                <Tab
-                  key={method.id}
-                  className={({ selected }) =>
-                    `w-full rounded-lg py-2 text-sm font-medium leading-5 flex flex-col items-center
-                    ${selected
-                      ? 'bg-white shadow text-blue-600'
-                      : 'text-gray-600 hover:bg-gray-200 hover:text-gray-900'
-                    }`
-                  }
-                  disabled={isWithdrawing || !!successMessage}
-                >
-                  <method.icon className="h-5 w-5 mb-1" />
-                  {method.name}
-                </Tab>
-              ))}
-            </Tab.List>
-            <Tab.Panels className="mt-2">
-              {/* Dynamically render payment method forms */}
-              {paymentMethods.map((method) => (
-                <Tab.Panel key={method.id}>
-                  <PaymentMethodForm
-                    method={method.id}
-                    paymentDetails={paymentDetails}
-                    validationErrors={validationErrors}
-                    onChange={handlePaymentDetailChange}
-                    onBlur={handleFieldBlur}
-                    disabled={isWithdrawing || !!successMessage}
-                  />
-                </Tab.Panel>
-              ))}
-            </Tab.Panels>
-          </Tab.Group>
+          <div className="rounded-lg bg-gray-100 p-4 mb-4">
+            <div className="w-full rounded-lg py-2 text-sm font-medium leading-5 flex items-center justify-center bg-white shadow text-blue-600">
+              <QrCodeIcon className="h-5 w-5 mr-2" />
+              <span>UPI</span>
+            </div>
+          </div>
+          
+          <PaymentMethodForm
+            method="UPI"
+            paymentDetails={paymentDetails}
+            validationErrors={validationErrors}
+            onChange={handlePaymentDetailChange}
+            onBlur={handleFieldBlur}
+            disabled={isWithdrawing || !!successMessage}
+          />
         </div>
 
         <div className="mb-4 border-t pt-4">

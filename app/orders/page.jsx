@@ -322,7 +322,12 @@ export default function Orders() {
                       <span className="text-yellow-600 text-sm font-medium">
                         Submitted for Return
                       </span>
-                    ) : order.status === "CONFIRMED" && isProductReturnable(order) ? (
+                    ) : !order.returnStatus &&
+                        order.status === "CONFIRMED" && 
+                        order.items && order.items.length > 0 &&
+                        order.items[0].returnWindowEnd &&
+                        new Date() < new Date(order.items[0].returnWindowEnd) &&
+                        isProductReturnable(order) ? (
                       <button
                         onClick={() => router.push(`/returns?orderId=${order.id}&productName=${order.items?.[0]?.product?.name || ''}&price=${order.totalAmount}`)}
                         className="inline-flex items-center px-3 py-1 border border-gray-300 rounded-md text-sm text-gray-700 bg-white hover:bg-gray-50"
@@ -331,7 +336,7 @@ export default function Orders() {
                       </button>
                     ) : order.status === "CONFIRMED" ? (
                       <span className="text-gray-500 text-sm font-medium">
-                        Non-returnable
+                        Return window closed or item non-returnable 
                       </span>
                     ) : (
                       <span className="text-gray-500 text-sm font-medium">
