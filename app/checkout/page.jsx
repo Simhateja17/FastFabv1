@@ -33,9 +33,6 @@ function CheckoutContent() {
   const [cashfreeInstance, setCashfreeInstance] = useState(null);
   const [isProcessingPayment, setIsProcessingPayment] = useState(false);
   
-  const deliveryCharge = 40;
-  const convenienceCharge = 10;
-  
   useEffect(() => {
     const initializeCheckout = async () => {
       setLoading(true);
@@ -170,7 +167,7 @@ function CheckoutContent() {
     0
   );
   
-  const total = subtotal + deliveryCharge + convenienceCharge;
+  const total = subtotal;
   
   // Calculate original MRP and discount
   const calculateTotalMRP = () => {
@@ -442,18 +439,6 @@ function CheckoutContent() {
                       <span className="text-gray-900">-₹{discountOnMRP}</span>
                     </div>
                   )}
-                  
-                  {/* Delivery Charge */}
-                  <div className="flex justify-between">
-                    <span className="text-gray-600">Delivery Charge</span>
-                    <span>₹{deliveryCharge}</span>
-                  </div>
-
-                  {/* Convenience Charge */}
-                  <div className="flex justify-between">
-                    <span className="text-gray-600">Convenience Charge</span>
-                    <span>₹{convenienceCharge}</span>
-                  </div>
                   
                   <div className="border-t border-gray-200 pt-3 mt-2">
                     <div className="flex justify-between font-semibold">
