@@ -69,7 +69,6 @@ export async function GET(request) {
       method: 'GET',
       headers: {
         'Content-Type': 'application/json',
-        'Cookie': cookies,
         ...(authHeader ? { 'Authorization': authHeader } : {})
       },
       credentials: 'include'
