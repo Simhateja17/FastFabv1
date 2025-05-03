@@ -145,12 +145,7 @@ function DashboardContent() {
         return;
       }
 
-      // Check if within store hours before allowing toggle
-      if (!visibilityState.isWithinHours) {
-        toast.error('Cannot change store visibility outside of store hours');
-        return;
-      }
-
+      // Remove store hours restriction - allow toggling anytime
       setIsToggling(true);
       
       // Debug log
@@ -248,7 +243,7 @@ function DashboardContent() {
                   Store Visibility:
                 </span>
                 <button
-                  disabled={isToggling || !visibilityState.isWithinHours}
+                  disabled={isToggling}
                   onClick={handleVisibilityToggle}
                   className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary disabled:opacity-50 disabled:cursor-not-allowed ${
                     visibilityState.effectiveVisibility ? 'bg-green-500' : 'bg-black'
@@ -272,9 +267,14 @@ function DashboardContent() {
                   )}
                 </span>
               </div>
-              {!visibilityState.isWithinHours && (
-                 <p className="text-xs text-red-600 text-right mt-1">
-                   Can only change when store is open
+              {!visibilityState.isWithinHours && visibilityState.manuallyHidden && (
+                 <p className="text-xs text-orange-600 text-right mt-1">
+                   Store is manually hidden
+                 </p>
+              )}
+              {!visibilityState.isWithinHours && !visibilityState.manuallyHidden && (
+                 <p className="text-xs text-blue-600 text-right mt-1">
+                   Outside store hours, but visible
                  </p>
               )}
             </div>
