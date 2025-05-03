@@ -394,6 +394,10 @@ export default function ProductDetails({ params }) {
 
   // Check if product is in stock
   const isInStock = totalQuantity > 0;
+  
+  // Check if the selected size is in stock
+  const isSizeInStock = selectedSize && product.sizeQuantities ? 
+    (product.sizeQuantities[selectedSize] > 0) : false;
 
   // Ensure images is always an array
   const images = Array.isArray(product.images) ? product.images : [];
@@ -516,50 +520,97 @@ export default function ProductDetails({ params }) {
             )}
 
             {/* Size selection */}
-            {availableSizes.length > 0 && (
-              <div className="mb-6">
-                <div className="flex items-center justify-between mb-2">
-                  <span className="text-sm font-medium text-gray-900">
-                    Size: {selectedSize}
-                  </span>
-                  <button
-                    type="button"
-                    className="text-sm text-primary hover:text-primary-dark"
-                  >
-                    Size Chart
-                  </button>
-                </div>
-                <div className="flex flex-wrap gap-2">
-                  {availableSizes.map((size) => (
+            <div className="mb-6">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-sm font-medium text-gray-900">Size</span>
+                <button className="text-xs text-primary hover:text-primary-dark">
+                  Size Chart
+                </button>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                {availableSizes.map((size) => {
+                  const sizeQty = product.sizeQuantities?.[size] || 0;
+                  const isSizeAvailable = sizeQty > 0;
+                  
+                  return (
                     <button
                       key={size}
                       onClick={() => handleSizeSelect(size)}
                       className={`
-                        w-12 h-12 rounded-md border text-sm font-medium
-                        ${
-                          selectedSize === size
-                            ? "bg-black text-white border-black"
-                            : "bg-white text-gray-900 border-gray-200 hover:bg-gray-50"
+                        px-3 py-1 border rounded-md text-sm font-medium
+                        ${selectedSize === size
+                          ? 'bg-black text-white border-black'
+                          : isSizeAvailable
+                            ? 'bg-white text-black border-gray-300 hover:bg-gray-100'
+                            : 'bg-gray-100 text-gray-400 border-gray-200 cursor-not-allowed'
                         }
                       `}
+                      disabled={!isSizeAvailable}
                     >
                       {size}
+                      {!isSizeAvailable && <span className="text-xs ml-1">(Out of stock)</span>}
                     </button>
-                  ))}
-                </div>
+                  );
+                })}
               </div>
-            )}
+            </div>
+
+            {/* Stock status message */}
+            <div className="mt-4 text-sm">
+              {isSizeInStock ? (
+                <span className="text-green-600 font-medium">
+                  In Stock - {product.sizeQuantities?.[selectedSize]} items left
+                </span>
+              ) : selectedSize ? (
+                <span className="text-red-600 font-medium">
+                  Out of Stock
+                </span>
+              ) : !isInStock ? (
+                <span className="text-red-600 font-medium">
+                  This product is currently out of stock
+                </span>
+              ) : (
+                <span className="text-gray-500">
+                  Please select a size to check availability
+                </span>
+              )}
+            </div>
 
             {/* Action buttons */}
-            <div className="mb-6">
+            <div className="mt-8 flex flex-col sm:flex-row gap-4">
+              {/* <button
+                type="button"
+                onClick={handleAddToCart}
+                disabled={!isSizeInStock || paymentLoading}
+                className={`
+                  flex-1 py-3 px-4 rounded-md font-medium 
+                  ${!isSizeInStock 
+                    ? 'bg-gray-300 text-gray-500 cursor-not-allowed' 
+                    : 'bg-white text-primary border border-primary hover:bg-primary hover:text-white transition-colors'
+                  }
+                `}
+              >
+                Add to Bag
+              </button> */}
+              
               <button
                 type="button"
                 onClick={handleBuyNow}
-                disabled={paymentLoading}
-                className="w-full bg-black text-white py-3 px-4 rounded-md font-medium hover:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary"
+                disabled={!isSizeInStock || paymentLoading}
+                className={`
+                  flex-1 py-3 px-4 rounded-md font-medium 
+                  ${!isSizeInStock 
+                    ? 'bg-gray-400 text-gray-700 cursor-not-allowed'
+                    : 'bg-black text-white hover:bg-gray-800 transition-colors'
+                  }
+                  ${paymentLoading ? 'opacity-70 cursor-not-allowed' : ''}
+                `}
               >
                 {paymentLoading ? (
-                  <LoadingSpinner size="small" color="primary" />
+                  <span className="flex items-center justify-center">
+                    <LoadingSpinner size="small" color="white" />
+                    <span className="ml-2">Processing...</span>
+                  </span>
                 ) : (
                   "Buy Now"
                 )}
@@ -567,7 +618,7 @@ export default function ProductDetails({ params }) {
             </div>
 
             {/* Trust badges */}
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-8 mb-8">
               <div className="flex flex-col items-center text-center">
                 <div className="w-12 h-12 bg-gray-100 rounded-full flex items-center justify-center mb-2">
                   <FiClock className="w-6 h-6 text-gray-700" />

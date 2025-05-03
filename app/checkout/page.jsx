@@ -59,18 +59,33 @@ function CheckoutContent() {
           
           const requiresVariations = productData.colorInventories && productData.colorInventories.length > 0;
           let finalColor = null;
-          let finalSize = null;
+          let finalSize = sizeParam; // Always try to use sizeParam if provided for Buy Now
 
           if (requiresVariations) {
-            if (!colorParam || !sizeParam) {
-              console.error("Buy Now Error: Variations required but color/size missing in URL.", { productId, colorParam, sizeParam });
-              throw new Error("Product variation (color/size) missing. Please go back and select options on the product page.");
+            // If variations are required, color becomes mandatory
+            if (!colorParam) {
+              console.error("Buy Now Error: Color variation required but color missing in URL.", { productId, colorParam });
+              throw new Error("Product color variation missing. Please go back and select options on the product page.");
             }
             finalColor = colorParam;
-            finalSize = sizeParam;
-            console.log("Checkout: Variations required and validated:", { finalColor, finalSize });
+            // Size validation might still be needed even if not strictly part of colorInventories
+            if (!sizeParam) {
+               console.error("Buy Now Error: Size variation required but size missing in URL.", { productId, sizeParam });
+               throw new Error("Product size variation missing. Please go back and select options on the product page.");
+            }
+            console.log("Checkout: Variations required (Color/Size) and validated:", { finalColor, finalSize });
           } else {
-            console.log("Checkout: Variations not required for this product.");
+            // If no color inventories, color is not applicable
+            finalColor = null; 
+            console.log("Checkout: Color variations not required for this product. Using Size from URL if provided:", { finalSize });
+          }
+
+          // Double-check: if size is expected based on product data but missing, throw error
+          // This handles cases where sizeQuantities exist but no size was passed in the URL
+          const hasSizeQuantities = productData.sizeQuantities && Object.keys(productData.sizeQuantities).length > 0;
+          if (hasSizeQuantities && !finalSize) {
+             console.error("Buy Now Error: Product has sizes, but no size was provided in the URL.", { productId });
+             throw new Error("Product size missing. Please go back and select a size on the product page.");
           }
 
           const buyNowItem = {
