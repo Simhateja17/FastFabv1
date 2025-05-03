@@ -135,6 +135,52 @@ export default function OrderDetail({ params }) {
     }
   };
 
+  // Helper function to check if the current time is within the return window
+  const isWithinReturnWindow = () => {
+    if (!order) return false;
+    
+    const now = new Date();
+    
+    // If returnWindowStart and returnWindowEnd are defined, use them for the check
+    if (order.returnWindowStart && order.returnWindowEnd) {
+      try {
+        const startTime = new Date(order.returnWindowStart);
+        const endTime = new Date(order.returnWindowEnd);
+        
+        console.log(`Order ${order.id} - Now: ${now}, Start: ${startTime}, End: ${endTime}`);
+        
+        return now >= startTime && now <= endTime;
+      } catch (error) {
+        console.error("Error parsing return window dates:", error);
+        // Fall through to default behavior
+      }
+    }
+    
+    // If no explicit window or error parsing dates, calculate based on order date
+    if (order.createdAt) {
+      const orderDate = new Date(order.createdAt);
+      
+      // Default return window: 1 day (24 hours) from order confirmation
+      const defaultWindowDays = 1;
+      const defaultEndTime = new Date(orderDate);
+      defaultEndTime.setDate(orderDate.getDate() + defaultWindowDays);
+      
+      console.log(`Order ${order.id} - Using default window: Now: ${now}, Created: ${orderDate}, End: ${defaultEndTime}`);
+      
+      return now <= defaultEndTime;
+    }
+    
+    return false; // No valid date information found
+  };
+  
+  // Helper function to check if product is returnable
+  const isProductReturnable = () => {
+    if (!order || !order.items || order.items.length === 0) return false;
+    
+    // Check if the primary product is returnable
+    return order.items[0]?.product?.isReturnable || false;
+  };
+
   if (authLoading) {
     return (
       <div className="flex justify-center items-center min-h-screen">
@@ -212,6 +258,27 @@ export default function OrderDetail({ params }) {
                         Please contact customer support for more information.
                       </p>
                     )}
+                  </div>
+                )}
+                
+                {/* Return Item Button */}
+                {!order.returnStatus && order.status === "CONFIRMED" && isProductReturnable() && isWithinReturnWindow() && (
+                  <div className="mt-4">
+                    <button
+                      onClick={() => router.push(`/returns?orderId=${order.id}&productName=${order.items?.[0]?.product?.name || ''}&price=${order.totalAmount}`)}
+                      className="inline-flex items-center px-4 py-2 border border-gray-300 rounded-md text-sm text-gray-700 bg-white hover:bg-gray-50"
+                    >
+                      Return Item
+                    </button>
+                  </div>
+                )}
+                
+                {/* Display return window info if applicable */}
+                {!order.returnStatus && order.status === "CONFIRMED" && isProductReturnable() && !isWithinReturnWindow() && order.returnWindowEnd && (
+                  <div className="mt-4 p-3 rounded bg-gray-50 text-gray-700">
+                    <p className="text-sm">
+                      Return window closed on {formatDate(order.returnWindowEnd)}
+                    </p>
                   </div>
                 )}
               </div>

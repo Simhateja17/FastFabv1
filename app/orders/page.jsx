@@ -170,6 +170,42 @@ export default function Orders() {
     return order.items[0]?.product?.isReturnable || false;
   };
 
+  // Helper function to check if the current time is within the return window
+  const isWithinReturnWindow = (order) => {
+    const now = new Date();
+    
+    // If returnWindowStart and returnWindowEnd are defined, use them for the check
+    if (order.returnWindowStart && order.returnWindowEnd) {
+      try {
+        const startTime = new Date(order.returnWindowStart);
+        const endTime = new Date(order.returnWindowEnd);
+        
+        console.log(`Order ${order.id} - Now: ${now}, Start: ${startTime}, End: ${endTime}`);
+        
+        return now >= startTime && now <= endTime;
+      } catch (error) {
+        console.error("Error parsing return window dates:", error);
+        // Fall through to default behavior
+      }
+    }
+    
+    // If no explicit window or error parsing dates, calculate based on order date
+    if (order.createdAt) {
+      const orderDate = new Date(order.createdAt);
+      
+      // Default return window: 1 day (24 hours) from order confirmation
+      const defaultWindowDays = 1;
+      const defaultEndTime = new Date(orderDate);
+      defaultEndTime.setDate(orderDate.getDate() + defaultWindowDays);
+      
+      console.log(`Order ${order.id} - Using default window: Now: ${now}, Created: ${orderDate}, End: ${defaultEndTime}`);
+      
+      return now <= defaultEndTime;
+    }
+    
+    return false; // No valid date information found
+  };
+
   if (authLoading) {
     return (
       <div className="flex justify-center items-center min-h-screen">
@@ -322,13 +358,17 @@ export default function Orders() {
                       <span className="text-yellow-600 text-sm font-medium">
                         Submitted for Return
                       </span>
-                    ) : order.status === "CONFIRMED" && isProductReturnable(order) ? (
+                    ) : order.status === "CONFIRMED" && isProductReturnable(order) && isWithinReturnWindow(order) ? (
                       <button
                         onClick={() => router.push(`/returns?orderId=${order.id}&productName=${order.items?.[0]?.product?.name || ''}&price=${order.totalAmount}`)}
                         className="inline-flex items-center px-3 py-1 border border-gray-300 rounded-md text-sm text-gray-700 bg-white hover:bg-gray-50"
                       >
                         Return Item
                       </button>
+                    ) : order.status === "CONFIRMED" && !isWithinReturnWindow(order) ? (
+                      <span className="text-gray-500 text-sm font-medium">
+                        Return window closed
+                      </span>
                     ) : order.status === "CONFIRMED" ? (
                       <span className="text-gray-500 text-sm font-medium">
                         Non-returnable
