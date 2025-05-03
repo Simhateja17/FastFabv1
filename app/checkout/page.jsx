@@ -167,7 +167,11 @@ function CheckoutContent() {
     0
   );
   
-  const total = subtotal;
+  const deliveryFee = 40; // Define Delivery Fee
+  const convenienceFee = 10; // Define Convenience Fee
+
+  // Update total calculation
+  const total = subtotal + deliveryFee + convenienceFee;
   
   // Calculate original MRP and discount
   const calculateTotalMRP = () => {
@@ -223,9 +227,11 @@ function CheckoutContent() {
           productName: item.name, // Pass product name if available
           sellerId: item.sellerId // Use the actual sellerId from the item
         })),
-        totalAmount: total,
+        totalAmount: total, // Use the updated total
         paymentMethod: 'UPI', // Send 'UPI' instead of 'ONLINE'
-        // Include other relevant fields like shippingFee, tax, discount if calculated
+        shippingCost: deliveryFee, // Add delivery fee
+        convenienceFee: convenienceFee, // Add convenience fee
+        // Include other relevant fields like tax, discount if calculated
       };
       
       // --- Ensure order has a valid addressId ---
@@ -436,9 +442,21 @@ function CheckoutContent() {
                   {discountOnMRP > 0 && (
                     <div className="flex justify-between">
                       <span className="text-gray-600">Discount on MRP</span>
-                      <span className="text-gray-900">-₹{discountOnMRP}</span>
+                      <span className="text-green-600">-₹{discountOnMRP}</span>
                     </div>
                   )}
+
+                  {/* Add Delivery Fee Display */}
+                  <div className="flex justify-between">
+                    <span className="text-gray-600">Delivery Fee</span>
+                    <span>₹{deliveryFee}</span>
+                  </div>
+
+                  {/* Add Convenience Fee Display */}
+                  <div className="flex justify-between">
+                    <span className="text-gray-600">Convenience Fee</span>
+                    <span>₹{convenienceFee}</span>
+                  </div>
                   
                   <div className="border-t border-gray-200 pt-3 mt-2">
                     <div className="flex justify-between font-semibold">
