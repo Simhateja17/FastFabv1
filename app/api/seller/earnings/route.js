@@ -8,6 +8,11 @@ export async function GET(request) {
   try {
     // Verify seller authentication
     console.log(`[API Route] Attempting authentication...`);
+    
+    // --> Read the token first, as auth() doesn't return it on success <--
+    const cookieStore = await require('next/headers').cookies();
+    const verifiedAccessToken = cookieStore.get('accessToken')?.value;
+    
     const authResult = await auth(request);
     console.log(`[API Route] Auth result: ${JSON.stringify({
       success: authResult.success,
@@ -50,42 +55,10 @@ export async function GET(request) {
     // Prepare authorization header from cookies if needed
     let authHeader = request.headers.get('Authorization');
     
-    // If no Authorization header but we have cookies with accessToken, extract and use it
-    if (!authHeader && cookies) {
-      // Try multiple possible formats of the access token in cookies
-      const accessTokenMatch = cookies.match(/accessToken=([^;]+)/);
-      const jwtMatch = cookies.match(/jwt=([^;]+)/); // Some systems use this name
-      
-      let token = null;
-      if (accessTokenMatch && accessTokenMatch[1]) {
-        token = accessTokenMatch[1];
-        console.log(`[API Route] 🔑 Extracted access token from 'accessToken' cookie`);
-      } else if (jwtMatch && jwtMatch[1]) {
-        token = jwtMatch[1];
-        console.log(`[API Route] 🔑 Extracted access token from 'jwt' cookie`);
-      }
-      
-      if (token) {
-        // Validate the token format to ensure it has sellerId (for debugging)
-        try {
-          const parts = token.split('.');
-          if (parts.length === 3) {
-            const payload = JSON.parse(Buffer.from(parts[1], 'base64').toString());
-            console.log(`[API Route] Token payload:`, JSON.stringify(payload));
-            
-            if (!payload.sellerId) {
-              console.warn(`[API Route] ⚠️ Warning: Token missing sellerId field`);
-            } else {
-              console.log(`[API Route] ✅ Token contains sellerId:`, payload.sellerId);
-            }
-          }
-        } catch (tokenError) {
-          console.error(`[API Route] Error parsing token:`, tokenError.message);
-        }
-        
-        authHeader = `Bearer ${token}`;
-        console.log(`[API Route] Created Authorization header from cookie token`);
-      }
+    // --> Use the verified token directly if auth succeeded and header wasn't present <--
+    if (!authHeader && authResult.success && verifiedAccessToken) {
+        console.log(`[API Route] Using verified accessToken from auth() for Authorization header.`);
+        authHeader = `Bearer ${verifiedAccessToken}`;
     }
     
     // Log the full request we're about to make
