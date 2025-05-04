@@ -34,6 +34,8 @@ export default function ReturnDetailPage() {
   const [error, setError] = useState(null);
   const [statusUpdateLoading, setStatusUpdateLoading] = useState(false);
   const [adminNotes, setAdminNotes] = useState("");
+  const [refundCalculation, setRefundCalculation] = useState(null);
+  const [refundLoading, setRefundLoading] = useState(false);
   const router = useRouter();
 
   // Fetch return request details
@@ -49,6 +51,11 @@ export default function ReturnDetailPage() {
         
         setReturnData(response.data);
         setAdminNotes(response.data.adminNotes || "");
+
+        // If return request is approved, fetch refund calculation
+        if (response.data.returnRequest?.status === "APPROVED") {
+          fetchRefundCalculation();
+        }
       } catch (error) {
         console.error("Error fetching return details:", error);
         setError(
@@ -61,6 +68,43 @@ export default function ReturnDetailPage() {
 
     fetchReturnDetails();
   }, [returnId]);
+
+  // Fetch refund calculation from backend
+  const fetchRefundCalculation = async () => {
+    try {
+      setRefundLoading(true);
+      // Get API client with admin authorization
+      const apiClient = getAdminApiClient();
+      
+      // Try the refund endpoint directly since calculation may not exist
+      const response = await apiClient.get(
+        `/api/admin/returns/${returnId}/refund-calculation`
+      );
+      
+      setRefundCalculation(response.data);
+    } catch (error) {
+      console.error("Error fetching refund calculation:", error);
+      toast.error("Failed to load refund calculation");
+      
+      // Fall back to manual calculation if API fails
+      if (returnData?.returnRequest?.amount) {
+        // Create backup calculation based on fixed processing fee
+        const processingFee = 50;
+        const originalAmount = returnData.returnRequest.amount + processingFee;
+        const refundAmount = returnData.returnRequest.amount;
+        
+        setRefundCalculation({
+          originalAmount,
+          processingFee,
+          refundAmount,
+          refundNote: "Partial refund with Rs. 50 processing fee deducted",
+          fromApi: false // Flag that this was calculated client-side
+        });
+      }
+    } finally {
+      setRefundLoading(false);
+    }
+  };
 
   // Update return status
   const updateReturnStatus = async (newStatus) => {
@@ -127,7 +171,7 @@ export default function ReturnDetailPage() {
   };
 
   // Process refund through Cashfree API
-  const processRefund = async (returnRequest) => {
+  const processRefund = async () => {
     try {
       setStatusUpdateLoading(true);
       
@@ -136,8 +180,9 @@ export default function ReturnDetailPage() {
       
       // Call the refund API endpoint
       await apiClient.post(`/api/admin/returns/${returnId}/refund`, {
-        refundAmount: returnRequest.amount, // This is the partial amount (original minus Rs. 50)
-        refundNote: adminNotes || "Partial refund processed with Rs. 50 processing fee"
+        // Include the refund amount if we calculated it client-side as a fallback
+        ...(refundCalculation && !refundCalculation.fromApi && { refundAmount: refundCalculation.refundAmount }),
+        refundNote: adminNotes || refundCalculation?.refundNote || "Partial refund with processing fee deducted"
       });
       
       // Update the status to completed
@@ -361,20 +406,45 @@ export default function ReturnDetailPage() {
             <div className="mt-6">
               <h4 className="text-md font-medium text-gray-700 mb-2">Process Refund</h4>
               <div className="p-4 bg-blue-50 rounded-lg mb-4">
-                <p className="text-sm text-blue-800">
-                  <strong>Original Order Amount:</strong> {formatCurrency(returnRequest?.amount + 50)}
-                </p>
-                <p className="text-sm text-blue-800">
-                  <strong>Refund Amount:</strong> {formatCurrency(returnRequest?.amount)} 
-                  <span className="ml-2 text-gray-600">(Rs. 50 processing fee deducted)</span>
-                </p>
+                {refundLoading ? (
+                  <p className="text-blue-600">Calculating refund amount...</p>
+                ) : refundCalculation ? (
+                  <>
+                    <p className="text-sm text-blue-800">
+                      <strong>Original Order Amount:</strong> {formatCurrency(refundCalculation.originalAmount)}
+                    </p>
+                    <p className="text-sm text-blue-800">
+                      <strong>Processing Fee:</strong> {formatCurrency(refundCalculation.processingFee)}
+                    </p>
+                    <p className="text-sm text-blue-800 font-medium mt-2">
+                      <strong>Refund Amount:</strong> {formatCurrency(refundCalculation.refundAmount)}
+                    </p>
+                    <p className="text-sm text-gray-600 italic mt-1">{refundCalculation.refundNote}</p>
+                  </>
+                ) : (
+                  <>
+                    <p className="text-sm text-blue-800">
+                      <strong>Original Order Amount:</strong> {formatCurrency(returnRequest?.amount + 50)}
+                    </p>
+                    <p className="text-sm text-blue-800">
+                      <strong>Refund Amount:</strong> {formatCurrency(returnRequest?.amount)} 
+                      <span className="ml-2 text-gray-600">(Rs. 50 processing fee deducted)</span>
+                    </p>
+                  </>
+                )}
               </div>
               <button
-                onClick={() => processRefund(returnRequest)}
+                onClick={processRefund}
                 disabled={statusUpdateLoading}
                 className="bg-blue-600 hover:bg-blue-700 text-white py-3 px-6 rounded-md font-medium disabled:opacity-50"
               >
-                {statusUpdateLoading ? "Processing..." : "Process Refund"}
+                {statusUpdateLoading 
+                  ? "Processing..." 
+                  : refundLoading 
+                    ? "Loading refund details..." 
+                    : refundCalculation 
+                      ? `Process Refund (${formatCurrency(refundCalculation.refundAmount)})` 
+                      : "Process Refund"}
               </button>
             </div>
           )}
