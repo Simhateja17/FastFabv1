@@ -126,6 +126,46 @@ export default function ReturnDetailPage() {
     }
   };
 
+  // Process refund through Cashfree API
+  const processRefund = async (returnRequest) => {
+    try {
+      setStatusUpdateLoading(true);
+      
+      // Get API client with admin authorization
+      const apiClient = getAdminApiClient();
+      
+      // Call the refund API endpoint
+      await apiClient.post(`/api/admin/returns/${returnId}/refund`, {
+        refundAmount: returnRequest.amount, // This is the partial amount (original minus Rs. 50)
+        refundNote: adminNotes || "Partial refund processed with Rs. 50 processing fee"
+      });
+      
+      // Update the status to completed
+      await apiClient.patch(`/api/admin/returns/${returnId}/status`, {
+        status: "COMPLETED",
+        adminNotes: adminNotes ? `${adminNotes}; Refund processed` : "Refund processed"
+      });
+      
+      // Update local state
+      setReturnData({
+        ...returnData,
+        returnRequest: {
+          ...returnData.returnRequest,
+          status: "COMPLETED"
+        }
+      });
+      
+      toast.success("Refund processed successfully");
+    } catch (error) {
+      console.error("Error processing refund:", error);
+      toast.error(
+        error.response?.data?.message || "Failed to process refund"
+      );
+    } finally {
+      setStatusUpdateLoading(false);
+    }
+  };
+
   // Get status badge color
   const getStatusBadgeClass = (status) => {
     const statusObj = RETURN_STATUSES.find((s) => s.value === status);
@@ -313,6 +353,28 @@ export default function ReturnDetailPage() {
                 className="bg-red-600 hover:bg-red-700 text-white py-3 px-6 rounded-md font-medium disabled:opacity-50"
               >
                 {statusUpdateLoading ? "Processing..." : "Reject Return"}
+              </button>
+            </div>
+          )}
+
+          {returnRequest?.status === "APPROVED" && (
+            <div className="mt-6">
+              <h4 className="text-md font-medium text-gray-700 mb-2">Process Refund</h4>
+              <div className="p-4 bg-blue-50 rounded-lg mb-4">
+                <p className="text-sm text-blue-800">
+                  <strong>Original Order Amount:</strong> {formatCurrency(returnRequest?.amount + 50)}
+                </p>
+                <p className="text-sm text-blue-800">
+                  <strong>Refund Amount:</strong> {formatCurrency(returnRequest?.amount)} 
+                  <span className="ml-2 text-gray-600">(Rs. 50 processing fee deducted)</span>
+                </p>
+              </div>
+              <button
+                onClick={() => processRefund(returnRequest)}
+                disabled={statusUpdateLoading}
+                className="bg-blue-600 hover:bg-blue-700 text-white py-3 px-6 rounded-md font-medium disabled:opacity-50"
+              >
+                {statusUpdateLoading ? "Processing..." : "Process Refund"}
               </button>
             </div>
           )}
