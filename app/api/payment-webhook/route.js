@@ -75,35 +75,117 @@ export async function POST(request) {
 
     // --- Flexible Order ID Extraction ---
     console.log('Attempting to extract Order ID...');
-    const orderIdKeys = [
-      'order.order_id',
-      'data.order.order_id',
-      'order_id',
-      'orderId',
-      'cf_order_id',
-      // Less common but possible
-      'merchantOrderId',
-      'merchant_order_id',
-    ];
-    const orderId = extractValue(data, orderIdKeys);
+    let orderId = null;
+    
+    // Check if this is a refund webhook
+    if (data.type === "REFUND_STATUS_WEBHOOK" && data.data?.refund) {
+      // Extract order ID from refund webhook structure
+      orderId = data.data.refund.order_id;
+      console.log(`Extracted Order ID from refund webhook: ${orderId}`);
+    } else {
+      // For regular payment webhooks, try standard paths
+      const orderIdKeys = [
+        'order.order_id',
+        'data.order.order_id',
+        'order_id',
+        'orderId',
+        'cf_order_id',
+        // Less common but possible
+        'merchantOrderId',
+        'merchant_order_id',
+      ];
+      orderId = extractValue(data, orderIdKeys);
+    }
 
     // --- Flexible Transaction ID Extraction (for fallback lookup) ---
     console.log('Attempting to extract Transaction ID (for potential fallback lookup)...');
-    const transactionIdKeys = [
-        'transaction.transaction_id',
-        'data.transaction.transaction_id',
-        'transaction_id',
-        'cf_payment_id', // Often used as Tx ID
-        'payment.cf_payment_id',
-        'txId',
-        'txnId',
-        'referenceId',
-        'cf_transaction_id',
-        'paymentId', // Sometimes used
-    ];
-    const transactionId = extractValue(data, transactionIdKeys);
+    let transactionId = null;
+    
+    // Check if this is a refund webhook
+    if (data.type === "REFUND_STATUS_WEBHOOK" && data.data?.refund) {
+      // Extract transaction ID from refund webhook structure
+      transactionId = data.data.refund.refund_id || data.data.refund.cf_refund_id;
+      console.log(`Extracted Transaction ID from refund webhook: ${transactionId}`);
+    } else {
+      // For regular payment webhooks, try standard paths
+      const transactionIdKeys = [
+          'transaction.transaction_id',
+          'data.transaction.transaction_id',
+          'transaction_id',
+          'cf_payment_id', // Often used as Tx ID
+          'payment.cf_payment_id',
+          'txId',
+          'txnId',
+          'referenceId',
+          'cf_transaction_id',
+          'paymentId', // Sometimes used
+      ];
+      transactionId = extractValue(data, transactionIdKeys);
+    }
 
+    // Determine what type of webhook this is and process accordingly
+    if (data.type === "REFUND_STATUS_WEBHOOK" && data.data?.refund) {
+      // This is a refund webhook
+      const refundData = data.data.refund;
+      const refundId = refundData.refund_id;
+      const refundStatus = refundData.refund_status;
+      
+      console.log(`Processing refund webhook for refund ID: ${refundId}, Status: ${refundStatus}`);
+      
+      try {
+        // Find the payment transaction associated with this refund
+        const transaction = await prisma.paymentTransaction.findFirst({
+          where: {
+            transactionId: refundId,
+          }
+        });
+        
+        if (transaction) {
+          // Update the gateway response with the latest status
+          await prisma.paymentTransaction.update({
+            where: { id: transaction.id },
+            data: {
+              gatewayResponse: {
+                ...(transaction.gatewayResponse || {}),
+                refundStatus,
+                statusDescription: refundData.status_description,
+                processedAt: refundData.processed_at,
+                refundWebhookData: data
+              }
+            }
+          });
+          
+          console.log(`Updated transaction ${transaction.id} with refund status: ${refundStatus}`);
+          
+          // If the refund is successful and this is linked to a return request, update the return status
+          if (refundStatus === "SUCCESS" && transaction.gatewayResponse?.returnRequestId) {
+            const returnRequestId = transaction.gatewayResponse.returnRequestId;
+            
+            // Update the return request status to COMPLETED
+            await prisma.returnRequest.update({
+              where: { id: returnRequestId },
+              data: {
+                status: "COMPLETED"
+              }
+            });
+            
+            console.log(`Updated return request ${returnRequestId} status to COMPLETED`);
+          }
+        } else {
+          console.log(`No transaction found for refund ID: ${refundId}`);
+        }
+      } catch (error) {
+        console.error(`Error processing refund webhook: ${error.message}`);
+      }
+      
+      // Acknowledge receipt
+      return NextResponse.json({ 
+        message: 'Refund webhook processed successfully', 
+        success: true 
+      }, { status: 200 });
+    }
 
+    // Proceed with regular payment webhook processing
     if (!orderId) {
       console.error('Could not extract a primary Order ID from webhook payload.');
       // Fallback logic remains important here if no order ID is found,

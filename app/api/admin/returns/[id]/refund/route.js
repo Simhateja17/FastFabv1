@@ -96,9 +96,12 @@ export async function POST(request, { params }) {
         paymentMethod: returnRequest.order.paymentMethod,
         currency: "INR",
         transactionId: refundId,
-        metadata: {
+        gatewayResponse: {
           cashfreeRefundId: response.data?.cf_refund_id,
-          returnRequestId: returnId
+          returnRequestId: returnId,
+          originalAmount: returnRequest.amount,
+          processingFee: 50, // Hard-coded processing fee
+          refundResponse: response.data
         }
       }
     });
