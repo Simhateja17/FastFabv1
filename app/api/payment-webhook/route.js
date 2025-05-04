@@ -136,7 +136,21 @@ export async function POST(request) {
         // Find the payment transaction associated with this refund
         const transaction = await prisma.paymentTransaction.findFirst({
           where: {
-            transactionId: refundId,
+            OR: [
+              { transactionId: refundId },
+              { 
+                gatewayResponse: {
+                  path: ['refundResponse', 'refund_id'],
+                  equals: refundId
+                }
+              },
+              {
+                gatewayResponse: {
+                  path: ['cashfreeRefundId'],
+                  equals: refundData.cf_refund_id.toString()
+                }
+              }
+            ]
           }
         });
         

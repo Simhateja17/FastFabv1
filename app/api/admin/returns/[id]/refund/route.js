@@ -89,6 +89,7 @@ export async function POST(request, { params }) {
     // Record the refund in the database
     await prisma.paymentTransaction.create({
       data: {
+        id: `pt-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`, // Generate unique ID
         userId: returnRequest.userId,
         orderId: returnRequest.orderId,
         amount: refundAmount,
