@@ -182,11 +182,11 @@ function CheckoutContent() {
     0
   );
   
-  // const deliveryFee = 40; // Define Delivery Fee
-  // const convenienceFee = 10; // Define Convenience Fee
+  const deliveryFee = 40; // Define Delivery Fee
+  const convenienceFee = 10; // Define Convenience Fee
 
   // Update total calculation
-  const total = subtotal; // + deliveryFee + convenienceFee;
+  const total = subtotal + deliveryFee + convenienceFee;
   
   // Calculate original MRP and discount
   const calculateTotalMRP = () => {
@@ -244,8 +244,8 @@ function CheckoutContent() {
         })),
         totalAmount: total, // Use the updated total
         paymentMethod: 'UPI', // Send 'UPI' instead of 'ONLINE'
-        // shippingCost: deliveryFee, // Add delivery fee
-        // convenienceFee: convenienceFee, // Add convenience fee
+        shippingCost: deliveryFee, // Add delivery fee
+        convenienceFee: convenienceFee, // Add convenience fee
         // Include other relevant fields like tax, discount if calculated
       };
       
@@ -454,14 +454,27 @@ function CheckoutContent() {
                     <span>₹{totalMRP}</span>
                   </div>
                   
-                  <div className="flex justify-between text-sm mb-1">
-                    <span className="text-gray-600">Discount on MRP</span>
-                    <span className="text-green-600">-₹{discountOnMRP.toFixed(2)}</span>
+                  {discountOnMRP > 0 && (
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">Discount on MRP</span>
+                      <span className="text-green-600">-₹{discountOnMRP}</span>
+                    </div>
+                  )}
+
+                  {/* Add Delivery Fee Display */}
+                  <div className="flex justify-between">
+                    <span className="text-gray-600">Delivery Fee</span>
+                    <span>₹{deliveryFee}</span>
                   </div>
 
-                  {/* Total Amount Display */}
-                  <div className="border-t border-gray-200 pt-4 mt-4">
-                    <div className="flex justify-between font-semibold text-lg">
+                  {/* Add Convenience Fee Display */}
+                  <div className="flex justify-between">
+                    <span className="text-gray-600">Convenience Fee</span>
+                    <span>₹{convenienceFee}</span>
+                  </div>
+                  
+                  <div className="border-t border-gray-200 pt-3 mt-2">
+                    <div className="flex justify-between font-semibold">
                       <span>Total Amount</span>
                       <span>₹{total}</span>
                     </div>
