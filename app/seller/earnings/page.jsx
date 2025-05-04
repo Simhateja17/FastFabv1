@@ -22,7 +22,8 @@ function EarningsContent() {
     availableBalance: 0,
     immediateEarningsTotal: 0,
     postWindowEarningsTotal: 0,
-    returnWindowAmount: 0
+    returnWindowAmount: 0,
+    returnShippingFee: 0
   });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -74,7 +75,8 @@ function EarningsContent() {
               availableBalance: periodStats.availableBalance || 0,
               immediateEarningsTotal: periodStats.immediateEarningsTotal || 0,
               postWindowEarningsTotal: periodStats.postWindowEarningsTotal || 0,
-              returnWindowAmount: periodStats.inReturnWindowAmount || 0 // Corrected key to match backend
+              returnWindowAmount: periodStats.inReturnWindowAmount || 0, // Corrected key to match backend
+              returnShippingFee: periodStats.returnShippingFee || 0 // Add Return Shipping fee
           });
         } else {
           // Default stats if not available or structure is wrong
@@ -85,7 +87,8 @@ function EarningsContent() {
             availableBalance: 0,
             immediateEarningsTotal: 0,
             postWindowEarningsTotal: 0,
-            returnWindowAmount: 0
+            returnWindowAmount: 0,
+            returnShippingFee: 0
           });
         }
 
@@ -106,7 +109,8 @@ function EarningsContent() {
           availableBalance: 0,
           immediateEarningsTotal: 0,
           postWindowEarningsTotal: 0,
-          returnWindowAmount: 0
+          returnWindowAmount: 0,
+          returnShippingFee: 0
         });
         setItemsInReturnWindow([]);
       } finally {
@@ -156,6 +160,8 @@ function EarningsContent() {
         return "bg-green-100 text-green-800"; // Use clearer color names
       case "refund":
         return "bg-red-100 text-red-800";
+      case "fee":
+        return "bg-orange-100 text-orange-800"; // For Return Shipping fees
       case "platform_fee": // Add case for platform fees if they appear as transactions
         return "bg-yellow-100 text-yellow-800";
       default:
@@ -260,6 +266,16 @@ function EarningsContent() {
                   <p className="mt-2 text-3xl font-semibold text-gray-900">
                     {formatCurrency(stats.availableBalance)}
                   </p>
+                  {stats.returnShippingFee > 0 && (
+                    <>
+                      <p className="text-xs text-gray-500">
+                        {formatCurrency(stats.availableBalance + stats.returnShippingFee)} - {formatCurrency(stats.returnShippingFee)}
+                      </p>
+                      <p className="text-xs text-gray-500">
+                        Total Balance - Return Shipping Fee
+                      </p>
+                    </>
+                  )}
                 </div>
                 <button
                   onClick={handleOpenWithdrawModal}
@@ -282,6 +298,15 @@ function EarningsContent() {
                 {formatCurrency(stats.returnWindowAmount)}
               </p>
               <p className="text-xs text-gray-500">Amounts for items still within return period</p>
+            </div>
+            
+            {/* Return Shipping Fee Card */}
+            <div className="bg-white p-6 rounded-lg shadow">
+              <h3 className="text-sm font-medium text-gray-500">Return Shipping Fee</h3>
+              <p className="mt-2 text-3xl font-semibold text-gray-900">
+                {formatCurrency(stats.returnShippingFee)}
+              </p>
+              <p className="text-xs text-gray-500">Rs47.20 per approved return</p>
             </div>
           </div>
 
@@ -448,13 +473,13 @@ function EarningsContent() {
                           className={`text-sm font-medium ${
                             transaction.type === "SALE" || transaction.type === "IMMEDIATE" || transaction.type === "POST_RETURN_WINDOW"
                               ? "text-green-600"
-                              : transaction.type === "REFUND"
+                              : transaction.type === "REFUND" || transaction.type === "fee"
                               ? "text-red-600"
                               : "text-gray-900"
                           }`}
                         >
-                          {transaction.type === "REFUND" ? "-" : "+"}{" "}
-                          {formatCurrency(transaction.amount)}
+                          {transaction.amount < 0 ? "" : transaction.type === "REFUND" || transaction.type === "fee" ? "-" : "+"}{" "}
+                          {formatCurrency(Math.abs(transaction.amount))}
                         </span>
                         <p className="text-xs text-gray-500">
                           {transaction.status}
