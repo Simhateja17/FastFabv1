@@ -123,30 +123,30 @@ model Order {
 }
 
 model OrderItem {
-  id                String              @id
-  orderId           String
-  productId         String
-  productName       String
-  sellerId          String
-  quantity          Int
-  size              String
-  color             String?
-  price             Float
-  discount          Float               @default(0)
-  isReturnable      Boolean             @default(false)
-  createdAt         DateTime            @default(now())
-  updatedAt         DateTime
-  returnWindowStatus ReturnWindowStatus?
-  returnedAt        DateTime?
-  returnWindowStart DateTime?
-  returnWindowEnd   DateTime?
+  id                 String              @id
+  orderId            String
+  productId          String?
+  productName        String
+  sellerId           String
+  quantity           Int
+  size               String
+  color              String?
+  price              Float
+  discount           Float               @default(0)
+  createdAt          DateTime            @default(now())
+  updatedAt          DateTime
+  returnWindowEnd    DateTime?
+  returnWindowStart  DateTime?
+  returnedAt         DateTime?
   earningsCredited   Boolean             @default(false)
   earningsCreditedAt DateTime?
-  product           Product             @relation(fields: [productId], references: [id])
-  order             Order               @relation(fields: [orderId], references: [id], onDelete: Cascade)
-  seller            Seller              @relation(fields: [sellerId], references: [id])
-  returnRequest     ReturnRequest?
-  earnings          SellerEarning[]
+  returnWindowStatus ReturnWindowStatus?
+  isReturnable       Boolean             @default(false)
+  product            Product?            @relation(fields: [productId], references: [id])
+  order              Order               @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  seller             Seller              @relation(fields: [sellerId], references: [id])
+  returnRequest      ReturnRequest?
+  earnings           SellerEarning[]
 
   @@index([orderId])
   @@index([productId])
@@ -168,7 +168,7 @@ model PaymentTransaction {
   paymentLink       String?
   paymentLinkExpiry DateTime?
   createdAt         DateTime      @default(now())
-  updatedAt         DateTime      @updatedAt
+  updatedAt         DateTime      @default(now()) @updatedAt
   order             Order?        @relation(fields: [orderId], references: [id])
 }
 
@@ -253,6 +253,7 @@ model Seller {
   cashfreeBeneficiaryId String?                   @unique
   balance               Float                     @default(0)
   payoutsEnabled        Boolean                   @default(false)
+  timeZone              String?                   @default("Asia/Kolkata") @db.VarChar(100)
   products              Product[]
   orderItems            OrderItem[]
   orders                Order[]                   @relation("SellerOrders")
@@ -276,22 +277,22 @@ model SuperAdmin {
 }
 
 model User {
-  id                 String    @id @default(dbgenerated("gen_random_uuid()"))
-  email              String?   @unique
-  phone              String?   @unique
+  id                 String          @id @default(dbgenerated("gen_random_uuid()"))
+  email              String?         @unique
+  phone              String?         @unique
   password           String
   name               String?
   profilePicture     String?
-  isVerified         Boolean   @default(false)
+  isVerified         Boolean         @default(false)
   verificationToken  String?
   passwordResetToken String?
   resetTokenExpiry   DateTime?
-  createdAt          DateTime  @default(now())
+  createdAt          DateTime        @default(now())
   updatedAt          DateTime
-  isPhoneVerified    Boolean   @default(false)
+  isPhoneVerified    Boolean         @default(false)
   lastLoginAt        DateTime?
-  role               UserRole  @default(USER)
-  tokenVersion       Int       @default(0)
+  role               UserRole        @default(USER)
+  tokenVersion       Int             @default(0)
   orders             Order[]
   returnRequests     ReturnRequest[]
 }
@@ -341,17 +342,17 @@ model spatial_ref_sys {
 }
 
 model Payout {
-  id               String            @id
+  id               String       @id
   sellerId         String
   amount           Float
-  status           PayoutStatus      @default(PENDING)
-  cashfreePayoutId String?           @unique
-  requestedAt      DateTime          @default(now())
+  status           PayoutStatus @default(PENDING)
+  cashfreePayoutId String?      @unique
+  requestedAt      DateTime     @default(now())
   processedAt      DateTime?
-  paymentMethod    PayoutMethod      @default(BANK_TRANSFER)
   paymentDetails   Json?
+  paymentMethod    PayoutMethod @default(BANK_TRANSFER)
   remarks          String?
-  seller           Seller            @relation(fields: [sellerId], references: [id])
+  seller           Seller       @relation(fields: [sellerId], references: [id])
 
   @@index([requestedAt])
   @@index([sellerId])
@@ -368,25 +369,23 @@ model SiteSettings {
 }
 
 model ReturnRequest {
-  id            String   @id @default(cuid())
-  orderId       String
-  orderItemId   String   @unique
-  userId        String
-  reason        String?
-  status        String   // PENDING, APPROVED, REJECTED
-  productName   String?
-  amount        Float?
-  submittedAt   DateTime @default(now())
-  user          User     @relation(fields: [userId], references: [id])
-  order         Order    @relation(fields: [orderId], references: [id])
-  orderItem     OrderItem @relation(fields: [orderItemId], references: [id])
+  id          String    @id @default(cuid())
+  orderId     String
+  orderItemId String    @unique
+  userId      String
+  reason      String?
+  status      String
+  productName String?
+  amount      Float?
+  submittedAt DateTime  @default(now())
+  user        User      @relation(fields: [userId], references: [id])
+  order       Order     @relation(fields: [orderId], references: [id])
+  orderItem   OrderItem @relation(fields: [orderItemId], references: [id])
 
   @@index([orderId])
   @@index([userId])
   @@index([status])
 }
-
-// Added models and enums
 
 model Withdrawal {
   id                 String           @id @default(cuid())
@@ -400,6 +399,12 @@ model Withdrawal {
   failedReason       String?
   createdAt          DateTime         @default(now()) @db.Timestamptz(3)
   updatedAt          DateTime         @updatedAt @db.Timestamptz(3)
+  paymentMethod      String?
+  paymentDetails     Json?
+  remarks            String?
+  completedAt        DateTime?        @db.Timestamptz(3)
+  utr                String?
+  webhookData        Json?
   seller             Seller           @relation(fields: [sellerId], references: [id], onDelete: Cascade)
 
   @@index([createdAt], map: "idx_withdrawal_created_at")
@@ -407,6 +412,7 @@ model Withdrawal {
   @@index([gatewayTransferId], map: "idx_withdrawal_gateway_transfer_id")
   @@index([sellerId], map: "idx_withdrawal_seller_id")
   @@index([status], map: "idx_withdrawal_status")
+  @@index([utr], map: "idx_withdrawal_utr")
 }
 
 model SellerEarning {
@@ -415,13 +421,13 @@ model SellerEarning {
   orderItemId       String
   amount            Float
   commission        Float       @default(0)
-  grossAmount       Float       @default(0)
   type              EarningType
   status            String      @default("PENDING")
   creditedToBalance Boolean     @default(false)
   creditedAt        DateTime?
   createdAt         DateTime    @default(now())
   updatedAt         DateTime    @updatedAt
+  grossAmount       Float       @default(0)
   seller            Seller      @relation(fields: [sellerId], references: [id], onDelete: Cascade)
   orderItem         OrderItem   @relation(fields: [orderItemId], references: [id], onDelete: Cascade)
 
@@ -477,13 +483,11 @@ enum PayoutStatus {
   FAILED
 }
 
-// Added enums
-
 enum ReturnWindowStatus {
-  NOT_APPLICABLE  // For non-returnable products
-  ACTIVE          // In the 24-hour return window
-  COMPLETED       // Window completed, earnings credited
-  RETURNED        // Item was returned during window
+  NOT_APPLICABLE
+  ACTIVE
+  COMPLETED
+  RETURNED
 }
 
 enum WithdrawalStatus {

@@ -3,6 +3,7 @@ import { PrismaClient } from '@prisma/client';
 import { cookies } from 'next/headers';
 import jwt from 'jsonwebtoken';
 import { v4 as uuidv4 } from 'uuid'; // Make sure to install uuid: npm install uuid
+import { Prisma } from '@prisma/client';
 
 const prisma = new PrismaClient();
 const JWT_SECRET = process.env.JWT_SECRET;
@@ -118,6 +119,8 @@ export async function PUT(request, { params }) {
       bankName: updateData.bankName,
       accountNumber: updateData.accountNumber,
       ifsc: updateData.ifsc,
+      latitude: updateData.latitude,
+      longitude: updateData.longitude,
       // Add other fields that are safe to update here
     };
     
@@ -143,9 +146,23 @@ export async function PUT(request, { params }) {
       data: allowedUpdates,
     });
     
+    // 6. Update the PostGIS point location if latitude and longitude are provided
+    if (updateData.latitude && updateData.longitude) {
+      console.log(`[Seller Details] Updating location for seller ${sellerId} with coordinates: ${updateData.latitude}, ${updateData.longitude}`);
+      
+      // Execute a raw SQL query to update the location field
+      await prisma.$executeRaw`
+        UPDATE "Seller"
+        SET location = geography(ST_SetSRID(ST_MakePoint(${updateData.longitude}, ${updateData.latitude}), 4326))
+        WHERE id = ${sellerId}
+      `;
+      
+      console.log(`[Seller Details] Location updated with PostGIS point for seller ${sellerId}`);
+    }
+    
     console.log(`[Seller Details] Seller ${sellerId} updated successfully`);
     
-    // 6. Create a default Cashfree beneficiary ID if not already created
+    // 7. Create a default Cashfree beneficiary ID if not already created
     // This is crucial for enabling withdrawals in the future
     try {
       console.log(`[Seller Details] Checking if seller ${sellerId} already has a cashfreeBeneficiaryId`);
@@ -184,11 +201,30 @@ export async function PUT(request, { params }) {
       console.error(`[Seller Details] Seller onboarding will continue, but withdrawals may be affected`);
     }
     
-    // 7. Return success response
+    // Fetch the updated seller with latest data including location-related fields
+    const refreshedSeller = await prisma.seller.findUnique({
+      where: { id: sellerId },
+      select: {
+        id: true,
+        phone: true,
+        shopName: true,
+        ownerName: true,
+        address: true,
+        city: true,
+        state: true,
+        pincode: true,
+        latitude: true,
+        longitude: true,
+        cashfreeBeneficiaryId: true,
+        payoutsEnabled: true
+      }
+    });
+    
+    // 8. Return success response
     return NextResponse.json({
       success: true,
       message: 'Seller details updated successfully',
-      seller: {
+      seller: refreshedSeller || {
         id: updatedSeller.id,
         phone: updatedSeller.phone,
         shopName: updatedSeller.shopName,
@@ -197,9 +233,10 @@ export async function PUT(request, { params }) {
         city: updatedSeller.city,
         state: updatedSeller.state,
         pincode: updatedSeller.pincode,
-        cashfreeBeneficiaryId: updatedSeller.cashfreeBeneficiaryId, // Include the beneficiary ID
-        payoutsEnabled: updatedSeller.payoutsEnabled,
-        // Include other fields as needed, but exclude sensitive information
+        latitude: updatedSeller.latitude,
+        longitude: updatedSeller.longitude,
+        cashfreeBeneficiaryId: updatedSeller.cashfreeBeneficiaryId,
+        payoutsEnabled: updatedSeller.payoutsEnabled
       }
     });
     
