@@ -30,7 +30,7 @@ export default function SellerDetailPage({ params }) {
           `/api/admin/sellers/${sellerId}`
         );
         setSeller(response.data);
-        setProducts(response.data.products || []);
+        setProducts(response.data.Product || []);
         setFormData({
           phone: response.data.phone || "",
           shopName: response.data.shopName || "",
