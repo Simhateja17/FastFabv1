@@ -124,9 +124,38 @@ function LocationModalContent({ onClose }) {
           latitude,
           longitude,
           label: locationName,
+          // Add fullAddress for manually typed addresses
+          fullAddress: place.formatted_address || place.name,
+          // Add address components if available
+          addressComponents: {
+            street: '',
+            city: '',
+            state: '',
+            country: '',
+            postalCode: ''
+          },
           source: "placeSearch",
           timestamp: new Date().toISOString()
         };
+        
+        // Extract address components if available
+        if (place.address_components) {
+          place.address_components.forEach(component => {
+            const types = component.types;
+            
+            if (types.includes('route')) {
+              newLocationData.addressComponents.street = component.long_name;
+            } else if (types.includes('locality')) {
+              newLocationData.addressComponents.city = component.long_name;
+            } else if (types.includes('administrative_area_level_1')) {
+              newLocationData.addressComponents.state = component.long_name;
+            } else if (types.includes('country')) {
+              newLocationData.addressComponents.country = component.long_name;
+            } else if (types.includes('postal_code')) {
+              newLocationData.addressComponents.postalCode = component.long_name;
+            }
+          });
+        }
         
         console.log("Setting new location:", newLocationData);
         

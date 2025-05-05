@@ -50,6 +50,7 @@ export default function OrderDetailPage() {
   const [statusUpdateLoading, setStatusUpdateLoading] = useState(false);
   const [adminNotes, setAdminNotes] = useState("");
   const [sellerInfo, setSellerInfo] = useState(null);
+  const [sellers, setSellers] = useState([]);
   const router = useRouter();
 
   // Fetch order details
@@ -72,9 +73,37 @@ export default function OrderDetailPage() {
               `/api/admin/sellers/${response.data.primarySellerId}`
             );
             setSellerInfo(sellerResponse.data);
+            setSellers([sellerResponse.data]);
           } catch (sellerError) {
             console.error("Error fetching seller details:", sellerError);
           }
+        } else if (response.data.items && response.data.items.length > 0) {
+          // Collect all unique seller IDs from order items
+          const sellerIds = new Set();
+          const sellersList = [];
+          
+          // Get seller IDs from items
+          for (const item of response.data.items) {
+            if (item.sellerId && !sellerIds.has(item.sellerId)) {
+              sellerIds.add(item.sellerId);
+              
+              try {
+                const sellerResponse = await apiClient.get(
+                  `/api/admin/sellers/${item.sellerId}`
+                );
+                sellersList.push(sellerResponse.data);
+                
+                // Set the first seller as the primary sellerInfo for backward compatibility
+                if (sellersList.length === 1) {
+                  setSellerInfo(sellerResponse.data);
+                }
+              } catch (sellerError) {
+                console.error(`Error fetching seller details for ID ${item.sellerId}:`, sellerError);
+              }
+            }
+          }
+          
+          setSellers(sellersList);
         }
       } catch (error) {
         console.error("Error fetching order details:", error);
@@ -326,7 +355,7 @@ export default function OrderDetailPage() {
                   ].filter(Boolean).join(', ') || 'N/A'}</p>
                   
                   <Link 
-                    href={`/admin/superadmin/sellers/${sellerInfo.id}`}
+                    href={`/superadmin/sellers/${sellerInfo.id}`}
                     className="text-primary hover:underline text-sm mt-2 inline-block"
                   >
                     View Seller Profile
@@ -434,7 +463,7 @@ export default function OrderDetailPage() {
                               </div>
                               {item.product && (
                                 <Link
-                                  href={`/admin/superadmin/products/${item.product.id}`}
+                                  href={`/superadmin/products/${item.product.id}`}
                                   className="text-xs text-primary hover:text-primary-dark"
                                 >
                                   View Product
@@ -684,7 +713,7 @@ export default function OrderDetailPage() {
                 {order.user.id && (
                   <div className="pt-2">
                     <Link
-                      href={`/admin/superadmin/users/${order.user.id}`}
+                      href={`/superadmin/users/${order.user.id}`}
                       className="text-primary hover:text-primary-dark text-sm"
                     >
                       View Customer Profile
@@ -762,6 +791,54 @@ export default function OrderDetailPage() {
                 </div>
               )}
             </div>
+          </div>
+
+          {/* Seller Information - Added to be visible regardless of order status */}
+          <div className="bg-background-card rounded-lg shadow p-6">
+            <h2 className="text-lg font-medium text-text mb-4">
+              Seller Information
+            </h2>
+            
+            {sellers && sellers.length > 0 ? (
+              <div className="space-y-5">
+                {sellers.map((seller, index) => (
+                  <div key={seller.id || index} className={index > 0 ? "pt-4 border-t border-ui-border" : ""}>
+                    {sellers.length > 1 && (
+                      <p className="text-sm font-medium text-text-muted mb-2">Seller #{index + 1}</p>
+                    )}
+                    <div className="space-y-3">
+                      <div>
+                        <p className="text-sm text-text-muted">Shop Name</p>
+                        <p className="text-text font-medium">{seller.shopName || 'Unknown Shop'}</p>
+                      </div>
+                      <div>
+                        <p className="text-sm text-text-muted">Phone</p>
+                        <p className="text-text">{seller.phone || 'N/A'}</p>
+                      </div>
+                      <div>
+                        <p className="text-sm text-text-muted">Address</p>
+                        <p className="text-text">{[
+                          seller.address,
+                          seller.city,
+                          seller.state,
+                          seller.pincode
+                        ].filter(Boolean).join(', ') || 'N/A'}</p>
+                      </div>
+                      <div className="pt-2">
+                        <Link 
+                          href={`/superadmin/sellers/${seller.id}`}
+                          className="text-primary hover:text-primary-dark text-sm"
+                        >
+                          View Seller Profile
+                        </Link>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="text-text-muted">Seller information not available</p>
+            )}
           </div>
 
           {/* Notes or Additional Information */}
