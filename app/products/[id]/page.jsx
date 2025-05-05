@@ -637,12 +637,27 @@ export default function ProductDetails({ params }) {
                 </div>
                 <span className="text-xs font-medium">Genuine Product</span>
               </div>
-              <div className="flex flex-col items-center text-center">
-                <div className="w-12 h-12 bg-gray-100 rounded-full flex items-center justify-center mb-2">
-                  <FiPackage className="w-6 h-6 text-gray-700" />
+              {product?.isReturnable ? (
+                // Returnable Badge
+                <div className="flex flex-col items-center text-center">
+                  <div className="w-12 h-12 bg-gray-100 rounded-full flex items-center justify-center mb-2">
+                    <FiPackage className="w-6 h-6 text-gray-700" />
+                  </div>
+                  <span className="text-xs font-medium">1 Day Return</span>
                 </div>
-                <span className="text-xs font-medium">1 Day Return</span>
-              </div>
+              ) : (
+                // Non-Returnable Badge
+                <div className="flex flex-col items-center text-center">
+                  <div className="relative w-12 h-12 bg-gray-100 rounded-full flex items-center justify-center mb-2">
+                    <FiPackage className="w-6 h-6 text-gray-500" />
+                    {/* Slash overlay */}
+                    <div className="absolute inset-0 flex items-center justify-center">
+                      <div className="w-8 h-0.5 bg-red-500 transform rotate-45"></div>
+                    </div>
+                  </div>
+                  <span className="text-xs font-medium text-gray-500">Non-Returnable</span>
+                </div>
+              )}
             </div>
           </div>
         </div>
