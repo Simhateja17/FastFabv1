@@ -175,6 +175,13 @@ export async function POST(request) {
     // 4. Process Uploads (REAL Implementation using Supabase)
     try {
         for (const file of filesToUpload) {
+            // ADDED: Strict check for sellerId
+            if (!sellerId || typeof sellerId !== 'string' || sellerId.trim() === '') {
+                console.error('[UPLOAD] CRITICAL: sellerId is missing or invalid during file processing loop. Value:', sellerId);
+                // This individual file upload will fail, and an error will be thrown by uploadToSupabaseStorage or caught by the main try-catch.
+                // To make it fail immediately for the whole batch:
+                throw new Error('Invalid seller identification for image upload.'); 
+            }
             // Use the real Supabase upload function, passing sellerId for path organization
             const publicUrl = await uploadToSupabaseStorage(file, sellerId);
             uploadedUrls.push(publicUrl);

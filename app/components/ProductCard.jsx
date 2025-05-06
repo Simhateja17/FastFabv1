@@ -132,6 +132,14 @@ export default function ProductCard({ product }) {
   }
 
   // --- Render component with pre-calculated values ---
+  // DEBUGGING LOGS REMOVED
+  // if (product && product.name && product.name.toLowerCase().includes('armor men track pant')) { 
+  //   console.log('ProductCard received product (Armor Men Track Pant):', JSON.parse(JSON.stringify(product)));
+  //   console.log('ProductCard images (Armor Men Track Pant):', product?.images);
+  //   console.log('ProductCard imageUrl (Armor Men Track Pant):', product?.imageUrl);
+  //   console.log('ProductCard finalImageUrl (Armor Men Track Pant):', finalImageUrl);
+  // }
+
   return (
     <Link
       href={`/products/${productId}`}
@@ -140,7 +148,7 @@ export default function ProductCard({ product }) {
       {/* Product Image */}
       <div className="relative aspect-square bg-gray-100 overflow-hidden">
         <div className="relative w-full h-full">
-          {finalImageUrl && !finalImageUrl.includes('undefined') ? (
+          {finalImageUrl ? (
             <Image
               src={finalImageUrl}
               alt={productName || 'Product image'}

@@ -196,7 +196,18 @@ export async function GET(request) {
       try {
         const matchingProducts = await prisma.product.findMany({
           where: productSearchClause,
-          include: {
+          select: {
+            id: true,
+            name: true,
+            description: true,
+            sellingPrice: true,
+            mrpPrice: true,
+            category: true,
+            subcategory: true,
+            images: true,
+            imageUrl: true,
+            isActive: true,
+            createdAt: true,
             seller: {
               select: {
                 id: true,
@@ -205,7 +216,7 @@ export async function GET(request) {
                 state: true,
                 latitude: true,
                 longitude: true,
-                isVisible: true, // Include visibility flag
+                isVisible: true,
               },
             }
           },

@@ -388,7 +388,7 @@ model ReturnRequest {
 }
 
 model Withdrawal {
-  id                 String           @id @default(cuid())
+ id                 String           @id @default(cuid())
   sellerId           String
   amount             Float
   currency           String           @default("INR")
@@ -399,7 +399,7 @@ model Withdrawal {
   failedReason       String?
   createdAt          DateTime         @default(now()) @db.Timestamptz(3)
   updatedAt          DateTime         @updatedAt @db.Timestamptz(3)
-  paymentMethod      String?
+  paymentMethod      String?          // Add this field
   paymentDetails     Json?
   remarks            String?
   completedAt        DateTime?        @db.Timestamptz(3)
