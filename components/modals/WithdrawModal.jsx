@@ -462,6 +462,9 @@ const WithdrawModal = ({ isOpen, onClose, maxAmount = 0, onSubmit, savedBankDeta
     { id: 'UPI', name: 'UPI', icon: QrCodeIcon }
   ];
   
+  // Payment gateway charge constant
+  const PAYMENT_GATEWAY_CHARGE = 6;
+  
   // Payment details state for each method
   const [paymentDetails, setPaymentDetails] = useState({
     UPI: {
@@ -613,7 +616,9 @@ const WithdrawModal = ({ isOpen, onClose, maxAmount = 0, onSubmit, savedBankDeta
       if (value !== '' && parseFloat(value) > maxAmount) {
         setError('Amount cannot exceed available balance.');
       } else if (value !== '' && parseFloat(value) <= 0) {
-          setError('Amount must be greater than zero.');
+        setError('Amount must be greater than zero.');
+      } else if (value !== '' && parseFloat(value) < PAYMENT_GATEWAY_CHARGE) {
+        setError(`Minimum withdrawal amount is ₹${PAYMENT_GATEWAY_CHARGE}.`);
       }
     }
   };
@@ -647,6 +652,10 @@ const WithdrawModal = ({ isOpen, onClose, maxAmount = 0, onSubmit, savedBankDeta
       setError('Amount cannot exceed available balance.');
       return;
     }
+    if (numericAmount < PAYMENT_GATEWAY_CHARGE) {
+      setError(`Minimum withdrawal amount is ₹${PAYMENT_GATEWAY_CHARGE}.`);
+      return;
+    }
     
     // Validate payment details
     const isPaymentDetailsValid = validateCurrentPaymentMethod();
@@ -667,7 +676,9 @@ const WithdrawModal = ({ isOpen, onClose, maxAmount = 0, onSubmit, savedBankDeta
           amount: numericAmount, 
           paymentMethod,
           paymentDetails: methodDetails,
-          remarks
+          remarks,
+          transactionFee: PAYMENT_GATEWAY_CHARGE,
+          finalAmount: numericAmount - PAYMENT_GATEWAY_CHARGE
         });
         
         const response = await authFetch('/api/seller/payouts/withdraw', {
@@ -676,7 +687,9 @@ const WithdrawModal = ({ isOpen, onClose, maxAmount = 0, onSubmit, savedBankDeta
               amount: numericAmount,
               paymentMethod,
               paymentDetails: methodDetails,
-              remarks: remarks || undefined
+              remarks: remarks || undefined,
+              transactionFee: PAYMENT_GATEWAY_CHARGE,
+              finalAmount: numericAmount - PAYMENT_GATEWAY_CHARGE
             }),
         });
 
@@ -803,6 +816,23 @@ const WithdrawModal = ({ isOpen, onClose, maxAmount = 0, onSubmit, savedBankDeta
              />
              <p className="text-xs text-gray-500 mt-1">Cannot exceed available balance: ₹{maxAmount.toFixed(2)}</p>
 
+             {amount && parseFloat(amount) > 0 && parseFloat(amount) >= PAYMENT_GATEWAY_CHARGE && (
+               <div className="mt-3 p-3 bg-gray-50 rounded-md border border-gray-200">
+                 <h4 className="text-sm font-medium text-gray-700 mb-2">Payment Details</h4>
+                 <div className="flex justify-between text-sm mb-1">
+                   <span>Amount to be withdrawn:</span>
+                   <span>₹{parseFloat(amount).toFixed(2)}</span>
+                 </div>
+                 <div className="flex justify-between text-sm mb-1 text-red-600">
+                   <span>Transaction Fee:</span>
+                   <span>- ₹{PAYMENT_GATEWAY_CHARGE.toFixed(2)}</span>
+                 </div>
+                 <div className="flex justify-between text-sm font-medium pt-1 border-t">
+                   <span>Final Amount:</span>
+                   <span>₹{(parseFloat(amount) - PAYMENT_GATEWAY_CHARGE).toFixed(2)}</span>
+                 </div>
+               </div>
+             )}
 
             <label htmlFor="remarks" className="block text-sm font-medium text-gray-700 mt-3 mb-1">
                 Remarks (Optional)
@@ -828,7 +858,7 @@ const WithdrawModal = ({ isOpen, onClose, maxAmount = 0, onSubmit, savedBankDeta
           </button>
           <button
             onClick={handleWithdraw}
-            disabled={!!error || !amount || parseFloat(amount) <= 0 || parseFloat(amount) > maxAmount || isWithdrawing || !!successMessage}
+            disabled={!!error || !amount || parseFloat(amount) <= 0 || parseFloat(amount) < PAYMENT_GATEWAY_CHARGE || parseFloat(amount) > maxAmount || isWithdrawing || !!successMessage}
             className="px-4 py-2 bg-black text-white rounded-md hover:bg-gray-800 disabled:bg-gray-400 disabled:cursor-not-allowed"
           >
             {isWithdrawing ? 'Processing...' : successMessage ? 'Submitted!' : 'Withdraw Now'}
