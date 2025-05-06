@@ -64,9 +64,17 @@ export async function GET(request) {
           },
         },
         items: {
-          include: {
-            product: true,
-          },
+          select: {
+            id: true,
+            productId: true,
+            productName: true,
+            sellerId: true,
+            quantity: true,
+            size: true,
+            color: true,
+            price: true,
+            discount: true,
+          }
         },
         payment: {
           select: {
@@ -102,4 +110,4 @@ export async function GET(request) {
   } finally {
     await prisma.$disconnect();
   }
-} 
+}
