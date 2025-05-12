@@ -17,23 +17,51 @@ export async function GET(request) {
       );
     }
 
-    // Get all products with seller details
+    // Get all products with sellerId
     const products = await prisma.product.findMany({
-      include: {
-        seller: {
-          select: {
-            id: true,
-            shopName: true,
-            ownerName: true,
-          },
-        },
+      select: {
+        id: true,
+        name: true,
+        description: true,
+        mrpPrice: true,
+        sellingPrice: true,
+        images: true,
+        category: true,
+        subcategory: true,
+        sizeQuantities: true,
+        isActive: true,
+        createdAt: true,
+        updatedAt: true,
+        sellerId: true,
+        variantGroupId: true,
+        isReturnable: true
       },
       orderBy: {
         createdAt: 'desc'
       }
     });
 
-    return NextResponse.json(products);
+    // Fetch seller data separately for each product
+    const productsWithSellerData = await Promise.all(
+      products.map(async (product) => {
+        const seller = await prisma.seller.findUnique({
+          where: { id: product.sellerId },
+          select: {
+            id: true,
+            shopName: true,
+            ownerName: true,
+            phone: true
+          }
+        });
+        
+        return {
+          ...product,
+          seller
+        };
+      })
+    );
+
+    return NextResponse.json(productsWithSellerData);
   } catch (error) {
     console.error("Error fetching products:", error);
     return NextResponse.json(

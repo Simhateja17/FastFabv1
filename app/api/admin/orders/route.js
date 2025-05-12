@@ -39,8 +39,7 @@ export async function GET(request) {
     if (search) {
       where.OR = [
         { orderNumber: { contains: search, mode: 'insensitive' } },
-        { user: { name: { contains: search, mode: 'insensitive' } } },
-        { user: { email: { contains: search, mode: 'insensitive' } } }
+        // Remove user-related search criteria as we'll handle that differently
       ];
     }
     
@@ -54,15 +53,25 @@ export async function GET(request) {
       skip,
       take: limit,
       orderBy,
-      include: {
-        user: {
-          select: {
-            id: true,
-            name: true,
-            email: true,
-            phone: true,
-          },
-        },
+      select: {
+        id: true,
+        orderNumber: true,
+        userId: true,
+        totalAmount: true,
+        status: true,
+        paymentStatus: true,
+        paymentMethod: true,
+        createdAt: true,
+        updatedAt: true,
+        estimatedDelivery: true,
+        deliveredAt: true,
+        cancelledAt: true,
+        shippingFee: true,
+        discount: true,
+        tax: true,
+        notes: true,
+        deliveryNotes: true,
+        trackingNumber: true,
         items: {
           select: {
             id: true,
@@ -73,18 +82,52 @@ export async function GET(request) {
             size: true,
             color: true,
             price: true,
-            discount: true,
-          }
-        },
-        payment: {
-          select: {
-            status: true,
-            paymentId: true,
-            method: true
+            discount: true
           }
         }
-      },
+      }
     });
+    
+    // Get user information and enhance order data
+    const enhancedOrders = await Promise.all(
+      orders.map(async (order) => {
+        // Get user information for this order
+        const user = await prisma.user.findUnique({
+          where: { id: order.userId },
+          select: {
+            id: true,
+            name: true,
+            email: true,
+            phone: true
+          }
+        });
+        
+        // Add seller information to order items
+        const itemsWithSellers = await Promise.all(
+          order.items.map(async (item) => {
+            const seller = await prisma.seller.findUnique({
+              where: { id: item.sellerId },
+              select: {
+                id: true,
+                shopName: true,
+                phone: true
+              }
+            });
+            
+            return {
+              ...item,
+              seller
+            };
+          })
+        );
+        
+        return {
+          ...order,
+          user,
+          items: itemsWithSellers
+        };
+      })
+    );
     
     // Get total count for pagination
     const total = await prisma.order.count({ where });
@@ -93,7 +136,7 @@ export async function GET(request) {
     const pages = Math.ceil(total / limit);
 
     return NextResponse.json({
-      orders,
+      orders: enhancedOrders,
       pagination: {
         total,
         page,

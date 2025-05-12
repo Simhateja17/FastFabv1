@@ -49,15 +49,15 @@ export async function GET(request) {
         },
         skip,
         take: limit,
-        include: {
-          // Include User data to get user name
-          user: {
-            select: {
-              id: true,
-              name: true,
-              email: true
-            }
-          }
+        select: {
+          id: true,
+          orderId: true,
+          userId: true,
+          reason: true,
+          status: true,
+          productName: true,
+          amount: true,
+          submittedAt: true,
         }
       }),
       prisma.returnRequest.count({
@@ -65,12 +65,33 @@ export async function GET(request) {
       })
     ]);
     
+    // Fetch user data separately for each return request
+    const returnRequestsWithUserData = await Promise.all(
+      returnRequests.map(async (request) => {
+        const user = await prisma.user.findUnique({
+          where: { id: request.userId },
+          select: {
+            id: true,
+            name: true,
+            email: true
+          }
+        });
+        
+        return {
+          ...request,
+          userName: user?.name || "Unknown User",
+          userEmail: user?.email
+        };
+      })
+    );
+    
     // Format the returns data for frontend
-    const formattedReturns = returnRequests.map(request => ({
+    const formattedReturns = returnRequestsWithUserData.map(request => ({
       id: request.id,
       orderId: request.orderId,
       userId: request.userId,
-      userName: request.user?.name || "Unknown User",
+      userName: request.userName,
+      userEmail: request.userEmail,
       productName: request.productName || "Unknown Product",
       returnReason: request.reason || "No reason provided",
       status: request.status,
