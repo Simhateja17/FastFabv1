@@ -1,0 +1,78 @@
+
+# Action Plan for Implementing the Business Logic
+
+Great! Now that the database migration is successful and the basic error is resolved, here's a step-by-step action plan to implement your business logic:
+
+## 1. Backend Modifications (earnings.service.js)
+
+1. **Update Commission Calculation Logic**:
+   - Replace the fixed 10% commission with variable rates (8% for returnable, 12% for non-returnable)
+   - Modify the `getEarningsStats` function to check the `isReturnable` property of products
+
+2. **Implement Return Window Logic**:
+   - Add logic to track items in the 24-hour return window
+   - Create a new function to calculate "In Return Window Amount"
+   - Update balance calculation to only include non-returnable items immediately and returnable items after the window closes
+
+3. **Enhance Transaction Tracking**:
+   - Add a new status for items in return window
+   - Track when items exit the return window and are added to available balance
+   - Implement logic to handle returns during the window period
+
+## 2. Schema Enhancements
+
+1. **Add Return Window Tracking**:
+   - Consider adding fields to `OrderItem` or creating a new model to track:
+     - Return window start/end timestamps
+     - Return window status (active, completed, returned)
+     - When balance was credited for returnable items
+
+2. **Update Transaction Models**:
+   - Ensure the transaction records can distinguish between immediate earnings and post-window earnings
+
+## 3. Frontend Modifications
+
+1. **Update Dashboard UI**:
+   - Remove "Total Payouts" and "Refunds" boxes
+   - Add "In Return Window Amount" display
+   - Update the earnings breakdown to show the distinction between immediate and pending earnings
+
+2. **Transaction List Updates**:
+   - Add visual indicators for items in return window
+   - Update transaction history to show when items exit the window and are added to balance
+
+## 4. API Endpoints
+
+1. **Enhance Earnings API**:
+   - Update the earnings endpoint to include return window amounts
+   - Create new endpoints if needed to track return window status
+
+## 5. Testing Plan
+
+1. **Test Scenarios**:
+   - Test purchasing both returnable and non-returnable items
+   - Test the 24-hour window functionality
+   - Test returns during the window period
+   - Test commission calculations for both item types
+
+## 6. Migration Strategy
+
+1. **Data Migration**:
+   - Plan for handling existing orders in the system
+   - Consider how to retroactively apply return window logic to recent orders
+
+## Implementation Priority
+
+1. **Phase 1 (Core Logic)**:
+   - Variable commission rates
+   - Basic return window tracking
+
+2. **Phase 2 (Enhanced Features)**:
+   - Complete UI updates
+   - Detailed transaction history
+
+3. **Phase 3 (Optimization)**:
+   - Performance improvements
+   - Advanced reporting
+
+Would you like me to provide more detailed code examples for any specific part of this action plan?
