@@ -99,12 +99,7 @@ export async function GET(request) {
           sellingPrice: true,
           isActive: true,
           images: true,
-          seller: {
-            select: {
-              id: true,
-              shopName: true
-            }
-          }
+          sellerId: true,
         }
       }),
       
@@ -130,6 +125,24 @@ export async function GET(request) {
       })
     ]);
 
+    // Add seller information to recent products
+    const productsWithSellers = await Promise.all(
+      recentProducts.map(async (product) => {
+        const seller = await prisma.seller.findUnique({
+          where: { id: product.sellerId },
+          select: {
+            id: true,
+            shopName: true
+          }
+        });
+        
+        return {
+          ...product,
+          seller
+        };
+      })
+    );
+
     // Format the data to return
     const stats = {
       sellersCount,
@@ -145,7 +158,7 @@ export async function GET(request) {
     return NextResponse.json({
       stats,
       recentSellers,
-      recentProducts,
+      recentProducts: productsWithSellers,
       recentOrders
     });
     
