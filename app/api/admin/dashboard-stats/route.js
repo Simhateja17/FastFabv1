@@ -15,7 +15,7 @@ export async function GET(request) {
         { status: authResult.status || 401 }
       );
     }
-    // Hi
+    // Hi Bye
     // Fetch all the dashboard statistics in parallel
     const [
       sellersCount,
