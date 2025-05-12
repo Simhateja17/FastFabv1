@@ -33,6 +33,13 @@ function CheckoutContent() {
   const [cashfreeInstance, setCashfreeInstance] = useState(null);
   const [isProcessingPayment, setIsProcessingPayment] = useState(false);
   
+  // Promo code states
+  const [promoCode, setPromoCode] = useState("");
+  const [promoCodeError, setPromoCodeError] = useState(null);
+  const [promoCodeSuccess, setPromoCodeSuccess] = useState(null);
+  const [appliedPromoCode, setAppliedPromoCode] = useState(null);
+  const [isApplyingPromoCode, setIsApplyingPromoCode] = useState(false);
+  
   useEffect(() => {
     const initializeCheckout = async () => {
       setLoading(true);
@@ -185,8 +192,11 @@ function CheckoutContent() {
   const deliveryFee = 40; // Define Delivery Fee
   const convenienceFee = 10; // Define Convenience Fee
 
-  // Update total calculation
-  const total = subtotal + deliveryFee + convenienceFee;
+  // Calculate discount from promo code
+  const promoDiscount = appliedPromoCode ? appliedPromoCode.discountAmount : 0;
+
+  // Update total calculation with promo discount
+  const total = subtotal + deliveryFee + convenienceFee - promoDiscount;
   
   // Calculate original MRP and discount
   const calculateTotalMRP = () => {
@@ -203,6 +213,57 @@ function CheckoutContent() {
   
   const totalMRP = calculateTotalMRP();
   const discountOnMRP = totalMRP > subtotal ? totalMRP - subtotal : 0;
+  
+  // Handle promo code application
+  const handleApplyPromoCode = async () => {
+    // Reset states
+    setPromoCodeError(null);
+    setPromoCodeSuccess(null);
+    
+    if (!promoCode.trim()) {
+      setPromoCodeError("Please enter a promo code");
+      return;
+    }
+    
+    setIsApplyingPromoCode(true);
+    
+    try {
+      const response = await fetch('/api/promo-code/validate', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          code: promoCode,
+          orderTotal: subtotal
+        })
+      });
+      
+      const data = await response.json();
+      
+      if (!response.ok || !data.success) {
+        setPromoCodeError(data.error || "Failed to apply promo code");
+        setAppliedPromoCode(null);
+      } else {
+        setPromoCodeSuccess(`Promo code applied! You saved ₹${data.promoCode.discountAmount}`);
+        setAppliedPromoCode(data.promoCode);
+      }
+    } catch (error) {
+      console.error("Error applying promo code:", error);
+      setPromoCodeError("An error occurred while applying the promo code");
+      setAppliedPromoCode(null);
+    } finally {
+      setIsApplyingPromoCode(false);
+    }
+  };
+  
+  // Handle removing promo code
+  const handleRemovePromoCode = () => {
+    setAppliedPromoCode(null);
+    setPromoCode("");
+    setPromoCodeSuccess(null);
+    setPromoCodeError(null);
+  };
   
   const handlePlaceOrder = async () => {
     if (checkoutItems.length === 0) {
@@ -242,10 +303,11 @@ function CheckoutContent() {
           productName: item.name, // Pass product name if available
           sellerId: item.sellerId // Use the actual sellerId from the item
         })),
-        totalAmount: total, // Use the updated total
+        totalAmount: total, // Use the updated total with promo discount
         paymentMethod: 'UPI', // Send 'UPI' instead of 'ONLINE'
         shippingCost: deliveryFee, // Add delivery fee
         convenienceFee: convenienceFee, // Add convenience fee
+        discount: promoDiscount, // Add promo discount
         // Include other relevant fields like tax, discount if calculated
       };
       
@@ -292,6 +354,24 @@ function CheckoutContent() {
         throw new Error(internalOrderResult.error || 'Failed to save order before payment.');
       }
       console.log(`Internal order ${internalOrderResult.order?.id} created successfully.`);
+
+      // Apply promo code if one is used
+      if (appliedPromoCode) {
+        try {
+          await fetch('/api/promo-code/apply', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              code: appliedPromoCode.code,
+              orderId: internalOrderResult.order.id,
+              discountAmount: appliedPromoCode.discountAmount
+            })
+          });
+        } catch (promoError) {
+          console.error("Error recording promo code usage:", promoError);
+          // Continue with checkout even if promo recording fails
+        }
+      }
 
       // --- 2. Create Cashfree Payment Order ---
       const customerDetailsPayload = {
@@ -445,7 +525,52 @@ function CheckoutContent() {
                 ))}
               </div>
               
-              <div className="border-t border-gray-200 pt-4">
+              {/* Promo Code Section */}
+              <div className="border-t border-gray-200 pt-4 mt-4">
+                <h3 className="text-base font-medium text-gray-800 mb-3">HAVE A PROMO CODE?</h3>
+                
+                <div className="flex items-center space-x-2">
+                  <input
+                    type="text"
+                    value={promoCode}
+                    onChange={(e) => setPromoCode(e.target.value.toUpperCase())}
+                    placeholder="Enter promo code"
+                    disabled={!!appliedPromoCode || isApplyingPromoCode}
+                    className="flex-grow border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                  />
+                  
+                  {appliedPromoCode ? (
+                    <button
+                      onClick={handleRemovePromoCode}
+                      className="bg-gray-200 hover:bg-gray-300 text-gray-800 px-4 py-2 rounded-md text-sm font-medium transition-colors"
+                    >
+                      Remove
+                    </button>
+                  ) : (
+                    <button
+                      onClick={handleApplyPromoCode}
+                      disabled={isApplyingPromoCode || !promoCode.trim()}
+                      className={`px-4 py-2 rounded-md text-sm font-medium transition-colors border border-gray-400 ${
+                        isApplyingPromoCode || !promoCode.trim()
+                          ? 'bg-gray-200 text-gray-500 cursor-not-allowed'
+                          : 'bg-gray-200 text-black hover:bg-gray-300'
+                      }`}
+                    >
+                      {isApplyingPromoCode ? 'Applying...' : 'Apply'}
+                    </button>
+                  )}
+                </div>
+                
+                {promoCodeError && (
+                  <p className="text-red-500 text-xs mt-1">{promoCodeError}</p>
+                )}
+                
+                {promoCodeSuccess && (
+                  <p className="text-green-500 text-xs mt-1">{promoCodeSuccess}</p>
+                )}
+              </div>
+              
+              <div className="border-t border-gray-200 pt-4 mt-4">
                 <h3 className="text-base font-medium text-gray-800 mb-3">PRICE DETAILS ({checkoutItems.reduce((total, item) => total + item.quantity, 0)} {checkoutItems.reduce((total, item) => total + item.quantity, 0) > 1 ? 'Items' : 'Item'})</h3>
                 
                 <div className="space-y-3">
@@ -472,6 +597,14 @@ function CheckoutContent() {
                     <span className="text-gray-600">Convenience Fee</span>
                     <span>₹{convenienceFee}</span>
                   </div>
+                  
+                  {/* Add Promo Discount Display */}
+                  {promoDiscount > 0 && (
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">Promo Discount</span>
+                      <span className="text-green-600">-₹{promoDiscount}</span>
+                    </div>
+                  )}
                   
                   <div className="border-t border-gray-200 pt-3 mt-2">
                     <div className="flex justify-between font-semibold">

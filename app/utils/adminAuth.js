@@ -1,16 +1,30 @@
 import jwt from 'jsonwebtoken';
+import { cookies } from 'next/headers';
 
 /**
- * Verify admin authentication from request headers
+ * Verify admin authentication from request headers or cookies
  * @param {Request} request - The Next.js API route request object
  * @returns {Object} Auth result with success status and optional admin data
  */
 export async function verifyAdminAuth(request) {
   try {
-    // Get Authorization header
-    const authHeader = request.headers.get('Authorization');
+    let token = null;
     
-    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    // Try to get token from Authorization header first
+    const authHeader = request.headers.get('Authorization');
+    if (authHeader && authHeader.startsWith('Bearer ')) {
+      token = authHeader.split(' ')[1];
+    } 
+    
+    // If no token from header, try cookies
+    if (!token) {
+      const cookieStore = await cookies();
+      token = cookieStore.get('adminToken')?.value || 
+              cookieStore.get('adminAccessToken')?.value ||
+              cookieStore.get('token')?.value;
+    }
+    
+    if (!token) {
       return { 
         success: false, 
         message: 'Authentication required',
@@ -18,9 +32,6 @@ export async function verifyAdminAuth(request) {
       };
     }
 
-    // Extract token
-    const token = authHeader.split(' ')[1];
-    
     // Verify token
     try {
       // Use environment variable for JWT secret (with fallback)
@@ -28,8 +39,12 @@ export async function verifyAdminAuth(request) {
       
       const decoded = jwt.verify(token, jwtSecret);
       
-      // Verify it's an admin token
-      if (!decoded.adminId || decoded.role !== 'superadmin') {
+      // Accept different admin role formats
+      const isAdmin = 
+        (decoded.adminId && decoded.role === 'superadmin') || 
+        (decoded.role && ['admin', 'superadmin', 'ADMIN', 'SUPER_ADMIN'].includes(decoded.role));
+      
+      if (!isAdmin) {
         return { 
           success: false, 
           message: 'Admin privileges required',
@@ -39,8 +54,9 @@ export async function verifyAdminAuth(request) {
       
       return { 
         success: true,
-        adminId: decoded.adminId,
-        role: decoded.role
+        adminId: decoded.adminId || decoded.userId || decoded.id,
+        role: decoded.role,
+        token: token
       };
     } catch (tokenError) {
       console.error('Token verification error:', tokenError);
